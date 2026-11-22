@@ -720,7 +720,7 @@ private fun MoneyLandingScreen(
                                 fromWallet.id == toWallet.id -> status = "اختر محفظتين مختلفتين."
                                 fromWallet.currencyCode != toWallet.currencyCode -> status = "التحويل بين عملتين مختلفتين يحتاج سعر صرف واضحاً."
                                 amountMinor == null || amountMinor <= 0L -> status = "أدخل مبلغ تحويل صحيحاً أكبر من صفر."
-                                !com.malekfinance.FinanceLedger.hasSufficientFunds(fromWallet, amountMinor, transactions, transfers) -> status = "رصيد المحفظة المصدر لا يكفي لإتمام التحويل."
+                                !com.malekfinance.FinanceLedger.hasSufficientFunds(fromWallet, amountMinor ?: 0L, transactions, transfers) -> status = "رصيد المحفظة المصدر لا يكفي لإتمام التحويل."
                                 else -> scope.launch {
                                     runCatching {
                                         db.transferDao().insert(FinanceTransfer(
