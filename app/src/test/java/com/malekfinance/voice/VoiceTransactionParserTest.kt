@@ -35,9 +35,9 @@ class VoiceTransactionParserTest {
         assertEquals(null, parsed.kind)
     }
 
-    @Test fun keepsManualReviewWhenNoAmountIsSpoken() {
+    @Test fun detectsExpenseIntentEvenWhenAmountIsMissing() {
         val parsed = VoiceTransactionParser.parse("اشتريت أغراض من السوق")
         assertEquals(null, parsed.amount)
-        assertEquals(null, parsed.kind)
+        assertEquals("EXPENSE", parsed.kind)
     }
 }
