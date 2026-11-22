@@ -79,6 +79,9 @@ data class FinanceTransfer(
 interface FinanceDao {
     @Query("SELECT * FROM transactions ORDER BY createdAt DESC")
     fun observe(): Flow<List<FinanceTransaction>>
+
+    @Query("SELECT * FROM transactions WHERE walletId = :walletId")
+    suspend fun forWallet(walletId: Long): List<FinanceTransaction>
     @Insert suspend fun insert(item: FinanceTransaction)
     @Update suspend fun update(item: FinanceTransaction)
     @Delete suspend fun delete(item: FinanceTransaction)
@@ -100,6 +103,9 @@ interface FinanceWalletDao {
 interface FinanceTransferDao {
     @Query("SELECT * FROM transfers ORDER BY createdAt DESC")
     fun observe(): Flow<List<FinanceTransfer>>
+
+    @Query("SELECT * FROM transfers WHERE fromWalletId = :walletId OR toWalletId = :walletId")
+    suspend fun forWallet(walletId: Long): List<FinanceTransfer>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(transfer: FinanceTransfer): Long
