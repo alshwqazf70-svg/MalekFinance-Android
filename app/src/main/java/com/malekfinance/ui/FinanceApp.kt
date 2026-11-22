@@ -46,8 +46,10 @@ fun FinanceApp(db: FinanceDb) {
     val transfers by db.transferDao().observe().collectAsState(initial = emptyList())
     // Never combine different currencies into one misleading total.
     val yerTransactions = transactions.filter { it.currencyCode == "YER" }
-    val income = yerTransactions.filter { it.kind == "INCOME" }.sumOf { it.amountMinor }
-    val expenses = yerTransactions.filter { it.kind == "EXPENSE" }.sumOf { it.amountMinor }
+    val income = yerTransactions.filter { it.kind == "INCOME" }
+        .fold(java.math.BigInteger.ZERO) { total, row -> total.add(java.math.BigInteger.valueOf(row.amountMinor)) }
+    val expenses = yerTransactions.filter { it.kind == "EXPENSE" }
+        .fold(java.math.BigInteger.ZERO) { total, row -> total.add(java.math.BigInteger.valueOf(row.amountMinor)) }
 
     FinanceTheme {
         CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
@@ -105,8 +107,8 @@ fun FinanceApp(db: FinanceDb) {
 
 @Composable
 private fun HomeDashboard(
-    income: Long,
-    expenses: Long,
+    income: java.math.BigInteger,
+    expenses: java.math.BigInteger,
     transactions: List<FinanceTransaction>,
     modifier: Modifier = Modifier,
     onVoice: () -> Unit,
@@ -572,11 +574,11 @@ private fun normalizeFinanceAmount(value: String): String {
 }
 
 @Composable
-private fun ReportsLandingScreen(income: Long, expenses: Long, count: Int, modifier: Modifier = Modifier) {
+private fun ReportsLandingScreen(income: java.math.BigInteger, expenses: java.math.BigInteger, count: Int, modifier: Modifier = Modifier) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionCard("إجمالي الدخل", formatMoney(income)) }
-        item { SectionCard("إجمالي المصروفات", formatMoney(expenses)) }
-        item { SectionCard("صافي العمليات", formatMoney(income - expenses)) }
+        item { SectionCard("إجمالي الدخل بالريال اليمني", formatMoney(income)) }
+        item { SectionCard("إجمالي المصروفات بالريال اليمني", formatMoney(expenses)) }
+        item { SectionCard("صافي العمليات بالريال اليمني", formatMoney(income.subtract(expenses))) }
         item { SectionCard("عدد العمليات", count.toString(), "الرسوم البيانية والتقارير الزمنية ستضاف في مرحلة التقارير.") }
     }
 }
@@ -791,7 +793,7 @@ private fun SectionCard(title: String, subtitle: String, trailing: String? = nul
     }
 }
 
-private fun formatMoney(minor: Long): String {
-    val value = java.math.BigDecimal.valueOf(minor, 2)
+private fun formatMoney(minor: java.math.BigInteger): String {
+    val value = java.math.BigDecimal(minor, 2)
     return java.text.NumberFormat.getNumberInstance(java.util.Locale("ar")).format(value) + " ر.ي"
 }
