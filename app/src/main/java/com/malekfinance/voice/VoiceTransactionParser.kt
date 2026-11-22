@@ -13,7 +13,7 @@ object VoiceTransactionParser {
         val match = Regex("""\d+(?:[.,]\d{1,2})?""").find(normalized)
         val amount = match?.value?.replace(',', '.')
         val lower = normalized.lowercase()
-        val kind = if (listOf("دخل", "راتب", "استلمت", "قبضت", "إيراد", "ايراد", "حوّل لي", "حصلت").any(lower::contains)) {
+        val kind = if (listOf("دخل", "استلمت", "قبضت", "إيراد", "ايراد", "حوّل لي", "حصلت").any(lower::contains)) {
             "INCOME"
         } else "EXPENSE"
 
