@@ -25,6 +25,16 @@ class VoiceTransactionParserTest {
         assertEquals("مطاعم", parsed.category)
     }
 
+    @Test fun doesNotGuessWhenIncomeAndExpenseIntentAreBothPresent() {
+        val parsed = VoiceTransactionParser.parse("استلمت ١٠٠٠ ثم صرفت ٢٠٠")
+        assertEquals(null, parsed.kind)
+    }
+
+    @Test fun doesNotGuessTransactionTypeFromAmountAndCategoryAlone() {
+        val parsed = VoiceTransactionParser.parse("١٥٠٠ ريال بنزين")
+        assertEquals(null, parsed.kind)
+    }
+
     @Test fun keepsManualReviewWhenNoAmountIsSpoken() {
         val parsed = VoiceTransactionParser.parse("اشتريت أغراض من السوق")
         assertEquals(null, parsed.amount)
