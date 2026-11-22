@@ -29,7 +29,6 @@ import com.malekfinance.FinanceTransaction
 import com.malekfinance.voice.VoiceTransactionParser
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.collectLatest
 
 private enum class FinanceSection(val title: String) {
     HOME("الرئيسية"), TRANSACTIONS("العمليات"), VOICE("الصوت"), REPORTS("التقارير"), MONEY("مالي")
@@ -44,6 +43,7 @@ fun FinanceApp(db: FinanceDb) {
     val expenses = transactions.filter { it.kind == "EXPENSE" }.sumOf { it.amountMinor }
 
     FinanceTheme {
+        CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
         Scaffold(
             containerColor = FinanceColors.Background,
             topBar = {
@@ -84,15 +84,14 @@ fun FinanceApp(db: FinanceDb) {
                 }
             }
         ) { padding ->
-            CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
-                when (section) {
+            when (section) {
                     FinanceSection.HOME -> HomeDashboard(income, expenses, transactions, Modifier.padding(padding), onVoice = { section = FinanceSection.VOICE }, onTransactions = { section = FinanceSection.TRANSACTIONS })
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, Modifier.padding(padding))
                     FinanceSection.VOICE -> VoiceLandingScreen(db, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
                     FinanceSection.MONEY -> MoneyLandingScreen(Modifier.padding(padding))
-                }
             }
+        }
         }
     }
 }
