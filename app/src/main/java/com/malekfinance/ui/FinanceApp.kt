@@ -109,7 +109,10 @@ private fun TransactionListScreen(rows: List<FinanceTransaction>, modifier: Modi
 
 @Composable
 private fun VoiceLandingScreen(modifier: Modifier = Modifier) {
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { }
+    var transcript by remember { mutableStateOf("") }
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        transcript = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
+    }
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             SectionCard("مساعدك المالي الصوتي", "قل مثلاً: صرفت ١٥٠٠ ريال بنزين. ستحتاج إلى مراجعة البيانات في الشاشة الحالية قبل حفظها.")
@@ -132,6 +135,7 @@ private fun VoiceLandingScreen(modifier: Modifier = Modifier) {
                 Text("ابدأ التحدث")
             }
         }
+        if (transcript.isNotBlank()) item { SectionCard("النص الذي تم التعرف عليه", transcript, "هذه نتيجة أولية؛ لم تُحفظ كعملية مالية.") }
         item { Text("ملاحظة: ربط نتيجة التعرف الصوتي بدورة المراجعة والحفظ سيُستكمل في مرحلة الصوت.", color = FinanceColors.TextSecondary) }
     }
 }
