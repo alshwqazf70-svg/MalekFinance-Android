@@ -320,7 +320,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                     Text(row.note, fontWeight = FontWeight.SemiBold)
                                     Text(row.category + " • " + if (row.kind == "INCOME") "دخل" else "مصروف", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                                     Text(
-                                        (if (row.kind == "INCOME") "+" else "−") + formatMoney(row.amountMinor),
+                                        (if (row.kind == "INCOME") "+" else "−") + formatCurrencyMoney(row.amountMinor, row.currencyCode),
                                         color = if (row.kind == "INCOME") FinanceColors.Income else FinanceColors.Expense,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -617,7 +617,7 @@ private fun MoneyLandingScreen(
             item { SectionCard("لم تُنشأ محفظة بعد", "ابدأ بإنشاء محفظتك الرئيسية لتسجيل الدخل والمصروفات.") }
         } else {
             items(wallets, key = { it.id }) { wallet ->
-                val balance = calculateWalletBalance(wallet, transactions, transfers)
+                val balance = com.malekfinance.FinanceLedger.calculateBalance(wallet, transactions, transfers)
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(20.dp),
@@ -629,7 +629,7 @@ private fun MoneyLandingScreen(
                             Text(walletTypeLabel(wallet.walletType), color = FinanceColors.PrimaryLight, style = MaterialTheme.typography.labelMedium)
                         }
                         Text(formatCurrencyMoney(balance, wallet.currencyCode), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                        Text("العملة: \${wallet.currencyCode} • الرصيد الافتتاحي: \${formatCurrencyMoney(wallet.openingBalanceMinor, wallet.currencyCode)}", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Text("العملة: " + wallet.currencyCode + " • الرصيد الافتتاحي: " + formatCurrencyMoney(wallet.openingBalanceMinor, wallet.currencyCode), color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                     }
                 }
             }
@@ -704,10 +704,10 @@ private fun MoneyLandingScreen(
                             FilterChip(selected = toWallet?.id == wallet.id, onClick = { toWalletId = wallet.id }, label = { Text(wallet.name) })
                         }
                     }
-                    OutlinedTextField(value = transferAmount, onValueChange = { transferAmount = it }, modifier = Modifier.fillMaxWidth(), label = { Text("المبلغ (\${fromWallet?.currencyCode ?: "—"})") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                    OutlinedTextField(value = transferAmount, onValueChange = { transferAmount = it }, modifier = Modifier.fillMaxWidth(), label = { Text("المبلغ (" + (fromWallet?.currencyCode ?: "—") + ")") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
                     OutlinedTextField(value = transferNote, onValueChange = { transferNote = it }, modifier = Modifier.fillMaxWidth(), label = { Text("ملاحظة التحويل") }, singleLine = true)
                     if (fromWallet != null && toWallet != null && fromWallet.currencyCode != toWallet.currencyCode) {
-                        Text("لا يمكن تحويل \${fromWallet.currencyCode} إلى \${toWallet.currencyCode} قبل تحديد سعر صرف موثوق.", color = FinanceColors.Expense, style = MaterialTheme.typography.bodySmall)
+                        Text("لا يمكن تحويل " + fromWallet.currencyCode + " إلى " + toWallet.currencyCode + " قبل تحديد سعر صرف موثوق.", color = FinanceColors.Expense, style = MaterialTheme.typography.bodySmall)
                     }
                     Button(
                         onClick = {
@@ -750,29 +750,6 @@ private fun MoneyLandingScreen(
     }
 }
 
-private fun calculateWalletBalance(
-    wallet: FinanceWallet,
-    transactions: List<FinanceTransaction>,
-    transfers: List<FinanceTransfer>
-): java.math.BigInteger {
-    var balance = java.math.BigInteger.valueOf(wallet.openingBalanceMinor)
-    transactions.asSequence()
-        .filter { it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
-        .forEach { transaction ->
-            val amount = java.math.BigInteger.valueOf(transaction.amountMinor)
-            balance = if (transaction.kind == "INCOME") balance.add(amount) else balance.subtract(amount)
-        }
-    transfers.asSequence()
-        .filter { it.currencyCode == wallet.currencyCode }
-        .forEach { transfer ->
-            val amount = java.math.BigInteger.valueOf(transfer.amountMinor)
-            when (wallet.id) {
-                transfer.fromWalletId -> balance = balance.subtract(amount)
-                transfer.toWalletId -> balance = balance.add(amount)
-            }
-        }
-    return balance
-}
 
 private fun formatCurrencyMoney(minor: Long, currencyCode: String): String =
     formatCurrencyMoney(java.math.BigInteger.valueOf(minor), currencyCode)
