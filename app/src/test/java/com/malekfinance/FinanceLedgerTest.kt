@@ -41,6 +41,9 @@ class FinanceLedgerTest {
         val wallet = FinanceWallet(id = 1, name = "نقدية", currencyCode = "YER", openingBalanceMinor = 1_000)
 
         assertTrue(FinanceLedger.hasSufficientFunds(wallet, 700, emptyList(), emptyList()))
+        val outgoing = listOf(FinanceTransfer(fromWalletId = 1, toWalletId = 2, amountMinor = 400, currencyCode = "YER"))
+        assertTrue(FinanceLedger.hasSufficientFunds(wallet, 600, emptyList(), outgoing))
+        assertFalse(FinanceLedger.hasSufficientFunds(wallet, 601, emptyList(), outgoing))
         assertFalse(FinanceLedger.hasSufficientFunds(wallet, 1_001, emptyList(), emptyList()))
         assertFalse(FinanceLedger.hasSufficientFunds(wallet, 0, emptyList(), emptyList()))
         assertFalse(FinanceLedger.hasSufficientFunds(wallet, -1, emptyList(), emptyList()))
