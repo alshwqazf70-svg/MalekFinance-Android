@@ -34,6 +34,7 @@ import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import com.malekfinance.voice.VoiceTransactionParser
+import com.malekfinance.ui.FinanceApp
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -73,7 +74,7 @@ class MainActivity : ComponentActivity() {
         val db = Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
             .addMigrations(FinanceDb.MIGRATION_1_2)
             .build()
-        setContent { FinanceHome(db) }
+        setContent { FinanceApp(db) }
     }
 }
 
@@ -84,7 +85,7 @@ private val muted = Color(0xFFAAA6B5)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FinanceHome(db: FinanceDb) {
+internal fun FinanceHome(db: FinanceDb, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val rows by db.dao().observe().collectAsState(initial = emptyList())
@@ -119,7 +120,7 @@ private fun FinanceHome(db: FinanceDb) {
 
     CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Rtl) {
         MaterialTheme(colorScheme = darkColorScheme(primary = purple, background = background, surface = panel)) {
-            Surface(color = background, modifier = Modifier.fillMaxSize()) {
+            Surface(color = background, modifier = modifier.fillMaxSize()) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().padding(horizontal = 18.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
