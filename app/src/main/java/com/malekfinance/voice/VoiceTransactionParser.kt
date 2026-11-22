@@ -2,7 +2,7 @@ package com.malekfinance.voice
 
 data class ParsedTransaction(
     val amount: String?,
-    val kind: String,
+    val kind: String?,
     val category: String,
     val description: String
 )
@@ -13,9 +13,13 @@ object VoiceTransactionParser {
         val match = Regex("""\d+(?:[.,]\d{1,2})?""").find(normalized)
         val amount = match?.value?.replace(',', '.')
         val lower = normalized.lowercase()
-        val kind = if (listOf("دخل", "استلمت", "قبضت", "إيراد", "ايراد", "حوّل لي", "حصلت").any(lower::contains)) {
-            "INCOME"
-        } else "EXPENSE"
+        val incomeIntent = listOf("دخل", "استلمت", "قبضت", "إيراد", "ايراد", "حوّل لي", "حول لي", "حصلت", "راتب").any(lower::contains)
+        val expenseIntent = listOf("صرف", "صرفت", "دفعت", "اشتريت", "شراء", "مصروف", "كلفني").any(lower::contains)
+        val kind = when {
+            incomeIntent && !expenseIntent -> "INCOME"
+            expenseIntent && !incomeIntent -> "EXPENSE"
+            else -> null
+        }
 
         val category = when {
             listOf("بقالة", "سوبر", "مواد غذائية", "تموين").any(lower::contains) -> "بقالة"
