@@ -32,6 +32,7 @@ import com.malekfinance.FinanceTransfer
 import com.malekfinance.voice.VoiceTransactionParser
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
+import androidx.room.withTransaction
 
 private enum class FinanceSection(val title: String) {
     HOME("الرئيسية"), TRANSACTIONS("العمليات"), VOICE("الصوت"), REPORTS("التقارير"), MONEY("مالي")
@@ -134,7 +135,7 @@ private fun HomeDashboard(
             ) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("صافي العمليات المسجلة بالريال اليمني", color = FinanceColors.TextSecondary)
-                    Text(formatMoney(income - expenses), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = FinanceColors.TextPrimary)
+                    Text(formatMoney(income.subtract(expenses)), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = FinanceColors.TextPrimary)
                     HorizontalDivider(color = FinanceColors.Divider)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -601,6 +602,8 @@ private fun MoneyLandingScreen(
     var transferAmount by remember { mutableStateOf("") }
     var transferNote by remember { mutableStateOf("تحويل داخلي") }
     var status by remember { mutableStateOf<String?>(null) }
+    var isCreatingWallet by remember { mutableStateOf(false) }
+    var isTransferring by remember { mutableStateOf(false) }
 
     LaunchedEffect(wallets) {
         if (fromWalletId == null && wallets.isNotEmpty()) fromWalletId = wallets.first().id
@@ -671,21 +674,25 @@ private fun MoneyLandingScreen(
                                 wallets.any { it.name.equals(name, ignoreCase = true) } -> status = "يوجد بالفعل محفظة بهذا الاسم."
                                 openingMinor == null -> status = "أدخل رصيداً افتتاحياً صحيحاً."
                                 else -> scope.launch {
-                                    runCatching {
+                                    if (isCreatingWallet) return@launch
+                                    isCreatingWallet = true
+                                    try {
                                         db.walletDao().insert(FinanceWallet(name = name, currencyCode = walletCurrency, openingBalanceMinor = openingMinor, walletType = walletType))
-                                    }.onSuccess {
                                         walletName = ""
                                         openingBalance = "0"
                                         status = "تم إنشاء المحفظة بنجاح."
-                                    }.onFailure {
+                                    } catch (_: Exception) {
                                         status = "تعذر إنشاء المحفظة. حاول مرة أخرى."
+                                    } finally {
+                                        isCreatingWallet = false
                                     }
                                 }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = !isCreatingWallet,
                         colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
-                    ) { Text("إنشاء المحفظة") }
+                    ) { Text(if (isCreatingWallet) "جارٍ إنشاء المحفظة..." else "إنشاء المحفظة") }
                 }
             }
         }
@@ -722,26 +729,39 @@ private fun MoneyLandingScreen(
                                 amountMinor == null || amountMinor <= 0L -> status = "أدخل مبلغ تحويل صحيحاً أكبر من صفر."
                                 !com.malekfinance.FinanceLedger.hasSufficientFunds(fromWallet, amountMinor ?: 0L, transactions, transfers) -> status = "رصيد المحفظة المصدر لا يكفي لإتمام التحويل."
                                 else -> scope.launch {
-                                    runCatching {
-                                        db.transferDao().insert(FinanceTransfer(
-                                            fromWalletId = fromWallet.id,
-                                            toWalletId = toWallet.id,
-                                            amountMinor = amountMinor,
-                                            currencyCode = fromWallet.currencyCode,
-                                            note = transferNote.trim()
-                                        ))
-                                    }.onSuccess {
+                                    if (isTransferring) return@launch
+                                    isTransferring = true
+                                    try {
+                                        db.withTransaction {
+                                            val latestTransactions = db.dao().forWallet(fromWallet.id)
+                                            val latestTransfers = db.transferDao().forWallet(fromWallet.id)
+                                            if (!com.malekfinance.FinanceLedger.hasSufficientFunds(fromWallet, amountMinor ?: 0L, latestTransactions, latestTransfers)) {
+                                                throw com.malekfinance.InsufficientWalletFundsException()
+                                            }
+                                            db.transferDao().insert(FinanceTransfer(
+                                                fromWalletId = fromWallet.id,
+                                                toWalletId = toWallet.id,
+                                                amountMinor = amountMinor ?: 0L,
+                                                currencyCode = fromWallet.currencyCode,
+                                                note = transferNote.trim()
+                                            ))
+                                        }
                                         transferAmount = ""
                                         status = "تم تسجيل التحويل الداخلي وتحديث رصيدي المحفظتين."
-                                    }.onFailure {
+                                    } catch (_: com.malekfinance.InsufficientWalletFundsException) {
+                                        status = "رصيد المحفظة المصدر لا يكفي لإتمام التحويل."
+                                    } catch (_: Exception) {
                                         status = "تعذر تسجيل التحويل. لم يتم تعديل أي رصيد."
+                                    } finally {
+                                        isTransferring = false
                                     }
                                 }
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = !isTransferring,
                         colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
-                    ) { Text("تأكيد التحويل") }
+                    ) { Text(if (isTransferring) "جارٍ تنفيذ التحويل..." else "تأكيد التحويل") }
                 }
             }
         }
