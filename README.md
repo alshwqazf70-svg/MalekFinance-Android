@@ -10,7 +10,7 @@ An independent Arabic-first Android personal finance manager. The approved produ
 - **Visual identity:** Dark interface with Neon Purple accents.
 - **Interaction:** Voice is primary; touch and text remain fully supported alternatives.
 - **Language and locale:** Arabic-first, right-to-left (RTL).
-- **Default currency:** Yemeni rial (YER), with a multi-currency-ready design.
+- **Default currency:** Yemeni rial (YER); the current wallet screen supports YER, USD, SAR and AED with separate balances.
 - **Platform:** Native Android; minimum Android 6.0 (API 23).
 - **Offline-first:** Core financial records, calculations and local reports work on-device. Speech recognition availability/offline behavior depends on the device's recognition service.
 
@@ -42,11 +42,13 @@ The `docs/` directory is the canonical reference for product scope and engineeri
 The existing source has been described as containing:
 - Kotlin, Jetpack Compose and Material 3.
 - Arabic-first dark UI and right-to-left layout.
-- Local Room storage for income and expense transactions.
-- Balance, income and expense summaries.
+- Local Room storage for income and expense transactions, wallets and internal transfers (Room schema v3; migration must be verified against an existing v2 database).
+- Wallet creation with opening balances and per-wallet currency balances; transaction entry can select a wallet.
+- Internal transfers are stored separately from income/expense, currently limited to wallets with the same currency and sufficient source balance.
+- Currency-isolated YER dashboard/report totals; balances are not combined across currencies.
 - Manual transaction entry and initial voice-assisted entry.
 - Initial Arabic/Persian numeral normalization and keyword-based category suggestions.
-- Transaction categories and deletion.
+- Transaction categories, editing, deletion, search and filters.
 
 These items still require source review and successful CI/device verification before being treated as release-ready.
 
