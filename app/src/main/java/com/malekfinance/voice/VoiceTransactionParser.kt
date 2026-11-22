@@ -29,7 +29,7 @@ object VoiceTransactionParser {
 
         val description = normalized
             .replace(Regex("""\d+(?:[.,]\d{1,2})?"""), " ")
-            .replace(Regex("""(?i)\b(ريال|ريالات|ر.ي)\b"""), " ")
+            .replace(Regex("""(ريال|ريالات|ر\.ي)"""), " ")
             .replace(Regex("""(صرف|دفعت|دفعتُ|اشتريت|اشتريتُ|دفعت مبلغ|استلمت|قبضت|سجل|سجّل)"""), " ")
             .replace(Regex("""\s+"""), " ")
             .trim()
