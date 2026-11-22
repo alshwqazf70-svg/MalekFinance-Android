@@ -104,7 +104,7 @@ internal fun FinanceHome(db: FinanceDb, modifier: Modifier = Modifier) {
             transcript = words
             amount = parsed.amount.orEmpty()
             note = parsed.description
-            kind = parsed.kind
+            kind = parsed.kind ?: kind
             category = parsed.category
             status = if (parsed.amount == null) "لم أتعرف على المبلغ؛ أدخله يدوياً ثم راجع البيانات" else "راجع نوع المعاملة والمبلغ والوصف قبل الحفظ"
         } else {
