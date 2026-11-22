@@ -54,6 +54,7 @@ interface FinanceDao {
     @Query("SELECT * FROM transactions ORDER BY createdAt DESC")
     fun observe(): Flow<List<FinanceTransaction>>
     @Insert suspend fun insert(item: FinanceTransaction)
+    @Update suspend fun update(item: FinanceTransaction)
     @Delete suspend fun delete(item: FinanceTransaction)
 }
 
