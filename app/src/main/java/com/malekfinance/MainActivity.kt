@@ -11,6 +11,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -29,10 +30,10 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.room.*
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import com.malekfinance.voice.VoiceTransactionParser
-import java.math.BigDecimal
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -175,8 +176,8 @@ private fun FinanceHome(db: FinanceDb) {
                     }
                     item {
                         Text("التصنيف", color = muted)
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("عام", "بقالة", "مطاعم", "مواصلات", "بنزين", "فواتير", "راتب").forEach { item ->
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(listOf("عام", "بقالة", "مطاعم", "مواصلات", "بنزين", "فواتير", "راتب")) { item ->
                                 FilterChip(selected = category == item, onClick = { category = item }, label = { Text(item) })
                             }
                         }
