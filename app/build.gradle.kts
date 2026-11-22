@@ -36,6 +36,7 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.room:room-runtime:2.7.1")
     implementation("androidx.room:room-ktx:2.7.1")
+    implementation("androidx.sqlite:sqlite-ktx:2.5.1")
     ksp("androidx.room:room-compiler:2.7.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
