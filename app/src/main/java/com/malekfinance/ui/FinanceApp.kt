@@ -1,6 +1,8 @@
 package com.malekfinance.ui
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -8,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.BarChart
@@ -16,11 +19,16 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.malekfinance.FinanceDb
 import com.malekfinance.FinanceTransaction
+import com.malekfinance.voice.VoiceTransactionParser
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.flow.collectLatest
 
 private enum class FinanceSection(val title: String) {
@@ -80,7 +88,7 @@ fun FinanceApp(db: FinanceDb) {
                 when (section) {
                     FinanceSection.HOME -> com.malekfinance.FinanceHome(db, Modifier.padding(padding))
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(transactions, Modifier.padding(padding))
-                    FinanceSection.VOICE -> VoiceLandingScreen(Modifier.padding(padding))
+                    FinanceSection.VOICE -> VoiceLandingScreen(db, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
                     FinanceSection.MONEY -> MoneyLandingScreen(Modifier.padding(padding))
                 }
@@ -108,35 +116,190 @@ private fun TransactionListScreen(rows: List<FinanceTransaction>, modifier: Modi
 }
 
 @Composable
-private fun VoiceLandingScreen(modifier: Modifier = Modifier) {
+private fun VoiceLandingScreen(db: FinanceDb, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var transcript by remember { mutableStateOf("") }
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        transcript = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull().orEmpty()
-    }
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        item {
-            SectionCard("مساعدك المالي الصوتي", "قل مثلاً: صرفت ١٥٠٠ ريال بنزين. ستحتاج إلى مراجعة البيانات في الشاشة الحالية قبل حفظها.")
-        }
-        item {
-            Button(
-                onClick = {
-                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-YE")
-                        putExtra(RecognizerIntent.EXTRA_PROMPT, "تحدث عن العملية المالية")
-                    }
-                    runCatching { launcher.launch(intent) }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
-            ) {
-                Icon(Icons.Default.Mic, contentDescription = null)
-                Spacer(Modifier.width(8.dp))
-                Text("ابدأ التحدث")
+    var amount by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var category by remember { mutableStateOf("عام") }
+    var kind by remember { mutableStateOf<String?>(null) }
+    var status by remember { mutableStateOf("تحدث عن العملية، ثم راجع كل التفاصيل قبل الحفظ.") }
+    var hasDraft by remember { mutableStateOf(false) }
+
+    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        if (spoken.isNullOrBlank()) {
+            status = "لم يتم التقاط كلام واضح. يمكنك إعادة المحاولة أو الكتابة يدوياً."
+        } else {
+            val parsed = VoiceTransactionParser.parse(spoken)
+            transcript = spoken
+            amount = parsed.amount.orEmpty()
+            description = parsed.description
+            category = parsed.category
+            kind = parsed.kind
+            hasDraft = true
+            status = when {
+                parsed.amount == null && parsed.kind == null -> "لم أتعرف على المبلغ أو نوع العملية. أكمل البيانات وحدد دخل أو مصروف."
+                parsed.amount == null -> "حدد المبلغ قبل الحفظ."
+                parsed.kind == null -> "لم يتضح هل هي عملية دخل أم مصروف. اختر النوع بنفسك."
+                else -> "راجع المبلغ والنوع والوصف والتصنيف. لن تُحفظ العملية قبل تأكيدك."
             }
         }
-        if (transcript.isNotBlank()) item { SectionCard("النص الذي تم التعرف عليه", transcript, "هذه نتيجة أولية؛ لم تُحفظ كعملية مالية.") }
-        item { Text("ملاحظة: ربط نتيجة التعرف الصوتي بدورة المراجعة والحفظ سيُستكمل في مرحلة الصوت.", color = FinanceColors.TextSecondary) }
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) launchFinanceRecognition(speechLauncher)
+        else status = "إذن الميكروفون مرفوض. يمكنك إدخال العملية يدوياً."
+    }
+
+    fun startListening() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            launchFinanceRecognition(speechLauncher)
+        } else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    fun saveReviewedDraft() {
+        val normalized = normalizeFinanceAmount(amount).replace('٫', '.').replace(',', '.').trim()
+        val minor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
+        val selectedKind = kind
+        if (minor == null || minor <= 0L) {
+            status = "أدخل مبلغاً صحيحاً أكبر من صفر."
+            return
+        }
+        if (selectedKind == null) {
+            status = "اختر نوع العملية: دخل أو مصروف."
+            return
+        }
+        if (description.isBlank()) {
+            status = "أدخل وصفاً للعملية قبل الحفظ."
+            return
+        }
+        scope.launch {
+            db.dao().insert(
+                FinanceTransaction(
+                    amountMinor = minor,
+                    kind = selectedKind,
+                    note = description.trim(),
+                    category = category
+                )
+            )
+            transcript = ""
+            amount = ""
+            description = ""
+            kind = null
+            category = "عام"
+            hasDraft = false
+            status = "تم حفظ العملية التي راجعتها بنجاح."
+        }
+    }
+
+    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(26.dp),
+                colors = CardDefaults.cardColors(containerColor = FinanceColors.SurfaceElevated)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
+                    Surface(
+                        shape = androidx.compose.foundation.shape.CircleShape,
+                        color = FinanceColors.PrimaryTint,
+                        modifier = Modifier.size(84.dp)
+                    ) {
+                        Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
+                            Icon(Icons.Default.Mic, contentDescription = "الميكروفون", tint = FinanceColors.PrimaryLight, modifier = Modifier.size(38.dp))
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("مساعدك المالي الصوتي", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                    Text("مثال: صرفت ١٥٠٠ ريال بنزين", color = FinanceColors.TextSecondary)
+                    Spacer(Modifier.height(14.dp))
+                    Button(
+                        onClick = ::startListening,
+                        modifier = Modifier.fillMaxWidth().height(54.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                    ) {
+                        Icon(Icons.Default.Mic, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("ابدأ التحدث")
+                    }
+                }
+            }
+        }
+        if (transcript.isNotBlank()) {
+            item {
+                SectionCard("العبارة التي سمعتها", transcript, "مسودة للمراجعة فقط")
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(if (hasDraft) "راجع وعدّل قبل الحفظ" else "إدخال يدوي بديل", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("نوع العملية", color = FinanceColors.TextSecondary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(selected = kind == "EXPENSE", onClick = { kind = "EXPENSE" }, label = { Text("مصروف") })
+                        FilterChip(selected = kind == "INCOME", onClick = { kind = "INCOME" }, label = { Text("دخل") })
+                    }
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = { amount = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("المبلغ بالريال اليمني") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true
+                    )
+                    OutlinedTextField(
+                        value = description,
+                        onValueChange = { description = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("وصف العملية") },
+                        singleLine = true
+                    )
+                    Text("التصنيف", color = FinanceColors.TextSecondary)
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("عام", "بقالة", "مطاعم", "مواصلات").forEach { value ->
+                                FilterChip(selected = category == value, onClick = { category = value }, label = { Text(value) })
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("بنزين", "فواتير", "راتب").forEach { value ->
+                                FilterChip(selected = category == value, onClick = { category = value }, label = { Text(value) })
+                            }
+                        }
+                    }
+                    Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    Button(
+                        onClick = ::saveReviewedDraft,
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                    ) {
+                        Text("تأكيد وحفظ العملية")
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun launchFinanceRecognition(launcher: androidx.activity.result.ActivityResultLauncher<Intent>) {
+    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-YE")
+        putExtra(RecognizerIntent.EXTRA_PROMPT, "مثال: صرفت ١٥٠٠ ريال بنزين")
+    }
+    runCatching { launcher.launch(intent) }
+}
+
+private fun normalizeFinanceAmount(value: String): String {
+    val arabic = "٠١٢٣٤٥٦٧٨٩"
+    val persian = "۰۱۲۳۴۵۶۷۸۹"
+    return buildString {
+        value.forEach { ch ->
+            val a = arabic.indexOf(ch)
+            val p = persian.indexOf(ch)
+            append(if (a >= 0) a else if (p >= 0) p else ch)
+        }
     }
 }
 
