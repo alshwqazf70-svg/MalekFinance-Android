@@ -46,6 +46,32 @@ data class FinanceTransaction(
     val kind: String,
     val note: String,
     @ColumnInfo(defaultValue = "'عام'") val category: String = "عام",
+    val createdAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "1") val walletId: Long = 1,
+    @ColumnInfo(defaultValue = "'YER'") val currencyCode: String = "YER"
+)
+
+@Entity(tableName = "wallets")
+data class FinanceWallet(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val name: String,
+    val currencyCode: String = "YER",
+    val openingBalanceMinor: Long = 0,
+    val walletType: String = "CASH",
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(
+    tableName = "transfers",
+    indices = [Index(value = ["fromWalletId"]), Index(value = ["toWalletId"])]
+)
+data class FinanceTransfer(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val fromWalletId: Long,
+    val toWalletId: Long,
+    val amountMinor: Long,
+    val currencyCode: String,
+    val note: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -58,14 +84,80 @@ interface FinanceDao {
     @Delete suspend fun delete(item: FinanceTransaction)
 }
 
-@Database(entities = [FinanceTransaction::class], version = 2, exportSchema = false)
+@Dao
+interface FinanceWalletDao {
+    @Query("SELECT * FROM wallets ORDER BY createdAt ASC, id ASC")
+    fun observe(): Flow<List<FinanceWallet>>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(wallet: FinanceWallet): Long
+
+    @Update
+    suspend fun update(wallet: FinanceWallet)
+}
+
+@Dao
+interface FinanceTransferDao {
+    @Query("SELECT * FROM transfers ORDER BY createdAt DESC")
+    fun observe(): Flow<List<FinanceTransfer>>
+
+    @Insert(onConflict = OnConflictStrategy.ABORT)
+    suspend fun insert(transfer: FinanceTransfer): Long
+}
+
+@Database(
+    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class],
+    version = 3,
+    exportSchema = false
+)
 abstract class FinanceDb : RoomDatabase() {
     abstract fun dao(): FinanceDao
+    abstract fun walletDao(): FinanceWalletDao
+    abstract fun transferDao(): FinanceTransferDao
+
     companion object {
+        private const val DEFAULT_WALLET_SQL =
+            "INSERT OR IGNORE INTO wallets(id, name, currencyCode, openingBalanceMinor, walletType, createdAt) " +
+                "VALUES(1, 'المحفظة الرئيسية', 'YER', 0, 'CASH', CAST(strftime('%s','now') AS INTEGER) * 1000)"
+
         val MIGRATION_1_2 = object : Migration(1, 2) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN category TEXT NOT NULL DEFAULT 'عام'")
             }
+        }
+
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS wallets (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "name TEXT NOT NULL, currencyCode TEXT NOT NULL, " +
+                        "openingBalanceMinor INTEGER NOT NULL, walletType TEXT NOT NULL, createdAt INTEGER NOT NULL)"
+                )
+                db.execSQL(DEFAULT_WALLET_SQL)
+                db.execSQL("ALTER TABLE transactions ADD COLUMN walletId INTEGER NOT NULL DEFAULT 1")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN currencyCode TEXT NOT NULL DEFAULT 'YER'")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_walletId ON transactions(walletId)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS transfers (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "fromWalletId INTEGER NOT NULL, toWalletId INTEGER NOT NULL, " +
+                        "amountMinor INTEGER NOT NULL, currencyCode TEXT NOT NULL, " +
+                        "note TEXT NOT NULL, createdAt INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transfers_fromWalletId ON transfers(fromWalletId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transfers_toWalletId ON transfers(toWalletId)")
+            }
+        }
+
+        fun seedDefaultWallet(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS wallets (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "name TEXT NOT NULL, currencyCode TEXT NOT NULL, " +
+                    "openingBalanceMinor INTEGER NOT NULL, walletType TEXT NOT NULL, createdAt INTEGER NOT NULL)"
+            )
+            db.execSQL(DEFAULT_WALLET_SQL)
         }
     }
 }
