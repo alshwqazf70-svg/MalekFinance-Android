@@ -86,8 +86,8 @@ fun FinanceApp(db: FinanceDb) {
         ) { padding ->
             CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
                 when (section) {
-                    FinanceSection.HOME -> com.malekfinance.FinanceHome(db, Modifier.padding(padding))
-                    FinanceSection.TRANSACTIONS -> TransactionListScreen(transactions, Modifier.padding(padding))
+                    FinanceSection.HOME -> HomeDashboard(income, expenses, transactions, Modifier.padding(padding), onVoice = { section = FinanceSection.VOICE }, onTransactions = { section = FinanceSection.TRANSACTIONS })
+                    FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, Modifier.padding(padding))
                     FinanceSection.VOICE -> VoiceLandingScreen(db, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
                     FinanceSection.MONEY -> MoneyLandingScreen(Modifier.padding(padding))
@@ -98,18 +98,112 @@ fun FinanceApp(db: FinanceDb) {
 }
 
 @Composable
-private fun TransactionListScreen(rows: List<FinanceTransaction>, modifier: Modifier = Modifier) {
+private fun HomeDashboard(
+    income: Long,
+    expenses: Long,
+    transactions: List<FinanceTransaction>,
+    modifier: Modifier = Modifier,
+    onVoice: () -> Unit,
+    onTransactions: () -> Unit
+) {
+    LazyColumn(
+        modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("مرحباً بك 👋", color = FinanceColors.TextSecondary)
+                Text("مالك فاينانس", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+                Text("أموالك تحت سيطرتك، بصوتك فقط", color = FinanceColors.TextSecondary)
+            }
+        }
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(26.dp),
+                colors = CardDefaults.cardColors(containerColor = FinanceColors.SurfaceElevated)
+            ) {
+                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("صافي رصيد العمليات المسجلة", color = FinanceColors.TextSecondary)
+                    Text(formatMoney(income - expenses), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = FinanceColors.TextPrimary)
+                    HorizontalDivider(color = FinanceColors.Divider)
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("إجمالي الدخل", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.labelMedium)
+                            Text(formatMoney(income), color = FinanceColors.Income, fontWeight = FontWeight.Bold)
+                        }
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("إجمالي المصروفات", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.labelMedium)
+                            Text(formatMoney(expenses), color = FinanceColors.Expense, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+        item {
+            Button(
+                onClick = onVoice,
+                modifier = Modifier.fillMaxWidth().height(60.dp),
+                shape = RoundedCornerShape(18.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+            ) {
+                Icon(Icons.Default.Mic, contentDescription = null)
+                Spacer(Modifier.width(10.dp))
+                Text("سجّل عملية بصوتك", fontWeight = FontWeight.Bold)
+            }
+        }
+        item {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text("آخر العمليات", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+                TextButton(onClick = onTransactions) { Text("عرض الكل", color = FinanceColors.PrimaryLight) }
+            }
+        }
+        if (transactions.isEmpty()) {
+            item { SectionCard("لا توجد عمليات حتى الآن", "ابدأ بإضافة أول دخل أو مصروف، وستظهر ملخصاتك هنا.") }
+        } else {
+            items(transactions.take(5), key = { it.id }) { row ->
+                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(16.dp)) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text(row.note, fontWeight = FontWeight.SemiBold)
+                            Text(row.category + " • " + if (row.kind == "INCOME") "دخل" else "مصروف", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text(
+                            (if (row.kind == "INCOME") "+" else "−") + formatMoney(row.amountMinor),
+                            color = if (row.kind == "INCOME") FinanceColors.Income else FinanceColors.Expense,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>, modifier: Modifier = Modifier) {
+    val scope = rememberCoroutineScope()
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         item { Text("جميع العمليات المسجلة على هذا الجهاز", color = FinanceColors.TextSecondary) }
         if (rows.isEmpty()) {
             item { SectionCard("لا توجد عمليات بعد", "أضف أول دخل أو مصروف من الرئيسية.") }
         } else {
             items(rows, key = { it.id }) { row ->
-                SectionCard(
-                    row.note,
-                    row.category + " • " + if (row.kind == "INCOME") "دخل" else "مصروف",
-                    (if (row.kind == "INCOME") "+" else "−") + formatMoney(row.amountMinor)
-                )
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface)
+                ) {
+                    Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Column(Modifier.weight(1f)) {
+                            Text(row.note, fontWeight = FontWeight.SemiBold)
+                            Text(row.category + " • " + if (row.kind == "INCOME") "دخل" else "مصروف", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                            Text((if (row.kind == "INCOME") "+" else "−") + formatMoney(row.amountMinor), color = if (row.kind == "INCOME") FinanceColors.Income else FinanceColors.Expense, fontWeight = FontWeight.Bold)
+                        }
+                        TextButton(onClick = { scope.launch { db.dao().delete(row) } }) { Text("حذف", color = FinanceColors.Expense) }
+                    }
+                }
             }
         }
     }
