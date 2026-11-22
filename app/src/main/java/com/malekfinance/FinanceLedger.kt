@@ -18,7 +18,10 @@ object FinanceLedger {
             .filter { it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
             .forEach { transaction ->
                 val amount = BigInteger.valueOf(transaction.amountMinor)
-                balance = if (transaction.kind == "INCOME") balance.add(amount) else balance.subtract(amount)
+                when (transaction.kind) {
+                    "INCOME" -> balance = balance.add(amount)
+                    "EXPENSE" -> balance = balance.subtract(amount)
+                }
             }
 
         transfers.asSequence()
