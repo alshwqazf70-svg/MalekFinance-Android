@@ -28,6 +28,6 @@ class VoiceTransactionParserTest {
     @Test fun keepsManualReviewWhenNoAmountIsSpoken() {
         val parsed = VoiceTransactionParser.parse("اشتريت أغراض من السوق")
         assertEquals(null, parsed.amount)
-        assertEquals("EXPENSE", parsed.kind)
+        assertEquals(null, parsed.kind)
     }
 }
