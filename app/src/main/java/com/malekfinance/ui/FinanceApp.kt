@@ -27,6 +27,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.malekfinance.FinanceDb
 import com.malekfinance.FinanceTransaction
+import com.malekfinance.FinanceWallet
+import com.malekfinance.FinanceTransfer
 import com.malekfinance.voice.VoiceTransactionParser
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
@@ -40,8 +42,12 @@ private enum class FinanceSection(val title: String) {
 fun FinanceApp(db: FinanceDb) {
     var section by remember { mutableStateOf(FinanceSection.HOME) }
     val transactions by db.dao().observe().collectAsState(initial = emptyList())
-    val income = transactions.filter { it.kind == "INCOME" }.sumOf { it.amountMinor }
-    val expenses = transactions.filter { it.kind == "EXPENSE" }.sumOf { it.amountMinor }
+    val wallets by db.walletDao().observe().collectAsState(initial = emptyList())
+    val transfers by db.transferDao().observe().collectAsState(initial = emptyList())
+    // Never combine different currencies into one misleading total.
+    val yerTransactions = transactions.filter { it.currencyCode == "YER" }
+    val income = yerTransactions.filter { it.kind == "INCOME" }.sumOf { it.amountMinor }
+    val expenses = yerTransactions.filter { it.kind == "EXPENSE" }.sumOf { it.amountMinor }
 
     FinanceTheme {
         CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
@@ -88,9 +94,9 @@ fun FinanceApp(db: FinanceDb) {
             when (section) {
                     FinanceSection.HOME -> HomeDashboard(income, expenses, transactions, Modifier.padding(padding), onVoice = { section = FinanceSection.VOICE }, onTransactions = { section = FinanceSection.TRANSACTIONS })
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, Modifier.padding(padding))
-                    FinanceSection.VOICE -> VoiceLandingScreen(db, Modifier.padding(padding))
+                    FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
-                    FinanceSection.MONEY -> MoneyLandingScreen(Modifier.padding(padding))
+                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, Modifier.padding(padding))
             }
         }
         }
@@ -125,7 +131,7 @@ private fun HomeDashboard(
                 colors = CardDefaults.cardColors(containerColor = FinanceColors.SurfaceElevated)
             ) {
                 Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("صافي رصيد العمليات المسجلة", color = FinanceColors.TextSecondary)
+                    Text("صافي العمليات المسجلة بالريال اليمني", color = FinanceColors.TextSecondary)
                     Text(formatMoney(income - expenses), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = FinanceColors.TextPrimary)
                     HorizontalDivider(color = FinanceColors.Divider)
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -170,7 +176,7 @@ private fun HomeDashboard(
                             Text(row.category + " • " + if (row.kind == "INCOME") "دخل" else "مصروف", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                         }
                         Text(
-                            (if (row.kind == "INCOME") "+" else "−") + formatMoney(row.amountMinor),
+                            (if (row.kind == "INCOME") "+" else "−") + formatCurrencyMoney(row.amountMinor, row.currencyCode),
                             color = if (row.kind == "INCOME") FinanceColors.Income else FinanceColors.Expense,
                             fontWeight = FontWeight.Bold
                         )
@@ -261,7 +267,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                 value = editAmount,
                                 onValueChange = { editAmount = it },
                                 modifier = Modifier.fillMaxWidth(),
-                                label = { Text("المبلغ بالريال اليمني") },
+                                label = { Text("المبلغ بعملة ${row.currencyCode}") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                                 singleLine = true
                             )
@@ -346,7 +352,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
 }
 
 @Composable
-private fun VoiceLandingScreen(db: FinanceDb, modifier: Modifier = Modifier) {
+private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var transcript by remember { mutableStateOf("") }
@@ -356,6 +362,12 @@ private fun VoiceLandingScreen(db: FinanceDb, modifier: Modifier = Modifier) {
     var kind by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf("تحدث عن العملية، ثم راجع كل التفاصيل قبل الحفظ.") }
     var hasDraft by remember { mutableStateOf(false) }
+    var selectedWalletId by remember { mutableStateOf<Long?>(null) }
+    val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
+
+    LaunchedEffect(wallets) {
+        if (selectedWalletId == null && wallets.isNotEmpty()) selectedWalletId = wallets.first().id
+    }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
@@ -404,22 +416,34 @@ private fun VoiceLandingScreen(db: FinanceDb, modifier: Modifier = Modifier) {
             status = "أدخل وصفاً للعملية قبل الحفظ."
             return
         }
+        val wallet = selectedWallet
+        if (wallet == null) {
+            status = "أنشئ محفظة أولاً من قسم مالي."
+            return
+        }
         scope.launch {
-            db.dao().insert(
-                FinanceTransaction(
-                    amountMinor = minor,
-                    kind = selectedKind,
-                    note = description.trim(),
-                    category = category
+            runCatching {
+                db.dao().insert(
+                    FinanceTransaction(
+                        amountMinor = minor,
+                        kind = selectedKind,
+                        note = description.trim(),
+                        category = category,
+                        walletId = wallet.id,
+                        currencyCode = wallet.currencyCode
+                    )
                 )
-            )
-            transcript = ""
-            amount = ""
-            description = ""
-            kind = null
-            category = "عام"
-            hasDraft = false
-            status = "تم حفظ العملية التي راجعتها بنجاح."
+            }.onSuccess {
+                transcript = ""
+                amount = ""
+                description = ""
+                kind = null
+                category = "عام"
+                hasDraft = false
+                status = "تم حفظ العملية في ${wallet.name}."
+            }.onFailure {
+                status = "تعذر حفظ العملية. بيانات المسودة ما زالت موجودة؛ حاول مجدداً."
+            }
         }
     }
 
@@ -470,11 +494,25 @@ private fun VoiceLandingScreen(db: FinanceDb, modifier: Modifier = Modifier) {
                         FilterChip(selected = kind == "EXPENSE", onClick = { kind = "EXPENSE" }, label = { Text("مصروف") })
                         FilterChip(selected = kind == "INCOME", onClick = { kind = "INCOME" }, label = { Text("دخل") })
                     }
+                    Text("المحفظة التي ستُسجّل فيها العملية", color = FinanceColors.TextSecondary)
+                    if (wallets.isEmpty()) {
+                        Text("لا توجد محفظة. أنشئ محفظة من قسم «مالي» أولاً.", color = FinanceColors.Expense)
+                    } else {
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(wallets, key = { it.id }) { wallet ->
+                                FilterChip(
+                                    selected = selectedWallet?.id == wallet.id,
+                                    onClick = { selectedWalletId = wallet.id },
+                                    label = { Text("${wallet.name} (${wallet.currencyCode})") }
+                                )
+                            }
+                        }
+                    }
                     OutlinedTextField(
                         value = amount,
                         onValueChange = { amount = it },
                         modifier = Modifier.fillMaxWidth(),
-                        label = { Text("المبلغ بالريال اليمني") },
+                        label = { Text("المبلغ بعملة ${selectedWallet?.currencyCode ?: "YER"}") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true
                     )
@@ -544,14 +582,218 @@ private fun ReportsLandingScreen(income: Long, expenses: Long, count: Int, modif
 }
 
 @Composable
-private fun MoneyLandingScreen(modifier: Modifier = Modifier) {
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { SectionCard("المحافظ والعملات", "إدارة أرصدتك ومحافظك المتعددة — ضمن المرحلة المالية القادمة.") }
+private fun MoneyLandingScreen(
+    db: FinanceDb,
+    wallets: List<FinanceWallet>,
+    transactions: List<FinanceTransaction>,
+    transfers: List<FinanceTransfer>,
+    modifier: Modifier = Modifier
+) {
+    val scope = rememberCoroutineScope()
+    var walletName by remember { mutableStateOf("") }
+    var openingBalance by remember { mutableStateOf("0") }
+    var walletCurrency by remember { mutableStateOf("YER") }
+    var walletType by remember { mutableStateOf("CASH") }
+    var fromWalletId by remember { mutableStateOf<Long?>(null) }
+    var toWalletId by remember { mutableStateOf<Long?>(null) }
+    var transferAmount by remember { mutableStateOf("") }
+    var transferNote by remember { mutableStateOf("تحويل داخلي") }
+    var status by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(wallets) {
+        if (fromWalletId == null && wallets.isNotEmpty()) fromWalletId = wallets.first().id
+        if (toWalletId == null && wallets.size > 1) toWalletId = wallets.first { it.id != fromWalletId }.id
+    }
+    val fromWallet = wallets.firstOrNull { it.id == fromWalletId } ?: wallets.firstOrNull()
+    val toWallet = wallets.firstOrNull { it.id == toWalletId && it.id != fromWallet?.id }
+        ?: wallets.firstOrNull { it.id != fromWallet?.id }
+
+    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        item {
+            Text("محافظك وأرصدتك", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("كل محفظة تحتفظ برصيدها وعملتها بشكل مستقل؛ لا نجمع عملات مختلفة في رصيد واحد.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+        }
+        if (wallets.isEmpty()) {
+            item { SectionCard("لم تُنشأ محفظة بعد", "ابدأ بإنشاء محفظتك الرئيسية لتسجيل الدخل والمصروفات.") }
+        } else {
+            items(wallets, key = { it.id }) { wallet ->
+                val balance = calculateWalletBalance(wallet, transactions, transfers)
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = FinanceColors.SurfaceElevated)
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(wallet.name, fontWeight = FontWeight.Bold)
+                            Text(walletTypeLabel(wallet.walletType), color = FinanceColors.PrimaryLight, style = MaterialTheme.typography.labelMedium)
+                        }
+                        Text(formatCurrencyMoney(balance, wallet.currencyCode), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                        Text("العملة: \${wallet.currencyCode} • الرصيد الافتتاحي: \${formatCurrencyMoney(wallet.openingBalanceMinor, wallet.currencyCode)}", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("إنشاء محفظة جديدة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    OutlinedTextField(value = walletName, onValueChange = { walletName = it }, modifier = Modifier.fillMaxWidth(), label = { Text("اسم المحفظة") }, singleLine = true)
+                    OutlinedTextField(
+                        value = openingBalance,
+                        onValueChange = { openingBalance = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("الرصيد الافتتاحي ($walletCurrency)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true
+                    )
+                    Text("العملة", color = FinanceColors.TextSecondary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("YER", "USD", "SAR", "AED").forEach { code ->
+                            FilterChip(selected = walletCurrency == code, onClick = { walletCurrency = code }, label = { Text(code) })
+                        }
+                    }
+                    Text("نوع المحفظة", color = FinanceColors.TextSecondary)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("CASH" to "نقدية", "BANK" to "بنكية", "E_WALLET" to "إلكترونية").forEach { (code, label) ->
+                            FilterChip(selected = walletType == code, onClick = { walletType = code }, label = { Text(label) })
+                        }
+                    }
+                    Button(
+                        onClick = {
+                            val name = walletName.trim()
+                            val normalized = normalizeFinanceAmount(openingBalance).replace('٫', '.').replace(',', '.').trim()
+                            val openingMinor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
+                            when {
+                                name.isBlank() -> status = "اكتب اسماً للمحفظة."
+                                wallets.any { it.name.equals(name, ignoreCase = true) } -> status = "يوجد بالفعل محفظة بهذا الاسم."
+                                openingMinor == null -> status = "أدخل رصيداً افتتاحياً صحيحاً."
+                                else -> scope.launch {
+                                    runCatching {
+                                        db.walletDao().insert(FinanceWallet(name = name, currencyCode = walletCurrency, openingBalanceMinor = openingMinor, walletType = walletType))
+                                    }.onSuccess {
+                                        walletName = ""
+                                        openingBalance = "0"
+                                        status = "تم إنشاء المحفظة بنجاح."
+                                    }.onFailure {
+                                        status = "تعذر إنشاء المحفظة. حاول مرة أخرى."
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                    ) { Text("إنشاء المحفظة") }
+                }
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("تحويل بين محافظك", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("التحويل الداخلي لا يُسجّل دخلاً أو مصروفاً. التحويل الحالي متاح بين محافظ العملة نفسها فقط.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    Text("من المحفظة", color = FinanceColors.TextSecondary)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(wallets, key = { it.id }) { wallet ->
+                            FilterChip(selected = fromWallet?.id == wallet.id, onClick = { fromWalletId = wallet.id }, label = { Text(wallet.name) })
+                        }
+                    }
+                    Text("إلى المحفظة", color = FinanceColors.TextSecondary)
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(wallets.filter { it.id != fromWallet?.id }, key = { it.id }) { wallet ->
+                            FilterChip(selected = toWallet?.id == wallet.id, onClick = { toWalletId = wallet.id }, label = { Text(wallet.name) })
+                        }
+                    }
+                    OutlinedTextField(value = transferAmount, onValueChange = { transferAmount = it }, modifier = Modifier.fillMaxWidth(), label = { Text("المبلغ (\${fromWallet?.currencyCode ?: "—"})") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                    OutlinedTextField(value = transferNote, onValueChange = { transferNote = it }, modifier = Modifier.fillMaxWidth(), label = { Text("ملاحظة التحويل") }, singleLine = true)
+                    if (fromWallet != null && toWallet != null && fromWallet.currencyCode != toWallet.currencyCode) {
+                        Text("لا يمكن تحويل \${fromWallet.currencyCode} إلى \${toWallet.currencyCode} قبل تحديد سعر صرف موثوق.", color = FinanceColors.Expense, style = MaterialTheme.typography.bodySmall)
+                    }
+                    Button(
+                        onClick = {
+                            val normalized = normalizeFinanceAmount(transferAmount).replace('٫', '.').replace(',', '.').trim()
+                            val amountMinor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
+                            when {
+                                fromWallet == null || toWallet == null -> status = "أنشئ محفظتين على الأقل لإجراء التحويل."
+                                fromWallet.id == toWallet.id -> status = "اختر محفظتين مختلفتين."
+                                fromWallet.currencyCode != toWallet.currencyCode -> status = "التحويل بين عملتين مختلفتين يحتاج سعر صرف واضحاً."
+                                amountMinor == null || amountMinor <= 0L -> status = "أدخل مبلغ تحويل صحيحاً أكبر من صفر."
+                                else -> scope.launch {
+                                    runCatching {
+                                        db.transferDao().insert(FinanceTransfer(
+                                            fromWalletId = fromWallet.id,
+                                            toWalletId = toWallet.id,
+                                            amountMinor = amountMinor,
+                                            currencyCode = fromWallet.currencyCode,
+                                            note = transferNote.trim()
+                                        ))
+                                    }.onSuccess {
+                                        transferAmount = ""
+                                        status = "تم تسجيل التحويل الداخلي وتحديث رصيدي المحفظتين."
+                                    }.onFailure {
+                                        status = "تعذر تسجيل التحويل. لم يتم تعديل أي رصيد."
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                    ) { Text("تأكيد التحويل") }
+                }
+            }
+        }
+        if (status != null) item { Text(status!!, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall) }
         item { SectionCard("الميزانيات", "تحديد حدود الإنفاق ومتابعتها — لم تُفعّل بعد.") }
         item { SectionCard("الديون والسلف", "تسجيل المستحقات والسداد الجزئي — لم تُفعّل بعد.") }
         item { SectionCard("الادخار", "أهداف الادخار ومتابعة التقدم — لم تُفعّل بعد.") }
         item { SectionCard("الرواتب والفواتير", "الدخل المتكرر والاستحقاقات — لم تُفعّل بعد.") }
     }
+}
+
+private fun calculateWalletBalance(
+    wallet: FinanceWallet,
+    transactions: List<FinanceTransaction>,
+    transfers: List<FinanceTransfer>
+): java.math.BigInteger {
+    var balance = java.math.BigInteger.valueOf(wallet.openingBalanceMinor)
+    transactions.asSequence()
+        .filter { it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
+        .forEach { transaction ->
+            val amount = java.math.BigInteger.valueOf(transaction.amountMinor)
+            balance = if (transaction.kind == "INCOME") balance.add(amount) else balance.subtract(amount)
+        }
+    transfers.asSequence()
+        .filter { it.currencyCode == wallet.currencyCode }
+        .forEach { transfer ->
+            val amount = java.math.BigInteger.valueOf(transfer.amountMinor)
+            when (wallet.id) {
+                transfer.fromWalletId -> balance = balance.subtract(amount)
+                transfer.toWalletId -> balance = balance.add(amount)
+            }
+        }
+    return balance
+}
+
+private fun formatCurrencyMoney(minor: Long, currencyCode: String): String =
+    formatCurrencyMoney(java.math.BigInteger.valueOf(minor), currencyCode)
+
+private fun formatCurrencyMoney(minor: java.math.BigInteger, currencyCode: String): String {
+    val amount = java.math.BigDecimal(minor, 2)
+    val formatted = java.text.NumberFormat.getNumberInstance(java.util.Locale("ar")).format(amount)
+    val suffix = when (currencyCode) {
+        "YER" -> "ر.ي"
+        "USD" -> "$"
+        "SAR" -> "ر.س"
+        "AED" -> "د.إ"
+        else -> currencyCode
+    }
+    return "$formatted $suffix"
+}
+
+private fun walletTypeLabel(type: String): String = when (type) {
+    "BANK" -> "بنكية"
+    "E_WALLET" -> "إلكترونية"
+    else -> "نقدية"
 }
 
 @Composable
