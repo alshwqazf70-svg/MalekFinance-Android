@@ -166,7 +166,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val db = Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
-            .addMigrations(FinanceDb.MIGRATION_1_2)
+            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3)
+            .addCallback(object : RoomDatabase.Callback() {
+                override fun onCreate(db: SupportSQLiteDatabase) {
+                    super.onCreate(db)
+                    FinanceDb.seedDefaultWallet(db)
+                }
+            })
             .build()
         setContent { FinanceApp(db) }
     }
