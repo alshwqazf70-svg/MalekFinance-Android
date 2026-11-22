@@ -6,6 +6,8 @@ import java.math.BigInteger
  * Deterministic, currency-isolated ledger calculations.
  * Transfers are represented separately from income/expense transactions.
  */
+class InsufficientWalletFundsException : IllegalStateException("Insufficient wallet funds")
+
 object FinanceLedger {
     fun calculateBalance(
         wallet: FinanceWallet,
