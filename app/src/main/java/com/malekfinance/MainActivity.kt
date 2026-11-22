@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import com.malekfinance.voice.VoiceTransactionParser
 import com.malekfinance.ui.FinanceApp
+import com.malekfinance.ui.FinanceColors
 import java.text.NumberFormat
 import java.util.Locale
 
@@ -78,10 +79,10 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private val background = Color(0xFF0D0D12)
-private val panel = Color(0xFF191923)
-private val purple = Color(0xFFA855F7)
-private val muted = Color(0xFFAAA6B5)
+private val background = FinanceColors.Background
+private val panel = FinanceColors.Surface
+private val purple = FinanceColors.Primary
+private val muted = FinanceColors.TextSecondary
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -252,4 +253,7 @@ private fun normalizeDigits(value: String): String {
 }
 
 private fun money(valueMinor: Long): String =
-    NumberFormat.getNumberInstance(Locale("ar")).format(valueMinor / 100.0) + " ر.ي"
+    NumberFormat.getNumberInstance(Locale("ar")).apply {
+        minimumFractionDigits = 2
+        maximumFractionDigits = 2
+    }.format(java.math.BigDecimal.valueOf(valueMinor, 2)) + " ر.ي"
