@@ -7,6 +7,7 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -183,24 +184,160 @@ private fun HomeDashboard(
 @Composable
 private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
+    var search by remember { mutableStateOf("") }
+    var kindFilter by remember { mutableStateOf("ALL") }
+    var categoryFilter by remember { mutableStateOf("الكل") }
+    var editingId by remember { mutableStateOf<Long?>(null) }
+    var editAmount by remember { mutableStateOf("") }
+    var editNote by remember { mutableStateOf("") }
+    var editCategory by remember { mutableStateOf("") }
+    var editKind by remember { mutableStateOf("EXPENSE") }
+    var status by remember { mutableStateOf<String?>(null) }
+
+    val categories = rows.map { it.category }.distinct().sorted()
+    val filteredRows = rows.filter { row ->
+        (kindFilter == "ALL" || row.kind == kindFilter) &&
+            (categoryFilter == "الكل" || row.category == categoryFilter) &&
+            (search.isBlank() || row.note.contains(search.trim(), ignoreCase = true) ||
+                row.category.contains(search.trim(), ignoreCase = true) ||
+                row.amountMinor.toString().contains(search.trim()))
+    }
+
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        item { Text("جميع العمليات المسجلة على هذا الجهاز", color = FinanceColors.TextSecondary) }
-        if (rows.isEmpty()) {
-            item { SectionCard("لا توجد عمليات بعد", "أضف أول دخل أو مصروف من الرئيسية.") }
+        item {
+            Text("ابحث بالوصف أو التصنيف أو المبلغ", color = FinanceColors.TextSecondary)
+            OutlinedTextField(
+                value = search,
+                onValueChange = { search = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("بحث في العمليات") },
+                singleLine = true
+            )
+        }
+        item {
+            Text("نوع العملية", color = FinanceColors.TextSecondary)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(selected = kindFilter == "ALL", onClick = { kindFilter = "ALL" }, label = { Text("الكل") })
+                FilterChip(selected = kindFilter == "INCOME", onClick = { kindFilter = "INCOME" }, label = { Text("الدخل") })
+                FilterChip(selected = kindFilter == "EXPENSE", onClick = { kindFilter = "EXPENSE" }, label = { Text("المصروفات") })
+            }
+        }
+        if (categories.isNotEmpty()) {
+            item {
+                Text("التصنيف", color = FinanceColors.TextSecondary)
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    item {
+                        FilterChip(selected = categoryFilter == "الكل", onClick = { categoryFilter = "الكل" }, label = { Text("الكل") })
+                    }
+                    items(categories) { value ->
+                        FilterChip(selected = categoryFilter == value, onClick = { categoryFilter = value }, label = { Text(value) })
+                    }
+                }
+            }
+        }
+        if (status != null) item { Text(status!!, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall) }
+        if (filteredRows.isEmpty()) {
+            item {
+                SectionCard(
+                    if (rows.isEmpty()) "لا توجد عمليات بعد" else "لا توجد نتائج مطابقة",
+                    if (rows.isEmpty()) "أضف أول دخل أو مصروف من الرئيسية." else "غيّر عبارة البحث أو الفلاتر لعرض عمليات أخرى."
+                )
+            }
         } else {
-            items(rows, key = { it.id }) { row ->
+            items(filteredRows, key = { it.id }) { row ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface)
                 ) {
-                    Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) {
-                            Text(row.note, fontWeight = FontWeight.SemiBold)
-                            Text(row.category + " • " + if (row.kind == "INCOME") "دخل" else "مصروف", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
-                            Text((if (row.kind == "INCOME") "+" else "−") + formatMoney(row.amountMinor), color = if (row.kind == "INCOME") FinanceColors.Income else FinanceColors.Expense, fontWeight = FontWeight.Bold)
+                    Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (editingId == row.id) {
+                            Text("تعديل العملية", fontWeight = FontWeight.Bold)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(selected = editKind == "EXPENSE", onClick = { editKind = "EXPENSE" }, label = { Text("مصروف") })
+                                FilterChip(selected = editKind == "INCOME", onClick = { editKind = "INCOME" }, label = { Text("دخل") })
+                            }
+                            OutlinedTextField(
+                                value = editAmount,
+                                onValueChange = { editAmount = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("المبلغ بالريال اليمني") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = editNote,
+                                onValueChange = { editNote = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("الوصف") },
+                                singleLine = true
+                            )
+                            OutlinedTextField(
+                                value = editCategory,
+                                onValueChange = { editCategory = it },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text("التصنيف") },
+                                singleLine = true
+                            )
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(onClick = {
+                                    val normalized = normalizeFinanceAmount(editAmount).replace('٫', '.').replace(',', '.').trim()
+                                    val amountMinor = runCatching {
+                                        normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact()
+                                    }.getOrNull()
+                                    when {
+                                        amountMinor == null || amountMinor <= 0L -> status = "أدخل مبلغاً صحيحاً أكبر من صفر."
+                                        editNote.isBlank() -> status = "لا يمكن حفظ وصف فارغ."
+                                        editCategory.isBlank() -> status = "أدخل تصنيفاً للعملية."
+                                        else -> scope.launch {
+                                            runCatching {
+                                                db.dao().update(row.copy(
+                                                    amountMinor = amountMinor,
+                                                    kind = editKind,
+                                                    note = editNote.trim(),
+                                                    category = editCategory.trim()
+                                                ))
+                                            }.onSuccess {
+                                                editingId = null
+                                                status = "تم تحديث العملية."
+                                            }.onFailure {
+                                                status = "تعذر تحديث العملية. حاول مرة أخرى."
+                                            }
+                                        }
+                                    }
+                                }) { Text("حفظ التعديل") }
+                                TextButton(onClick = { editingId = null }) { Text("إلغاء") }
+                            }
+                        } else {
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                                    Text(row.note, fontWeight = FontWeight.SemiBold)
+                                    Text(row.category + " • " + if (row.kind == "INCOME") "دخل" else "مصروف", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                                    Text(
+                                        (if (row.kind == "INCOME") "+" else "−") + formatMoney(row.amountMinor),
+                                        color = if (row.kind == "INCOME") FinanceColors.Income else FinanceColors.Expense,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                                Column {
+                                    TextButton(onClick = {
+                                        editingId = row.id
+                                        editAmount = java.math.BigDecimal.valueOf(row.amountMinor, 2).stripTrailingZeros().toPlainString()
+                                        editNote = row.note
+                                        editCategory = row.category
+                                        editKind = row.kind
+                                        status = null
+                                    }) { Text("تعديل", color = FinanceColors.PrimaryLight) }
+                                    TextButton(onClick = {
+                                        scope.launch {
+                                            runCatching { db.dao().delete(row) }
+                                                .onSuccess { status = "تم حذف العملية." }
+                                                .onFailure { status = "تعذر حذف العملية. حاول مرة أخرى." }
+                                        }
+                                    }) { Text("حذف", color = FinanceColors.Expense) }
+                                }
+                            }
                         }
-                        TextButton(onClick = { scope.launch { db.dao().delete(row) } }) { Text("حذف", color = FinanceColors.Expense) }
                     }
                 }
             }
