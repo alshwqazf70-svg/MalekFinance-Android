@@ -20,7 +20,6 @@ import androidx.work.workDataOf
 import androidx.room.Room
 import com.malekfinance.FinanceDb
 import com.malekfinance.MainActivity
-import com.malekfinance.R
 import java.util.concurrent.TimeUnit
 
 object BillReminderScheduler {
@@ -65,12 +64,10 @@ class BillReminderWorker(
         val bill = try {
             db.billDao().findById(billId)
         } catch (_: Exception) {
-            db.close()
             return Result.retry()
         } finally {
-            // The worker uses a short-lived database instance; no database handle is retained.
+            db.close()
         }
-        db.close()
 
         if (bill == null || !bill.isActive || bill.nextDueAt != scheduledDueAt) return Result.success()
         if (Build.VERSION.SDK_INT >= 33 &&
