@@ -439,7 +439,11 @@ internal fun FinanceHome(db: FinanceDb, modifier: Modifier = Modifier) {
                                         Text(transaction.category + " • " + if (transaction.kind == "INCOME") "دخل" else "مصروف", color = muted, style = MaterialTheme.typography.bodySmall)
                                     }
                                     Text((if (transaction.kind == "INCOME") "+" else "−") + money(transaction.amountMinor), color = if (transaction.kind == "INCOME") Color(0xFF69D6A2) else Color(0xFFFF8A8A), fontWeight = FontWeight.Bold)
-                                    TextButton(onClick = { scope.launch { db.dao().delete(transaction) } }) { Text("حذف") }
+                                    if (transaction.debtId == null && transaction.savingsGoalId == null) {
+                                        TextButton(onClick = { scope.launch { db.dao().delete(transaction) } }) { Text("حذف") }
+                                    } else {
+                                        Text("حركة مرتبطة بسجل مالي؛ لا يمكن حذفها من هنا", color = muted, style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                             }
                         }
