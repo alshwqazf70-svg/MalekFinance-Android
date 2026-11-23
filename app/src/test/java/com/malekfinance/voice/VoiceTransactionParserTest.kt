@@ -217,4 +217,11 @@ class VoiceTransactionParserTest {
         assertEquals("750", collection.amount)
     }
 
+    @Test fun recognizesPartialDebtPaymentOrCollectionDraft() {
+        val parsed = VoiceTransactionParser.parse("سدد دين أحمد ٣٠٠ ريال")
+        assertEquals(VoiceCommandType.DEBT_PAYMENT_DRAFT, parsed.command)
+        assertEquals("أحمد", parsed.debtPersonName)
+        assertEquals("300", parsed.amount)
+    }
+
 }
