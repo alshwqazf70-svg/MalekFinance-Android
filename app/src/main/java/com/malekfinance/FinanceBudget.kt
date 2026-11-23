@@ -29,7 +29,7 @@ data class FinanceBudget(
 
 @Dao
 interface FinanceBudgetDao {
-    @Query("SELECT * FROM budgets ORDER BY periodStartMillis DESC, categoryName COLLATE NOCASE ASC")
+    @Query("SELECT * FROM budgets ORDER BY periodKey DESC, categoryName COLLATE NOCASE ASC")
     fun observeAll(): Flow<List<FinanceBudget>>
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
@@ -65,13 +65,14 @@ object FinanceBudgetPolicy {
     fun calculateSpent(
         budget: FinanceBudget,
         transactions: List<FinanceTransaction>,
+        monthStartMillis: Long,
         monthEndExclusiveMillis: Long
     ): BigInteger = transactions.asSequence()
         .filter {
             it.kind == "EXPENSE" &&
                 it.category == budget.categoryName &&
                 it.currencyCode == budget.currencyCode &&
-                it.createdAt >= budget.periodStartMillis &&
+                it.createdAt >= monthStartMillis &&
                 it.createdAt < monthEndExclusiveMillis
         }
         .fold(BigInteger.ZERO) { total, transaction ->
