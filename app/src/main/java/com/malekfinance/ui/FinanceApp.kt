@@ -861,6 +861,85 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 SectionCard("العبارة التي سمعتها", transcript, "مسودة للمراجعة فقط")
             }
         }
+        if (hasDebtDraft) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("مراجعة الدين الصوتي", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        OutlinedTextField(
+                            value = debtPersonDraft,
+                            onValueChange = { debtPersonDraft = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("اسم الشخص أو الجهة") },
+                            singleLine = true,
+                            enabled = !isDebtSaving
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = debtTypeDraft == "OWED_BY_ME",
+                                onClick = { debtTypeDraft = "OWED_BY_ME" },
+                                enabled = !isDebtSaving,
+                                label = { Text("أنا مدين") }
+                            )
+                            FilterChip(
+                                selected = debtTypeDraft == "OWED_TO_ME",
+                                onClick = { debtTypeDraft = "OWED_TO_ME" },
+                                enabled = !isDebtSaving,
+                                label = { Text("لي عنده") }
+                            )
+                        }
+                        OutlinedTextField(
+                            value = debtAmountDraft,
+                            onValueChange = { debtAmountDraft = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("المبلغ الأصلي للدين") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            enabled = !isDebtSaving
+                        )
+                        OutlinedTextField(
+                            value = debtDescriptionDraft,
+                            onValueChange = { debtDescriptionDraft = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("وصف الدين (اختياري)") },
+                            singleLine = true,
+                            enabled = !isDebtSaving
+                        )
+                        Text("محفظة الدين", color = FinanceColors.TextSecondary)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(wallets, key = { it.id }) { item ->
+                                FilterChip(
+                                    selected = debtWalletDraftId == item.id,
+                                    onClick = { debtWalletDraftId = item.id },
+                                    enabled = !isDebtSaving,
+                                    label = { Text(item.name + " · " + item.currencyCode) }
+                                )
+                            }
+                        }
+                        Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = debtRecordCashMovement,
+                                onCheckedChange = { debtRecordCashMovement = it },
+                                enabled = !isDebtSaving
+                            )
+                            Text("تحديث رصيد المحفظة بأصل الدين", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Button(
+                            onClick = ::confirmVoiceDebt,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isDebtSaving,
+                            colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                        ) { Text(if (isDebtSaving) "جارٍ تسجيل الدين..." else "مراجعة وتأكيد تسجيل الدين") }
+                        TextButton(
+                            onClick = ::cancelVoiceDraft,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isDebtSaving
+                        ) { Text("إلغاء تسجيل الدين") }
+                    }
+                }
+            }
+        }
         if (hasTransferDraft) {
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
@@ -921,7 +1000,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 }
             }
         }
-        if (!hasTransferDraft) item {
+        if (!hasTransferDraft && !hasDebtDraft) item {
             Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(if (hasDraft) "راجع وعدّل قبل الحفظ" else "إدخال يدوي بديل", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
