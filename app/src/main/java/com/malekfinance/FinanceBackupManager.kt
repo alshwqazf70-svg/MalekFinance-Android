@@ -35,7 +35,10 @@ object FinanceBackupManager {
     )
 
     suspend fun export(db: FinanceDb, output: OutputStream, password: CharArray) {
-        require(password.size >= 8) { "Backup password must contain at least 8 characters" }
+        if (password.size < 8) {
+            password.fill('\u0000')
+            throw IllegalArgumentException("Backup password must contain at least 8 characters")
+        }
         val payload = db.withTransaction {
             val database = db.openHelper.readableDatabase
             JSONObject()
@@ -96,7 +99,12 @@ object FinanceBackupManager {
                 val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                 cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, nonce))
                 cipher.updateAAD(magicBytes)
-                val plaintext = cipher.doFinal(bytes.copyOfRange(40, bytes.size))
+                val encryptedPayload = bytes.copyOfRange(40, bytes.size)
+                val plaintext = try {
+                    cipher.doFinal(encryptedPayload)
+                } finally {
+                    encryptedPayload.fill(0)
+                }
                 val json = try {
                     JSONObject(String(plaintext, StandardCharsets.UTF_8))
                 } finally {
