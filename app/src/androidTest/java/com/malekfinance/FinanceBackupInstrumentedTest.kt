@@ -83,6 +83,24 @@ class FinanceBackupInstrumentedTest {
     }
 
     @Test
+    fun invalidBackupHeaderStillClearsTheSuppliedPasswordBuffer() = runBlocking {
+        val backup = ByteArrayOutputStream()
+        FinanceBackupManager.export(db, backup, "header-pass".toCharArray())
+        val corrupted = backup.toByteArray().also { it[0] = 0 }
+        val password = "header-pass".toCharArray()
+
+        var failed = false
+        try {
+            FinanceBackupManager.restore(db, ByteArrayInputStream(corrupted), password)
+        } catch (_: Exception) {
+            failed = true
+        }
+
+        assertTrue(failed)
+        assertTrue(password.all { it == '\u0000' })
+    }
+
+    @Test
     fun wrongPasswordDoesNotChangeExistingData() = runBlocking {
         val walletId = db.walletDao().insert(FinanceWallet(name = "النقد", currencyCode = "YER"))
         db.dao().insert(FinanceTransaction(amountMinor = 500, kind = "EXPENSE", note = "محفوظ", walletId = walletId))
