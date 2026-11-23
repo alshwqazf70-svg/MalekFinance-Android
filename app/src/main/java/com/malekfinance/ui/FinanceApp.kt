@@ -660,6 +660,11 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                     Spacer(Modifier.height(12.dp))
                     Text("مساعدك المالي الصوتي", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                     Text("مثال: صرفت ١٥٠٠ ريال بنزين", color = FinanceColors.TextSecondary)
+                    Text(
+                        "قد تعالج خدمة التعرف الموجودة على جهازك الصوت وقد تحتاج إلى الإنترنت. لا يرسل التطبيق سجل معاملاتك المالية إلى خدمة التعرف.",
+                        color = FinanceColors.TextSecondary,
+                        style = MaterialTheme.typography.bodySmall
+                    )
                     Spacer(Modifier.height(14.dp))
                     Button(
                         onClick = ::startListening,
