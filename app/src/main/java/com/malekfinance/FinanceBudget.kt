@@ -16,13 +16,13 @@ import java.util.TimeZone
 
 @Entity(
     tableName = "budgets",
-    indices = [Index(value = ["categoryName", "currencyCode", "periodStartMillis"], unique = true)]
+    indices = [Index(value = ["categoryName", "currencyCode", "periodKey"], unique = true)]
 )
 data class FinanceBudget(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val categoryName: String,
     val currencyCode: String,
-    val periodStartMillis: Long,
+    val periodKey: String,
     val limitMinor: Long,
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -41,7 +41,7 @@ interface FinanceBudgetDao {
 
 /** Month-scoped, currency-isolated budget calculations. */
 object FinanceBudgetPolicy {
-    data class MonthWindow(val startMillis: Long, val endExclusiveMillis: Long)
+    data class MonthWindow(val periodKey: String, val startMillis: Long, val endExclusiveMillis: Long)
 
     fun monthWindow(
         atMillis: Long,
@@ -55,8 +55,11 @@ object FinanceBudgetPolicy {
             set(Calendar.SECOND, 0)
             set(Calendar.MILLISECOND, 0)
         }
+        val year = start.get(Calendar.YEAR)
+        val month = start.get(Calendar.MONTH) + 1
+        val key = String.format(java.util.Locale.ROOT, "%04d-%02d", year, month)
         val end = (start.clone() as Calendar).apply { add(Calendar.MONTH, 1) }
-        return MonthWindow(start.timeInMillis, end.timeInMillis)
+        return MonthWindow(key, start.timeInMillis, end.timeInMillis)
     }
 
     fun calculateSpent(
