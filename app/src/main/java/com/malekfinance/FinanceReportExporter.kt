@@ -128,7 +128,7 @@ object FinanceReportExporter {
 
     private fun csvCell(value: String): String {
         val first = value.firstOrNull()
-        val safe = if (first == '=' || first == '+' || first == '-' || first == '@' || first == '\\t' || first == '\\r') "'$value" else value
+        val safe = if (first == '=' || first == '+' || first == '-' || first == '@' || first == '\t' || first == '\r') "'$value" else value
         return "\"" + safe.replace("\"", "\"\"") + "\""
     }
 
