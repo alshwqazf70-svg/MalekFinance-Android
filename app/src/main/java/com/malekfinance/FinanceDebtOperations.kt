@@ -54,3 +54,49 @@ object FinanceDebtOperations {
         debtId
     }
 }
+
+
+/** Applies a partial or final debt payment and its wallet movement atomically. */
+object FinanceDebtPaymentOperations {
+    suspend fun applyPayment(db: FinanceDb, debtId: Long, amountMinor: Long): Long = db.withTransaction {
+        require(amountMinor > 0L) { "Debt payment must be positive" }
+        val debt = db.debtDao().findById(debtId) ?: error("Debt not found")
+        require(debt.debtType == "OWED_BY_ME" || debt.debtType == "OWED_TO_ME") {
+            "Invalid debt direction"
+        }
+        val payments = db.debtPaymentDao().forDebt(debt.id)
+        check(FinanceDebtPolicy.canApplyPayment(debt.principalMinor, payments, amountMinor)) {
+            "Payment exceeds the outstanding debt"
+        }
+        val wallet = db.walletDao().findById(debt.walletId) ?: error("Wallet not found")
+        check(wallet.currencyCode == debt.currencyCode) { "Debt wallet currency mismatch" }
+
+        if (debt.debtType == "OWED_BY_ME") {
+            val transactions = db.dao().forWallet(wallet.id)
+            val transfers = db.transferDao().forWallet(wallet.id)
+            if (!FinanceLedger.hasSufficientFunds(wallet, amountMinor, transactions, transfers)) {
+                throw InsufficientWalletFundsException()
+            }
+        }
+
+        val transactionId = db.dao().insert(
+            FinanceTransaction(
+                amountMinor = amountMinor,
+                kind = if (debt.debtType == "OWED_BY_ME") "EXPENSE" else "INCOME",
+                note = (if (debt.debtType == "OWED_BY_ME") "سداد دين: " else "تحصيل دين: ") + debt.personName,
+                category = if (debt.debtType == "OWED_BY_ME") "سداد دين" else "تحصيل دين",
+                walletId = wallet.id,
+                currencyCode = wallet.currencyCode,
+                debtId = debt.id
+            )
+        )
+        db.debtPaymentDao().insert(
+            FinanceDebtPayment(
+                debtId = debt.id,
+                transactionId = transactionId,
+                amountMinor = amountMinor
+            )
+        )
+        transactionId
+    }
+}
