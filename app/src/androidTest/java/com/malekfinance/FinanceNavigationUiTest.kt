@@ -66,10 +66,10 @@ class FinanceNavigationUiTest {
     @Test
     fun manualVoiceReviewSavePersistsTransactionToRoom() = runBlocking {
         val walletId = db.walletDao().insert(FinanceWallet(name = "اختبار", currencyCode = "YER"))
+        composeRule.onNodeWithText("الصوت").performClick()
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("اختبار (YER)").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("الصوت").performClick()
         composeRule.onNodeWithText("مصروف").performClick()
         composeRule.onNodeWithText("المبلغ بعملة YER").performTextInput("12.50")
         composeRule.onNodeWithText("وصف العملية").performTextInput("اختبار الحفظ")
