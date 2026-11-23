@@ -64,6 +64,9 @@ interface FinanceBillDao {
 
     @Update
     suspend fun update(bill: FinanceBill)
+
+    @Query("UPDATE bills SET lastReminderOccurrenceKey = :occurrenceKey WHERE id = :billId AND isActive = 1 AND nextDueAt = :dueAt AND (lastReminderOccurrenceKey IS NULL OR lastReminderOccurrenceKey != :occurrenceKey)")
+    suspend fun markReminderDelivered(billId: Long, dueAt: Long, occurrenceKey: String): Int
 }
 
 @Dao
