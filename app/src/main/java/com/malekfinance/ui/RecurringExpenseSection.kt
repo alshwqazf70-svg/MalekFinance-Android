@@ -122,7 +122,7 @@ internal fun RecurringExpenseSection(
             if (frequency == "MONTHLY") {
                 OutlinedTextField(
                     value = monthlyDay,
-                    onValueChange = { monthlyDay = it.filter(Char::isDigit) },
+                    onValueChange = { monthlyDay = it.filter { ch -> ch.isDigit() } },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("يوم الدفع من الشهر (1 إلى 31)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
