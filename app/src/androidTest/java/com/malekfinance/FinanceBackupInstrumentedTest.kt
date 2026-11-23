@@ -39,6 +39,7 @@ class FinanceBackupInstrumentedTest {
         val backup = ByteArrayOutputStream()
         FinanceBackupManager.export(db, backup, "strong-pass-123".toCharArray())
         assertTrue(backup.toByteArray().size > 40)
+        assertTrue(!String(backup.toByteArray(), Charsets.UTF_8).contains("عملية أصلية"))
 
         db.dao().insert(
             FinanceTransaction(amountMinor = 9_999, kind = "EXPENSE", note = "عملية لاحقة", walletId = walletId, currencyCode = "YER")
