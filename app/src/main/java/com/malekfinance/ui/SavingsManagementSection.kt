@@ -30,6 +30,7 @@ internal fun SavingsManagementSection(
     var status by remember { mutableStateOf<String?>(null) }
     var creating by remember { mutableStateOf(false) }
     val amountInputs = remember { mutableStateMapOf<Long, String>() }
+    val withdrawalInputs = remember { mutableStateMapOf<Long, String>() }
     val busyGoals = remember { mutableStateMapOf<Long, Boolean>() }
 
     LaunchedEffect(wallets) {
@@ -163,15 +164,14 @@ internal fun SavingsManagementSection(
                             ) { Text("إضافة مساهمة") }
                         }
                         if (balance.signum() > 0) {
-                            val withdrawalKey = goal.id xor Long.MIN_VALUE
                             OutlinedTextField(
-                                value = amountInputs[withdrawalKey].orEmpty(), onValueChange = { amountInputs[withdrawalKey] = it },
+                                value = withdrawalInputs[goal.id].orEmpty(), onValueChange = { withdrawalInputs[goal.id] = it },
                                 modifier = Modifier.fillMaxWidth(), label = { Text("مبلغ السحب (" + goal.currencyCode + ")") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true
                             )
                             Button(
                                 onClick = {
-                                    val amountMinor = parseSavingsAmount(amountInputs[withdrawalKey].orEmpty())
+                                    val amountMinor = parseSavingsAmount(withdrawalInputs[goal.id].orEmpty())
                                     when {
                                         amountMinor == null || !FinanceSavingsPolicy.canWithdraw(goalEntries, amountMinor) -> status = "مبلغ السحب يجب أن يكون موجباً ولا يتجاوز مدخرات الهدف."
                                         goalWallet == null -> status = "المحفظة المرتبطة بالهدف غير موجودة."
@@ -195,7 +195,7 @@ internal fun SavingsManagementSection(
                                                         entryType = "WITHDRAWAL", amountMinor = amountMinor
                                                     ))
                                                 }
-                                                amountInputs.remove(withdrawalKey)
+                                                withdrawalInputs.remove(goal.id)
                                                 status = "تم تسجيل السحب وإعادة المبلغ إلى المحفظة."
                                             } catch (_: Exception) {
                                                 status = "تعذر تسجيل السحب؛ لم يتم تعديل أي رصيد."
