@@ -23,7 +23,7 @@ import org.json.JSONObject
  */
 object FinanceBackupManager {
     private const val MAGIC = "MALBK12!"
-    private const val ITERATIONS = 210_000
+    private const val ITERATIONS = 310_000
     private const val KEY_BITS = 256
     private const val MAX_BACKUP_BYTES = 64 * 1024 * 1024
     private val tables = listOf(
@@ -71,7 +71,7 @@ object FinanceBackupManager {
 
     suspend fun restore(db: FinanceDb, input: InputStream, password: CharArray) {
         require(password.size >= 8) { "Backup password must contain at least 8 characters" }
-        val bytes = input.use { it.readBytes() }
+        val bytes = input.use { readBounded(it, MAX_BACKUP_BYTES) }
         require(bytes.size in 40..MAX_BACKUP_BYTES) { "Backup file size is invalid" }
         val magicBytes = MAGIC.toByteArray(StandardCharsets.US_ASCII)
         require(bytes.copyOfRange(0, magicBytes.size).contentEquals(magicBytes)) { "Unsupported backup format" }
@@ -123,6 +123,20 @@ object FinanceBackupManager {
         }
     }
 
+    private fun readBounded(input: InputStream, maximum: Int): ByteArray {
+        val output = java.io.ByteArrayOutputStream()
+        val buffer = ByteArray(8 * 1024)
+        var total = 0
+        while (true) {
+            val count = input.read(buffer)
+            if (count < 0) break
+            total += count
+            require(total <= maximum) { "Backup file is too large" }
+            output.write(buffer, 0, count)
+        }
+        return output.toByteArray()
+    }
+
     private fun encodeRow(cursor: Cursor): JSONObject {
         val columns = JSONArray()
         val values = JSONArray()
@@ -145,7 +159,7 @@ object FinanceBackupManager {
     private fun deriveKey(password: CharArray, salt: ByteArray): SecretKeySpec {
         val spec = PBEKeySpec(password, salt, ITERATIONS, KEY_BITS)
         return try {
-            val encoded = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).encoded
+            val encoded = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1").generateSecret(spec).encoded
             SecretKeySpec(encoded, "AES")
         } finally {
             spec.clearPassword()
