@@ -60,6 +60,7 @@ object FinanceBackupManager {
         cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, nonce))
         cipher.updateAAD(MAGIC.toByteArray(StandardCharsets.US_ASCII))
         val encrypted = cipher.doFinal(payload)
+        require(encrypted.size + 40 <= MAX_BACKUP_BYTES) { "Backup exceeds the supported 64 MiB limit" }
         output.write(MAGIC.toByteArray(StandardCharsets.US_ASCII))
         output.write(salt)
         output.write(nonce)
