@@ -47,7 +47,7 @@ object VoiceTransactionParser {
 
     // Keep description cleanup synchronized with the supported amount vocabulary.
     private val spokenNumberPattern = Regex(
-        """(?<![\p{L}\p{N}])(?:${numberWords.keys.sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }})(?![\p{L}\p{N}])"""
+        """(?<![\p{L}\p{N}])(?:[وفبكل]?)(?:${numberWords.keys.sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }})(?![\p{L}\p{N}])"""
     )
 
     fun parse(raw: String): ParsedTransaction {
@@ -191,7 +191,15 @@ object VoiceTransactionParser {
         var found = false
         var index = 0
         while (index < tokens.size) {
-            val token = tokens[index].removePrefix("و")
+            val rawToken = tokens[index]
+            val token = listOf(
+                rawToken,
+                rawToken.removePrefix("و"),
+                rawToken.removePrefix("ف"),
+                rawToken.removePrefix("ب"),
+                rawToken.removePrefix("ل"),
+                rawToken.removePrefix("ك")
+            ).firstOrNull { it in numberWords } ?: rawToken
             val value = when {
                 (token == "اثني" || token == "اثنا") && tokens.getOrNull(index + 1) == "عشر" -> {
                     index++

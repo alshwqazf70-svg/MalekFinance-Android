@@ -248,6 +248,12 @@ class VoiceTransactionParserTest {
     }
 
 
+    @Test fun extractsSpokenAmountsAttachedToArabicPrepositions() {
+        assertEquals("500", VoiceTransactionParser.parse("شريت مقاضي بخمسمية ريال").amount)
+        assertEquals("2000", VoiceTransactionParser.parse("دفعت بألفين ريال").amount)
+        assertEquals("500", VoiceTransactionParser.parse("دفعت و خمسمية ريال").amount)
+    }
+
     @Test fun understandsCommonYemeniPurchaseAndSalePhrases() {
         val purchase = VoiceTransactionParser.parse("شريت مقاضي بخمسمية ريال")
         assertEquals("500", purchase.amount)
