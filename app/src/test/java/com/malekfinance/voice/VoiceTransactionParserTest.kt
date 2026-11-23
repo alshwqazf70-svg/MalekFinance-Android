@@ -203,6 +203,13 @@ class VoiceTransactionParserTest {
         assertEquals("750", collection.amount)
     }
 
+    @Test fun ordinaryMoneyReceivedFromSomeoneIsNotMisclassifiedAsDebtCollection() {
+        val parsed = VoiceTransactionParser.parse("حصلت من أحمد ٥٠٠ ريال")
+        assertEquals(VoiceCommandType.TRANSACTION, parsed.command)
+        assertEquals("INCOME", parsed.kind)
+        assertEquals(null, parsed.debtPaymentDirection)
+    }
+
     @Test fun recognizesPartialDebtPaymentOrCollectionDraft() {
         val parsed = VoiceTransactionParser.parse("سدد دين أحمد ٣٠٠ ريال")
         assertEquals(VoiceCommandType.DEBT_PAYMENT_DRAFT, parsed.command)
