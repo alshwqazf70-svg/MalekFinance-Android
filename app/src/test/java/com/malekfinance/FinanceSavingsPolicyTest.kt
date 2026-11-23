@@ -49,6 +49,8 @@ class FinanceSavingsPolicyTest {
             FinanceTransaction(amountMinor = 1_000, kind = "SAVINGS_WITHDRAWAL", note = "سحب", walletId = 1, currencyCode = "YER", savingsGoalId = 1)
         )
         assertEquals(BigInteger.valueOf(8_000), FinanceLedger.calculateBalance(wallet, movements, emptyList()))
+        assertTrue(FinanceLedger.hasSufficientFunds(wallet, 8_000, movements, emptyList()))
+        assertFalse(FinanceLedger.hasSufficientFunds(wallet, 8_001, movements, emptyList()))
         assertEquals(0, movements.count { it.kind == "INCOME" || it.kind == "EXPENSE" })
         assertEquals(1L, movements.first().savingsGoalId)
     }
