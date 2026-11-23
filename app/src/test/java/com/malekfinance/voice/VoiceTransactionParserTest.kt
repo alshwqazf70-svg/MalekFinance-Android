@@ -135,4 +135,11 @@ class VoiceTransactionParserTest {
         assertEquals(null, parsed.kind)
     }
 
+    @Test fun recognizesBudgetStatusQuestions() {
+        assertEquals(
+            VoiceCommandType.BUDGET_STATUS_QUERY,
+            VoiceTransactionParser.parse("كم باقي في الميزانية؟").command
+        )
+    }
+
 }
