@@ -56,10 +56,10 @@ object VoiceTransactionParser {
         val amount = extractAmount(normalized)
         val incomeIntent = containsAny(lower, listOf(
             "دخل", "استلمت", "قبضت", "إيراد", "ايراد", "حول لي", "حوّل لي",
-            "حصلت", "راتب", "رجع لي", "رجّع لي", "رجعلي", "وصلني"
+            "حصلت", "راتب", "رجع لي", "رجّع لي", "رجعلي", "وصلني", "جاني", "جاءني", "بعت", "ربحت"
         ))
         val expenseIntent = containsAny(lower, listOf(
-            "صرف", "صرفت", "دفعت", "اشتريت", "شراء", "مصروف", "كلفني", "دفعت حق"
+            "صرف", "صرفت", "دفعت", "اشتريت", "شريت", "شراء", "مصروف", "كلفني", "دفعت حق", "خسرت"
         ))
         val negatedExpense = containsAny(lower, listOf("ما صرفت", "لم اصرف", "لم أصرف", "ما دفعت", "لم ادفع", "لم أدفع"))
         val negatedIncome = containsAny(lower, listOf("ما استلمت", "لم استلم", "لم أستلم", "ما قبضت"))

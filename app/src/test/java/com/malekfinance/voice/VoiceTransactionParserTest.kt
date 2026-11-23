@@ -231,4 +231,29 @@ class VoiceTransactionParserTest {
         assertEquals(VoiceCommandType.BALANCE_QUERY, VoiceTransactionParser.parse("قديش معي؟").command)
     }
 
+
+    @Test fun understandsCommonYemeniPurchaseAndSalePhrases() {
+        val purchase = VoiceTransactionParser.parse("شريت مقاضي بخمسمية ريال")
+        assertEquals("500", purchase.amount)
+        assertEquals("EXPENSE", purchase.kind)
+        assertEquals("بقالة", purchase.category)
+        val sale = VoiceTransactionParser.parse("بعت غرض بألفين ريال")
+        assertEquals("2000", sale.amount)
+        assertEquals("INCOME", sale.kind)
+    }
+
+    @Test fun recognizesColloquialIncomeAndProfitWithoutGuessingWhenMixed() {
+        val received = VoiceTransactionParser.parse("جاني مبلغ ثلاثة آلاف")
+        assertEquals("3000", received.amount)
+        assertEquals("INCOME", received.kind)
+        val mixed = VoiceTransactionParser.parse("جاني ألف وصرفت منه مئتين")
+        assertEquals(null, mixed.kind)
+    }
+
+    @Test fun recognizesColloquialLossAsExpense() {
+        val parsed = VoiceTransactionParser.parse("خسرت مية ريال")
+        assertEquals("100", parsed.amount)
+        assertEquals("EXPENSE", parsed.kind)
+    }
+
 }

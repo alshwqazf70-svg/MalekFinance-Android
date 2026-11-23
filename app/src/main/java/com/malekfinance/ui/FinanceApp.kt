@@ -85,7 +85,11 @@ val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAs
                     title = {
                         Column {
                             Text("MK Finance", fontWeight = FontWeight.Bold)
-                            Text(section.title, style = MaterialTheme.typography.labelSmall, color = FinanceColors.TextSecondary)
+                            Text(
+                                if (section == FinanceSection.HOME) "إدارة أموالك" else "إدارة أموالك • ${section.title}",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = FinanceColors.TextSecondary
+                            )
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = FinanceColors.Background)
