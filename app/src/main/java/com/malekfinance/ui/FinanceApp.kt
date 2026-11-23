@@ -40,6 +40,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.flow.first
 import com.malekfinance.voice.VoiceCommandType
 import com.malekfinance.voice.VoiceQueryEngine
 import com.malekfinance.voice.VoiceRecognitionIntentFactory
@@ -490,6 +491,21 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                         val kindLabel = if (it.kind == "INCOME") "دخل" else if (it.kind == "EXPENSE") "مصروف" else it.kind
                                         kindLabel + " " + java.math.BigDecimal.valueOf(it.amountMinor, 2).toPlainString() + " " + wallet.currencyCode + " — " + it.note
                                     }
+                                }
+                                VoiceCommandType.DEBT_OWED_BY_ME_QUERY, VoiceCommandType.DEBT_OWED_TO_ME_QUERY -> {
+                                    val debtType = if (parsed.command == VoiceCommandType.DEBT_OWED_BY_ME_QUERY) "OWED_BY_ME" else "OWED_TO_ME"
+                                    val allDebts = db.debtDao().observeAll().first()
+                                    val allPayments = db.debtPaymentDao().observeAll().first()
+                                    val outstanding = allDebts.filter {
+                                        it.walletId == wallet.id && it.currencyCode == wallet.currencyCode && it.debtType == debtType
+                                    }.fold(java.math.BigInteger.ZERO) { sum, debt ->
+                                        sum.add(com.malekfinance.FinanceDebtPolicy.outstanding(
+                                            debt.principalMinor, allPayments.filter { it.debtId == debt.id }
+                                        ))
+                                    }
+                                    val amountText = java.math.BigDecimal(outstanding, 2).toPlainString() + " " + wallet.currencyCode
+                                    if (debtType == "OWED_BY_ME") "المتبقي عليك من الديون في " + wallet.name + ": " + amountText
+                                    else "المبالغ المستحقة لك في " + wallet.name + ": " + amountText
                                 }
                                 VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT -> ""
                             }
