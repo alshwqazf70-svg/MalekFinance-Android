@@ -114,7 +114,7 @@ interface FinanceTransferDao {
 
 @Database(
     entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class FinanceDb : RoomDatabase() {
@@ -171,7 +171,7 @@ abstract class FinanceDb : RoomDatabase() {
             }
         }
 
-        fun seedDefaultWallet(db: SupportSQLiteDatabase) {
+        val MIGRATION_4_5 = object : Migration(4, 5) {\n            override fun migrate(db: SupportSQLiteDatabase) {\n                // Category names are labels referenced by transactions; merge exact duplicates safely.\n                db.execSQL("DELETE FROM categories WHERE id NOT IN (SELECT MIN(id) FROM categories GROUP BY name COLLATE NOCASE)")\n                db.execSQL("DROP INDEX IF EXISTS index_categories_name_kind")\n                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categories_name ON categories(name)")\n            }\n        }\n\n        fun seedDefaultWallet(db: SupportSQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS wallets (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -218,7 +218,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val db = Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
-            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4)
+            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
