@@ -37,3 +37,12 @@ interface FinanceCategoryDao {
     @Query("UPDATE categories SET isActive = 1 WHERE id = :categoryId")
     suspend fun restore(categoryId: Long): Int
 }
+
+/** Shared category rules used by the editor and transaction review flow. */
+object FinanceCategoryPolicy {
+    fun normalizedName(raw: String): String? =
+        raw.trim().takeIf { it.isNotEmpty() && it.length <= 32 }
+
+    fun isCompatible(categoryKind: String, transactionKind: String): Boolean =
+        categoryKind == "BOTH" || categoryKind == transactionKind
+}
