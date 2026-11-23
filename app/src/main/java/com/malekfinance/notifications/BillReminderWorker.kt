@@ -24,7 +24,7 @@ import com.malekfinance.MainActivity
 import java.util.concurrent.TimeUnit
 
 object BillReminderScheduler {
-    private const val CHANNEL_ID = "malek_finance_bill_reminders"
+    internal const val CHANNEL_ID = "malek_finance_bill_reminders"
 
     private fun workName(billId: Long) = "malek-finance-bill-reminder-$billId"
 
@@ -114,7 +114,7 @@ class BillReminderWorker(
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
             val isDue = System.currentTimeMillis() >= latestBill.nextDueAt
-            val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+            val notification = NotificationCompat.Builder(applicationContext, BillReminderScheduler.CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle(if (isDue) "فاتورة مستحقة" else "تذكير بموعد فاتورة")
                 .setContentText(latestBill.title + if (isDue) " — حان موعد الاستحقاق" else " — موعد الاستحقاق خلال 24 ساعة")
