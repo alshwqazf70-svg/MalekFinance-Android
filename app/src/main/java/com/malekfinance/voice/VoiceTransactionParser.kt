@@ -98,14 +98,14 @@ object VoiceTransactionParser {
 
     private fun detectCommand(text: String): VoiceCommandType = when {
         containsAny(text, listOf("كم باقي في الميزانية", "كم تبقى من الميزانية", "هل تجاوزت الميزانية", "حالة الميزانية", "وضع الميزانية")) -> VoiceCommandType.BUDGET_STATUS_QUERY
-        containsAny(text, listOf("سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "حصلت دين من", "تحصيل دين من", "استلمت سداد من")) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
+        containsAny(text, listOf(
+            "سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "ادفع الدين", "أدفع الدين",
+            "حصلت دين", "حصلت دين من", "حصّلت الدين", "تحصيل دين", "تحصيل دين من", "استلمت سداد الدين", "استلمت سداد من"
+        )) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
         containsAny(text, listOf("حوّل", "حول", "تحويل", "انقل")) && containsAny(text, listOf("من")) && containsAny(text, listOf("إلى", "الى")) -> VoiceCommandType.TRANSFER_DRAFT
-        containsAny(text, listOf("سددت دين", "سداد دين", "سدد الدين", "ادفع الدين", "أدفع الدين")) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
-        containsAny(text, listOf("حصلت دين", "حصّلت الدين", "تحصيل دين", "استلمت سداد الدين")) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
         containsAny(text, listOf("أعطيت", "اعطيت", "أقرضت", "اقرضت", "سلفت", "استلفت", "اقترضت", "أخذت قرض", "اخذت قرض")) -> VoiceCommandType.DEBT_CREATE_DRAFT
         containsAny(text, listOf("ما الفواتير المستحقة", "ما علي من فواتير", "الفواتير القادمة", "متى الفاتورة القادمة", "ما هي الفواتير")) -> VoiceCommandType.UPCOMING_BILLS_QUERY
         containsAny(text, listOf("سدد فاتورة", "سدد الفاتورة", "ادفع فاتورة", "ادفع الفاتورة", "دفع فاتورة", "دفع الفاتورة")) -> VoiceCommandType.BILL_PAYMENT_DRAFT
-        containsAny(text, listOf("سدد دين", "سداد دين", "سددت دين", "تحصيل دين", "حصلت من")) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
         containsAny(text, listOf("كم ادخرت", "كم ادخاري", "كم وفرت", "رصيد الادخار", "رصيد التوفير")) -> VoiceCommandType.SAVINGS_BALANCE_QUERY
         containsAny(text, listOf("اسحب من الادخار", "اسحب من الادخار", "سحب من الادخار", "سحبت من الادخار")) -> VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT
         containsAny(text, listOf("أضف للادخار", "اضف للادخار", "أضف ادخار", "اضف ادخار", "ساهم في الادخار", "أودع في الادخار", "اودع في الادخار", "ادخرت مبلغ")) -> VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT
