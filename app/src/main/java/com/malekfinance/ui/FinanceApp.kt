@@ -516,6 +516,17 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                         }
                                     "إجمالي مدخراتك في " + wallet.name + ": " + java.math.BigDecimal(saved, 2).toPlainString() + " " + wallet.currencyCode
                                 }
+                                VoiceCommandType.UPCOMING_BILLS_QUERY -> {
+                                    val bills = db.billDao().observeAll().first()
+                                        .filter { it.isActive && it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
+                                        .sortedBy { it.nextDueAt }
+                                        .take(5)
+                                    if (bills.isEmpty()) "لا توجد فواتير نشطة في " + wallet.name + "."
+                                    else "الفواتير القادمة في " + wallet.name + ": " + bills.joinToString("؛ ") {
+                                        it.title + "، " + java.math.BigDecimal.valueOf(it.amountMinor, 2).toPlainString() + " " +
+                                            it.currencyCode + "، الاستحقاق " + com.malekfinance.FinanceBillPolicy.formatLocalDate(it.nextDueAt)
+                                    }
+                                }
                                 VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
