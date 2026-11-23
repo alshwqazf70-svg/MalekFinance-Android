@@ -13,7 +13,7 @@ jobs:
   verify-and-build:
     runs-on: ubuntu-latest
     env:
-      HAS_RELEASE_SIGNING:  ${{ env.HAS_RELEASE_SIGNING == 'true' }}
+      HAS_RELEASE_SIGNING: ${{ secrets.MALEK_FINANCE_KEYSTORE_BASE64 != '' && secrets.MALEK_FINANCE_KEYSTORE_PASSWORD != '' && secrets.MALEK_FINANCE_KEY_ALIAS != '' && secrets.MALEK_FINANCE_KEY_PASSWORD != '' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -65,10 +65,10 @@ jobs:
             echo "MALEK_FINANCE_RELEASE_KEY_PASSWORD=$KEY_PASSWORD"
           } >> "$GITHUB_ENV"
       - name: Build signed release APK
-        if:  ${{ env.HAS_RELEASE_SIGNING == 'true' }}
+        if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
         run: gradle --no-daemon :app:assembleRelease
       - name: Upload signed release APK
-        if:  ${{ env.HAS_RELEASE_SIGNING == 'true' }}
+        if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4
         with:
           name: MalekFinance-signed-release-apk
