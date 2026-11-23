@@ -53,6 +53,9 @@ The existing source has been described as containing:
 - Monthly budgets with category/currency isolation and in-app threshold warnings.
 - Debt and advance tracking with partial repayment/collection.
 - Savings goals with partial contributions and withdrawals. Contributions reserve wallet funds without being counted as expenses; withdrawals return funds without being counted as income.
+- Salary and recurring income rules (weekly/monthly), with manually confirmed receipts, wallet routing, pause/resume and per-period duplicate protection.
+
+Recurring income is not posted automatically: the user confirms actual receipt for each due period. Monthly schedules retain the chosen day across short months; weekly schedules advance by seven days.
 
 These items still require source review and successful CI/device verification before being treated as release-ready.
 
