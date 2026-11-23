@@ -99,7 +99,7 @@ object VoiceTransactionParser {
     private fun detectCommand(text: String): VoiceCommandType = when {
         containsAny(text, listOf("كم باقي في الميزانية", "كم تبقى من الميزانية", "هل تجاوزت الميزانية", "حالة الميزانية", "وضع الميزانية")) -> VoiceCommandType.BUDGET_STATUS_QUERY
         containsAny(text, listOf(
-            "سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "ادفع الدين", "أدفع الدين",
+            "سدد دين", "سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "ادفع دين", "ادفع الدين", "أدفع الدين",
             "حصلت دين", "حصلت دين من", "حصّلت الدين", "تحصيل دين", "تحصيل دين من", "استلمت سداد الدين", "استلمت سداد من"
         )) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
         containsAny(text, listOf("حوّل", "حول", "تحويل", "انقل")) && containsAny(text, listOf("من")) && containsAny(text, listOf("إلى", "الى")) -> VoiceCommandType.TRANSFER_DRAFT
@@ -122,7 +122,7 @@ object VoiceTransactionParser {
 
 
     private fun detectDebtPaymentDirection(text: String): String? = when {
-        containsAny(text, listOf("سددت دين", "سداد دين", "سدد الدين", "ادفع الدين", "أدفع الدين")) -> "OWED_BY_ME"
+        containsAny(text, listOf("سدد دين", "سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "ادفع دين", "ادفع الدين", "أدفع الدين")) -> "OWED_BY_ME"
         containsAny(text, listOf("حصلت دين", "حصّلت الدين", "تحصيل دين", "استلمت سداد الدين")) -> "OWED_TO_ME"
         else -> null
     }
@@ -140,7 +140,7 @@ object VoiceTransactionParser {
             ?: Regex("""(?:أعطيت|اعطيت|أقرضت|اقرضت|سلفت)\s+(?:لـ)?([^\s،؟,]+)""").find(text)
             ?: Regex("""(?:سدد دين|سداد دين|سددت دين|تحصيل دين|حصلت من)\s+([^\s،؟,]+)""").find(text)
             ?: Regex("""(?:سددت دين|سدد الدين|دفعت دين)\s+(?:لـ|ل)?([^\s،؟,]+)""").find(text)
-            ?: Regex("""(?:حصلت دين من|تحصيل دين من|استلمت سداد من)\s+([^\s،؟,]+)""").find(text)
+            ?: Regex("""(?:حصلت دين|حصلت دين من|تحصيل دين من|استلمت سداد من)\s+([^\s،؟,]+)""").find(text)
         return loanMatch?.groupValues?.get(1)?.trim()?.trimStart('ل')?.trimEnd('؟', '?', '.', '،', ',')?.ifBlank { null }
     }
 
