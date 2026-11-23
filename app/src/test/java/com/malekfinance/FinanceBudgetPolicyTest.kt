@@ -23,6 +23,7 @@ class FinanceBudgetPolicyTest {
         assertEquals("2024-02", window.periodKey)
         assertEquals(1, end.get(Calendar.DAY_OF_MONTH))
         assertEquals(Calendar.MARCH, end.get(Calendar.MONTH))
+        assertEquals(29L * 24L * 60L * 60L * 1000L, window.endExclusiveMillis - window.startMillis)
     }
 
     @Test
