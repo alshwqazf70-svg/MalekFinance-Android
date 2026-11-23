@@ -32,6 +32,7 @@ import com.malekfinance.FinanceWallet
 import com.malekfinance.FinanceTransfer
 import com.malekfinance.FinanceReportAnalytics
 import com.malekfinance.FinanceReportRange
+import com.malekfinance.FinanceReportExporter
 import com.malekfinance.voice.VoiceTransactionParser
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
@@ -872,12 +873,29 @@ private fun ReportsLandingScreen(
     wallets: List<FinanceWallet>,
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    var exportStatus by remember { mutableStateOf("") }
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     var selectedRange by remember { mutableStateOf(FinanceReportRange.MONTHLY) }
     LaunchedEffect(wallets) {
         if (selectedWalletId == null && wallets.isNotEmpty()) selectedWalletId = wallets.first().id
     }
     val wallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
+    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
+        if (uri != null && wallet != null) runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { FinanceReportExporter.writeCsv(it, wallet, transactions) } ?: error("Unable to open output")
+        }.onSuccess { exportStatus = "تم تصدير ملف CSV." }.onFailure { exportStatus = "تعذر تصدير CSV." }
+    }
+    val xlsxLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) { uri ->
+        if (uri != null && wallet != null) runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { FinanceReportExporter.writeXlsx(it, wallet, transactions) } ?: error("Unable to open output")
+        }.onSuccess { exportStatus = "تم تصدير ملف Excel." }.onFailure { exportStatus = "تعذر تصدير Excel." }
+    }
+    val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
+        if (uri != null && wallet != null) runCatching {
+            context.contentResolver.openOutputStream(uri)?.use { FinanceReportExporter.writePdf(it, wallet, transactions) } ?: error("Unable to open output")
+        }.onSuccess { exportStatus = "تم تصدير ملف PDF." }.onFailure { exportStatus = "تعذر تصدير PDF." }
+    }
     val timeline = wallet?.let {
         FinanceReportAnalytics.timeline(transactions, it.id, it.currencyCode, selectedRange)
     }.orEmpty()
@@ -889,6 +907,15 @@ private fun ReportsLandingScreen(
         .maxOrNull()?.coerceAtLeast(java.math.BigInteger.ONE) ?: java.math.BigInteger.ONE
 
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text("تصدير التقارير", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                TextButton(onClick = { csvLauncher.launch("malek-finance-report.csv") }, enabled = wallet != null) { Text("CSV") }
+                TextButton(onClick = { xlsxLauncher.launch("malek-finance-report.xlsx") }, enabled = wallet != null) { Text("Excel") }
+                TextButton(onClick = { pdfLauncher.launch("malek-finance-report.pdf") }, enabled = wallet != null) { Text("PDF") }
+            }
+            if (exportStatus.isNotBlank()) Text(exportStatus, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+        }
         item {
             Text("التقارير حسب المحفظة", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text("لا نخلط العملات المختلفة؛ اختر المحفظة لعرض أرقامها وحدها.", color = FinanceColors.TextSecondary)
