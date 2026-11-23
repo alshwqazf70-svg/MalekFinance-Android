@@ -846,6 +846,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         savingsGoalDraftId = null
         hasBillDraft = false
         billDraftId = null
+        hasDebtPaymentDraft = false
+        debtPaymentAmountDraft = ""
+        debtPaymentDebtId = null
         transferAmountText = ""
         transferNote = ""
         debtPersonDraft = ""
@@ -1128,6 +1131,53 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                     }
                 }
             isBillSaving = false
+        }
+    }
+
+    fun confirmVoiceDebtPayment() {
+        if (isDebtPaymentSaving) return
+        val debt = voiceDebts.firstOrNull { it.id == debtPaymentDebtId }
+        val minor = runCatching {
+            normalizeFinanceAmount(debtPaymentAmountDraft).replace('٫', '.').replace(',', '.').toBigDecimalOrNull()
+                ?.movePointRight(2)?.longValueExact()
+        }.getOrNull()
+        if (debt == null) {
+            status = "اختر الدين أو الشخص الصحيح قبل التأكيد."
+            return
+        }
+        if (minor == null || minor <= 0L) {
+            status = "أدخل مبلغ دفعة صحيحاً أكبر من صفر."
+            return
+        }
+        val outstanding = com.malekfinance.FinanceDebtPolicy.outstanding(
+            debt.principalMinor, voiceDebtPayments.filter { it.debtId == debt.id }
+        )
+        if (java.math.BigInteger.valueOf(minor) > outstanding) {
+            status = "مبلغ الدفعة أكبر من المتبقي من الدين."
+            return
+        }
+        isDebtPaymentSaving = true
+        scope.launch {
+            runCatching { com.malekfinance.FinanceDebtPaymentOperations.applyPayment(db, debt.id, minor) }
+                .onSuccess {
+                    hasDebtPaymentDraft = false
+                    debtPaymentAmountDraft = ""
+                    debtPaymentDebtId = null
+                    transcript = ""
+                    status = if (debt.debtType == "OWED_BY_ME") {
+                        "تم تسجيل سداد جزء من دين " + debt.personName + "."
+                    } else {
+                        "تم تسجيل تحصيل جزء من دين " + debt.personName + "."
+                    }
+                }
+                .onFailure {
+                    status = if (it is com.malekfinance.InsufficientWalletFundsException) {
+                        "رصيد المحفظة لا يكفي لإتمام السداد."
+                    } else {
+                        "تعذر تسجيل الدفعة؛ لم يُحفظ أي جزء منها."
+                    }
+                }
+            isDebtPaymentSaving = false
         }
     }
 
