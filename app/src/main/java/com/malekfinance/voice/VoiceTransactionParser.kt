@@ -67,7 +67,7 @@ object VoiceTransactionParser {
             containsAny(lower, listOf("بنزين", "وقود", "ديزل", "بترول")) -> "بنزين"
             containsAny(lower, listOf("مواصلات", "باص", "تاكسي", "أجرة")) -> "مواصلات"
             containsAny(lower, listOf("كهرباء", "ماء", "إنترنت", "انترنت", "فاتورة")) -> "فواتير"
-            containsAny(lower, listOf("راتب", "أجر", "دخل")) -> "راتب"
+            containsAny(lower, listOf("راتب", "أجر")) -> "راتب"
             else -> "عام"
         }
 
