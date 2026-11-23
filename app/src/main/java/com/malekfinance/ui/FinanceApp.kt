@@ -456,6 +456,12 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         if (selectedWalletId == null && wallets.isNotEmpty()) selectedWalletId = wallets.first().id
     }
 
+    fun clearDebtPaymentDraft() {
+        hasDebtPaymentDraft = false
+        debtPaymentAmountDraft = ""
+        debtPaymentDebtId = null
+    }
+
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val alternatives = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty()
         val confidence = result.data?.getFloatArrayExtra(RecognizerIntent.EXTRA_CONFIDENCE_SCORES)
@@ -476,10 +482,12 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 hasTransferDraft = false
                 hasDebtDraft = false
                 hasDebtPaymentDraft = false
+                clearDebtPaymentDraft()
                 debtPaymentAmountDraft = ""
                 debtPaymentDebtId = null
                 hasSavingsDraft = false
                 savingsAmountDraft = ""
+                clearDebtPaymentDraft()
                 savingsGoalDraftId = null
                 transferFromWalletId = null
                 transferToWalletId = null
@@ -497,6 +505,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 hasTransferDraft = false
                 hasDebtDraft = false
                 hasSavingsDraft = false
+                clearDebtPaymentDraft()
                 hasBillDraft = false
                 amount = ""
                 description = ""
@@ -515,6 +524,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 hasDebtDraft = false
                 hasSavingsDraft = false
                 amount = ""
+                clearDebtPaymentDraft()
                 description = ""
                 kind = null
                 hasBillDraft = true
@@ -529,6 +539,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 hasTransferDraft = false
                 hasDebtDraft = false
                 transferAmountText = ""
+                clearDebtPaymentDraft()
                 transferNote = ""
                 transferFromWalletId = null
                 transferToWalletId = null
@@ -773,17 +784,12 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         hasDraft = false
         hasTransferDraft = false
         hasDebtDraft = false
-        hasDebtPaymentDraft = false
-        debtPaymentAmountDraft = ""
-        debtPaymentDebtId = null
+        clearDebtPaymentDraft()
         hasSavingsDraft = false
         savingsAmountDraft = ""
         savingsGoalDraftId = null
         hasBillDraft = false
         billDraftId = null
-        hasDebtPaymentDraft = false
-        debtPaymentAmountDraft = ""
-        debtPaymentDebtId = null
         transferAmountText = ""
         transferNote = ""
         debtPersonDraft = ""
