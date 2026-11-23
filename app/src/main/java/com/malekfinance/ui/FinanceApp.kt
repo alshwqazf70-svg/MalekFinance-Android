@@ -1106,6 +1106,10 @@ private fun ReportsLandingScreen(
                                     Box(Modifier.fillMaxWidth((bucket.expenseMinor.toDouble() / maximum.toDouble()).coerceIn(0.0, 1.0).toFloat()).fillMaxHeight().background(FinanceColors.Expense, RoundedCornerShape(8.dp)))
                                 }
                             }
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(reportMoney(bucket.incomeMinor, wallet.currencyCode), color = FinanceColors.Income, style = MaterialTheme.typography.labelSmall)
+                                Text(reportMoney(bucket.expenseMinor, wallet.currencyCode), color = FinanceColors.Expense, style = MaterialTheme.typography.labelSmall)
+                            }
                         }
                     }
                 }
