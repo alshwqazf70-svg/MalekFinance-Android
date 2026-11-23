@@ -507,6 +507,15 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                     if (debtType == "OWED_BY_ME") "المتبقي عليك من الديون في " + wallet.name + ": " + amountText
                                     else "المبالغ المستحقة لك في " + wallet.name + ": " + amountText
                                 }
+                                VoiceCommandType.SAVINGS_BALANCE_QUERY -> {
+                                    val goals = db.savingsGoalDao().observeAll().first()
+                                    val entries = db.savingsEntryDao().observeAll().first()
+                                    val saved = goals.filter { it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
+                                        .fold(java.math.BigInteger.ZERO) { sum, goal ->
+                                            sum.add(com.malekfinance.FinanceSavingsPolicy.balance(entries.filter { it.goalId == goal.id }).max(java.math.BigInteger.ZERO))
+                                        }
+                                    "إجمالي مدخراتك في " + wallet.name + ": " + java.math.BigDecimal(saved, 2).toPlainString() + " " + wallet.currencyCode
+                                }
                                 VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
