@@ -204,6 +204,12 @@ abstract class FinanceDb : RoomDatabase() {
                     arrayOf(name, kind, color, System.currentTimeMillis())
                 )
             }
+            // Preserve legacy free-text categories so old transactions remain editable.
+            db.execSQL(
+                "INSERT OR IGNORE INTO categories(name, kind, colorHex, isActive, createdAt) " +
+                    "SELECT DISTINCT TRIM(category), 'BOTH', '#A855F7', 1, CAST(strftime('%s','now') AS INTEGER) * 1000 " +
+                    "FROM transactions WHERE TRIM(category) <> ''"
+            )
         }
     }
 }
