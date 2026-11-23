@@ -69,7 +69,9 @@ object FinanceReportAnalytics {
         }
         val buckets = (count - 1 downTo 0).map { offset ->
             val start = boundary(nowMillis, range, -offset)
-            val end = boundary(nowMillis, range, -offset + 1)
+            val nextBoundary = boundary(nowMillis, range, -offset + 1)
+            // The current bucket must not include transactions dated in the future.
+            val end = if (offset == 0) minOf(nextBoundary, nowMillis + 1L) else nextBoundary
             val label = label(start, range)
             val matching = transactions.asSequence()
                 .filter { it.walletId == walletId && it.currencyCode == currencyCode }
@@ -78,7 +80,7 @@ object FinanceReportAnalytics {
             FinanceReportBucket(
                 label = label,
                 incomeMinor = matching.filter { it.kind == "INCOME" && it.amountMinor > 0 }.fold(BigInteger.ZERO) { a, t -> a.add(BigInteger.valueOf(t.amountMinor)) },
-                expenseMinor = matching.filter { it.kind == "EXPENSE" && tAmountValid(it.amountMinor) }.fold(BigInteger.ZERO) { a, t -> a.add(BigInteger.valueOf(t.amountMinor)) }
+                expenseMinor = matching.filter { it.kind == "EXPENSE" && it.amountMinor > 0L }.fold(BigInteger.ZERO) { a, t -> a.add(BigInteger.valueOf(t.amountMinor)) }
             )
         }
         return buckets
@@ -101,8 +103,6 @@ object FinanceReportAnalytics {
             }
         return totals.sortedByDescending { it.amountMinor }
     }
-
-    private fun tAmountValid(value: Long) = value > 0L
 
     private fun boundary(nowMillis: Long, range: FinanceReportRange, offset: Int): Long {
         val cal = Calendar.getInstance().apply { timeInMillis = nowMillis }
