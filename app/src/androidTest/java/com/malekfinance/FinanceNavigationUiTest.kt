@@ -84,4 +84,24 @@ class FinanceNavigationUiTest {
         assertEquals("اختبار الحفظ", saved.note)
     }
 
+    @Test
+    fun voiceReviewSaveUsesCategoryWhenDescriptionIsEmpty() = runBlocking {
+        val walletId = db.walletDao().insert(FinanceWallet(name = "اختبار", currencyCode = "YER"))
+        composeRule.onNodeWithText("الصوت").performClick()
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("اختبار (YER)").fetchSemanticsNodes().isNotEmpty()
+        }
+        composeRule.onNodeWithText("مصروف").performClick()
+        composeRule.onNodeWithText("المبلغ بعملة YER").performTextInput("7.25")
+        composeRule.onNodeWithText("تأكيد وحفظ العملية").performClick()
+
+        composeRule.waitUntil(5_000) {
+            runBlocking { db.dao().forWallet(walletId).isNotEmpty() }
+        }
+        val saved = db.dao().forWallet(walletId).single()
+        assertEquals(725L, saved.amountMinor)
+        assertEquals("EXPENSE", saved.kind)
+        assertEquals("عام", saved.note)
+    }
+
 }
