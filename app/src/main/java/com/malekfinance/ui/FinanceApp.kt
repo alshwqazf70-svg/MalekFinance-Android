@@ -458,6 +458,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 hasDraft = false
                 hasTransferDraft = false
                 hasDebtDraft = false
+                transferFromWalletId = null
+                transferToWalletId = null
+                debtWalletDraftId = null
                 debtPersonDraft = ""
                 debtDescriptionDraft = ""
                 debtAmountDraft = ""
@@ -484,6 +487,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 description = ""
                 kind = null
                 hasDebtDraft = false
+                debtPersonDraft = ""
+                debtDescriptionDraft = ""
+                debtAmountDraft = ""
                 hasTransferDraft = true
                 transferAmountText = parsed.amount.orEmpty()
                 transferNote = spoken
@@ -634,7 +640,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 
     fun cancelVoiceDraft() {
-        if (isSavingDraft) return
+        if (isSavingDraft || isTransferSaving || isDebtSaving) return
         transcript = ""
         amount = ""
         description = ""
@@ -645,13 +651,17 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         hasTransferDraft = false
         transferAmountText = ""
         transferNote = ""
+        debtPersonDraft = ""
+        debtDescriptionDraft = ""
+        debtAmountDraft = ""
+        debtWalletDraftId = null
         transferFromWalletId = null
         transferToWalletId = null
         status = "تم إلغاء المسودة دون حفظ أي عملية."
     }
 
     fun saveReviewedDraft() {
-        if (isSavingDraft || hasTransferDraft) return
+        if (isSavingDraft || hasTransferDraft || hasDebtDraft) return
         val normalized = normalizeFinanceAmount(amount).replace('٫', '.').replace(',', '.').trim()
         val minor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
         val selectedKind = kind
@@ -755,6 +765,56 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 }
             }
             isTransferSaving = false
+        }
+    }
+
+    fun confirmVoiceDebt() {
+        if (isDebtSaving) return
+        val person = debtPersonDraft.trim()
+        val wallet = wallets.firstOrNull { it.id == debtWalletDraftId }
+        val minor = runCatching {
+            normalizeFinanceAmount(debtAmountDraft).replace('٫', '.').replace(',', '.').toBigDecimalOrNull()
+                ?.movePointRight(2)?.longValueExact()
+        }.getOrNull()
+        when {
+            person.isBlank() -> status = "اكتب اسم الشخص أو الجهة المرتبطة بالدين."
+            wallet == null -> status = "اختر محفظة لتحديد عملة الدين."
+            minor == null || minor <= 0L -> status = "أدخل مبلغ الدين صحيحاً وأكبر من صفر."
+            else -> {
+                isDebtSaving = true
+                scope.launch {
+                    runCatching {
+                        com.malekfinance.FinanceDebtOperations.create(
+                            db = db,
+                            personName = person,
+                            description = debtDescriptionDraft,
+                            debtType = debtTypeDraft,
+                            principalMinor = minor,
+                            walletId = wallet.id,
+                            recordCashMovement = debtRecordCashMovement
+                        )
+                    }.onSuccess {
+                        hasDebtDraft = false
+                        debtPersonDraft = ""
+                        debtDescriptionDraft = ""
+                        debtAmountDraft = ""
+                        debtWalletDraftId = null
+                        transcript = ""
+                        status = if (debtRecordCashMovement) {
+                            "تم تسجيل الدين وحركة المحفظة معاً."
+                        } else {
+                            "تم تسجيل الدين دون تعديل رصيد المحفظة."
+                        }
+                    }.onFailure {
+                        status = if (it is com.malekfinance.InsufficientWalletFundsException) {
+                            "رصيد المحفظة لا يكفي لإقراض هذا المبلغ."
+                        } else {
+                            "تعذر تسجيل الدين؛ لم يتم حفظ أي جزء من العملية."
+                        }
+                    }
+                    isDebtSaving = false
+                }
+            }
         }
     }
 
