@@ -112,7 +112,7 @@ object VoiceTransactionParser {
         var group = 0L
         var found = false
         for (token in tokens) {
-            val value = numberWords[token] ?: continue
+            val value = numberWords[token] ?: numberWords[token.removePrefix("و")] ?: continue
             found = true
             when (value) {
                 1_000_000L -> { total = Math.addExact(total, Math.multiplyExact(if (group == 0L) 1L else group, value)); group = 0L }
