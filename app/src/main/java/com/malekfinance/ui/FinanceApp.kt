@@ -677,7 +677,7 @@ private fun MoneyLandingScreen(
                             when {
                                 name == null && categoryName.isBlank() -> status = "اكتب اسم التصنيف."
                                 name == null -> status = "اسم التصنيف طويل؛ الحد الأقصى 32 حرفاً."
-                                categories.any { it.kind == categoryKind && it.name.equals(name, ignoreCase = true) } -> status = "هذا التصنيف موجود بالفعل؛ يمكنك إعادة تفعيله من القائمة."
+                                com.malekfinance.FinanceCategoryPolicy.nameAlreadyExists(categories.map { it.name }, name) -> status = "هذا التصنيف موجود بالفعل؛ يمكنك إعادة تفعيله من القائمة."
                                 else -> scope.launch {
                                     if (isCreatingCategory) return@launch
                                     isCreatingCategory = true
