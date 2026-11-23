@@ -553,7 +553,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                     val window = com.malekfinance.FinanceBudgetPolicy.monthWindow(System.currentTimeMillis())
                                     val budgets = db.budgetDao().observeAll().first()
                                         .filter { it.currencyCode == wallet.currencyCode && it.periodKey == window.periodKey }
-                                    val allTransactions = db.dao().observeAll().first()
+                                    val allTransactions = db.dao().observe().first()
                                     if (budgets.isEmpty()) "لا توجد ميزانيات شهرية نشطة بعملة " + wallet.currencyCode + "."
                                     else budgets.joinToString("؛ ") { budget ->
                                         val spent = com.malekfinance.FinanceBudgetPolicy.calculateSpent(
