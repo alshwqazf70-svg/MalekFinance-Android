@@ -484,7 +484,6 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 clearDebtPaymentDraft()
                 hasSavingsDraft = false
                 savingsAmountDraft = ""
-                clearDebtPaymentDraft()
                 savingsGoalDraftId = null
                 transferFromWalletId = null
                 transferToWalletId = null
