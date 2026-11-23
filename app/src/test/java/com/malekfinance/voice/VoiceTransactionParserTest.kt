@@ -256,4 +256,12 @@ class VoiceTransactionParserTest {
         assertEquals("EXPENSE", parsed.kind)
     }
 
+
+    @Test fun negatedYemeniColloquialActionsNeverBecomeTransactions() {
+        assertEquals(null, VoiceTransactionParser.parse("ما شريت شيء").kind)
+        assertEquals(null, VoiceTransactionParser.parse("ما بعت شيء").kind)
+        assertEquals(null, VoiceTransactionParser.parse("ما خسرت فلوس").kind)
+        assertEquals(null, VoiceTransactionParser.parse("ما جاني دخل").kind)
+    }
+
 }

@@ -61,8 +61,14 @@ object VoiceTransactionParser {
         val expenseIntent = containsAny(lower, listOf(
             "صرف", "صرفت", "دفعت", "اشتريت", "شريت", "شراء", "مصروف", "كلفني", "دفعت حق", "خسرت"
         ))
-        val negatedExpense = containsAny(lower, listOf("ما صرفت", "لم اصرف", "لم أصرف", "ما دفعت", "لم ادفع", "لم أدفع"))
-        val negatedIncome = containsAny(lower, listOf("ما استلمت", "لم استلم", "لم أستلم", "ما قبضت"))
+        val negatedExpense = containsAny(lower, listOf(
+            "ما صرفت", "لم اصرف", "لم أصرف", "ما دفعت", "لم ادفع", "لم أدفع",
+            "ما شريت", "لم اشتر", "لم أشتري", "ما خسرت", "لم أخسر"
+        ))
+        val negatedIncome = containsAny(lower, listOf(
+            "ما استلمت", "لم استلم", "لم أستلم", "ما قبضت",
+            "ما بعت", "لم أبع", "لم ابيع", "ما ربحت", "لم أربح", "ما جاني", "ما جاءني"
+        ))
         val kind = when {
             command != VoiceCommandType.TRANSACTION -> null
             negatedExpense || negatedIncome -> null
@@ -84,7 +90,7 @@ object VoiceTransactionParser {
         val description = normalized
             .replace(digitAmount, " ")
             .replace(Regex("""\b(صفر|واحد|واحدة|واحده|اثنين|اثنان|ثنين|ثلاثة|ثلاث|اربعة|أربعة|اربع|خمسة|خمس|ستة|ست|سبعة|سبع|ثمانية|ثمان|تسعة|تسع|عشرة|عشر|عشرين|ثلاثين|اربعين|أربعين|خمسين|ستين|سبعين|ثمانين|تسعين|مئة|مائة|ميه|مية|الف|ألف|آلاف|الفين|ألفين|مليون|مليونين)\b"""), " ")
-            .replace(Regex("""(ريال|ريالات|ر\.ي|صرف|صرفت|دفعت|اشتريت|استلمت|قبضت|سجل|سجّل)"""), " ")
+            .replace(Regex("""(ريال|ريالات|ر\.ي|صرف|صرفت|دفعت|اشتريت|شريت|بعت|جاني|جاءني|خسرت|ربحت|استلمت|قبضت|سجل|سجّل)"""), " ")
             .replace(Regex("""\s+"""), " ")
             .trim()
             .ifBlank { raw.trim() }

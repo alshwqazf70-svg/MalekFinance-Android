@@ -89,7 +89,7 @@ class BillReminderWorker(
                         CHANNEL_ID,
                         "تذكيرات الفواتير",
                         NotificationManager.IMPORTANCE_DEFAULT
-                    ).apply { description = "تنبيهات مواعيد الفواتير في مالك فاينانس" }
+                    ).apply { description = "تنبيهات مواعيد الفواتير في MK Finance — إدارة أموالك" }
                 )
             }
 
