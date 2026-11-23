@@ -190,7 +190,7 @@ abstract class FinanceDb : RoomDatabase() {
                         "periodKey TEXT NOT NULL, limitMinor INTEGER NOT NULL, createdAt INTEGER NOT NULL)"
                 )
                 db.execSQL(
-                    "CREATE UNIQUE INDEX IF NOT EXISTS index_budgets_categoryName_currencyCode_periodStartMillis " +
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_budgets_categoryName_currencyCode_periodKey " +
                         "ON budgets(categoryName, currencyCode, periodKey)"
                 )
             }
