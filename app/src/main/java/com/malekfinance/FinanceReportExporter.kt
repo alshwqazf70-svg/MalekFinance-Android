@@ -61,9 +61,16 @@ object FinanceReportExporter {
                 rows.forEachIndexed { rowIndex, row ->
                     append("<row r=\"").append(rowIndex + 1).append("\">")
                     row.forEachIndexed { columnIndex, value ->
-                        append("<c r=\"").append(columnName(columnIndex + 1)).append(rowIndex + 1)
-                            .append("\" t=\"inlineStr\"><is><t xml:space=\"preserve\">")
-                            .append(xmlEscape(value)).append("</t></is></c>")
+                        val cellRef = columnName(columnIndex + 1) + (rowIndex + 1)
+                        if (rowIndex > 0 && columnIndex == 2) {
+                            val numeric = value.toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
+                            append("<c r=\"").append(cellRef).append("\"><v>")
+                                .append(numeric.toPlainString()).append("</v></c>")
+                        } else {
+                            append("<c r=\"").append(cellRef)
+                                .append("\" t=\"inlineStr\"><is><t xml:space=\"preserve\">")
+                                .append(xmlEscape(value)).append("</t></is></c>")
+                        }
                     }
                     append("</row>")
                 }
