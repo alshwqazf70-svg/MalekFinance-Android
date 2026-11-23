@@ -549,6 +549,21 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                             it.currencyCode + "، الاستحقاق " + com.malekfinance.FinanceBillPolicy.formatLocalDate(it.nextDueAt)
                                     }
                                 }
+                                VoiceCommandType.BUDGET_STATUS_QUERY -> {
+                                    val window = com.malekfinance.FinanceBudgetPolicy.monthWindow(System.currentTimeMillis())
+                                    val budgets = db.budgetDao().observeAll().first()
+                                        .filter { it.currencyCode == wallet.currencyCode && it.periodKey == window.periodKey }
+                                    val allTransactions = db.dao().observeAll().first()
+                                    if (budgets.isEmpty()) "لا توجد ميزانيات شهرية نشطة بعملة " + wallet.currencyCode + "."
+                                    else budgets.joinToString("؛ ") { budget ->
+                                        val spent = com.malekfinance.FinanceBudgetPolicy.calculateSpent(
+                                            budget, allTransactions, window.startMillis, window.endExclusiveMillis
+                                        )
+                                        val remaining = java.math.BigInteger.valueOf(budget.limitMinor).subtract(spent)
+                                        budget.categoryName + ": صُرف " + java.math.BigDecimal(spent, 2).toPlainString() +
+                                            "، المتبقي " + java.math.BigDecimal(remaining, 2).toPlainString() + " " + wallet.currencyCode
+                                    }
+                                }
                                 VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
