@@ -471,8 +471,12 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                         wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
                                 }
                                 VoiceCommandType.INCOME_QUERY -> {
-                                    val result = VoiceQueryEngine.calculate(walletTransactions, "INCOME", wallet.id, wallet.currencyCode, parsed.queryPeriod)
-                                    "الدخل في " + wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
+                                    val result = VoiceQueryEngine.calculate(
+                                        walletTransactions, "INCOME", wallet.id, wallet.currencyCode,
+                                        parsed.queryPeriod, category = parsed.category.takeIf { it != "عام" }
+                                    )
+                                    "الدخل " + (parsed.category.takeIf { it != "عام" }?.let { "من تصنيف " + it + " في " } ?: "في ") +
+                                        wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
                                 }
                                 VoiceCommandType.SUMMARY_QUERY -> {
                                     val income = VoiceQueryEngine.calculate(walletTransactions, "INCOME", wallet.id, wallet.currencyCode, parsed.queryPeriod)
