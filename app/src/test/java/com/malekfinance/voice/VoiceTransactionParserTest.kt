@@ -120,4 +120,11 @@ class VoiceTransactionParserTest {
         )
     }
 
+    @Test fun recognizesUpcomingBillsQuery() {
+        assertEquals(
+            VoiceCommandType.UPCOMING_BILLS_QUERY,
+            VoiceTransactionParser.parse("ما الفواتير المستحقة؟").command
+        )
+    }
+
 }
