@@ -124,9 +124,9 @@ object FinanceBillPolicy {
             }
             "YEARLY" -> {
                 calendar.set(Calendar.DAY_OF_MONTH, 1)
+                calendar.add(Calendar.YEAR, 1)
                 calendar.set(Calendar.MONTH, anchorMonth.coerceIn(0, 11))
                 calendar.set(Calendar.DAY_OF_MONTH, anchorDay.coerceIn(1, calendar.getActualMaximum(Calendar.DAY_OF_MONTH)))
-                if (calendar.timeInMillis <= dueAt) calendar.add(Calendar.YEAR, 1)
             }
             else -> return null
         }
