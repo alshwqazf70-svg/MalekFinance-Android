@@ -217,4 +217,18 @@ class VoiceTransactionParserTest {
         assertEquals("300", parsed.amount)
     }
 
+    @Test fun recognizesSpokenAmountCorrectionWithoutCreatingANewTransaction() {
+        val correction = VoiceTransactionParser.parse("لا، المبلغ الصحيح ثلاثة آلاف")
+        assertEquals(VoiceCommandType.CORRECT_AMOUNT, correction.command)
+        assertEquals("3000", correction.amount)
+        assertEquals(null, correction.kind)
+    }
+
+    @Test fun understandsYemeniColloquialNumbersAndQueries() {
+        assertEquals("500", VoiceTransactionParser.parse("صرفت خمسمية ريال").amount)
+        assertEquals("300", VoiceTransactionParser.parse("دفعت ثلاثمية ريال").amount)
+        assertEquals(VoiceCommandType.SPENDING_QUERY, VoiceTransactionParser.parse("قديش صرفت هذا الشهر؟").command)
+        assertEquals(VoiceCommandType.BALANCE_QUERY, VoiceTransactionParser.parse("قديش معي؟").command)
+    }
+
 }
