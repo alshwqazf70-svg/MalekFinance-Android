@@ -25,6 +25,21 @@ class FinanceReportAnalyticsTest {
     }
 
     @Test
+    fun reportsExcludeDebtPrincipalAndSavingsMovementsFromIncomeExpenseTotals() {
+        val rows = listOf(
+            FinanceTransaction(amountMinor = 1_000, kind = "INCOME", note = "دخل", walletId = 1, currencyCode = "YER", createdAt = time(10)),
+            FinanceTransaction(amountMinor = 300, kind = "EXPENSE", note = "مصروف", walletId = 1, currencyCode = "YER", createdAt = time(10)),
+            FinanceTransaction(amountMinor = 5_000, kind = "DEBT_RECEIVED", note = "قرض مستلم", walletId = 1, currencyCode = "YER", createdAt = time(10)),
+            FinanceTransaction(amountMinor = 2_000, kind = "DEBT_ISSUED", note = "سلفة", walletId = 1, currencyCode = "YER", createdAt = time(10)),
+            FinanceTransaction(amountMinor = 400, kind = "SAVINGS_CONTRIBUTION", note = "ادخار", walletId = 1, currencyCode = "YER", createdAt = time(10)),
+            FinanceTransaction(amountMinor = 100, kind = "SAVINGS_WITHDRAWAL", note = "سحب ادخار", walletId = 1, currencyCode = "YER", createdAt = time(10))
+        )
+        val result = FinanceReportAnalytics.customRange(rows, 1, "YER", time(1), time(30))
+        assertEquals("1000", result.incomeMinor.toString())
+        assertEquals("300", result.expenseMinor.toString())
+    }
+
+    @Test
     fun categoryBreakdownGroupsOnlyPositiveExpensesForCurrentRange() {
         val rows = listOf(
             FinanceTransaction(amountMinor = 1_000, kind = "EXPENSE", note = "a", category = "طعام", walletId = 1, currencyCode = "YER", createdAt = time(4)),
