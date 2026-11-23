@@ -969,6 +969,53 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 SectionCard("العبارة التي سمعتها", transcript, "مسودة للمراجعة فقط")
             }
         }
+        if (hasSavingsDraft) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(
+                            if (savingsDraftType == "CONTRIBUTION") "مراجعة مساهمة الادخار الصوتية" else "مراجعة سحب الادخار الصوتي",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold
+                        )
+                        OutlinedTextField(
+                            value = savingsAmountDraft,
+                            onValueChange = { savingsAmountDraft = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("المبلغ") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            enabled = !isSavingsSaving
+                        )
+                        Text("اختر هدف الادخار", color = FinanceColors.TextSecondary)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(voiceSavingsGoals, key = { it.id }) { goal ->
+                                FilterChip(
+                                    selected = savingsGoalDraftId == goal.id,
+                                    onClick = { savingsGoalDraftId = goal.id },
+                                    enabled = !isSavingsSaving,
+                                    label = { Text(goal.name + " · " + goal.currencyCode) }
+                                )
+                            }
+                        }
+                        Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Button(
+                            onClick = ::confirmVoiceSavings,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isSavingsSaving,
+                            colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                        ) {
+                            Text(if (isSavingsSaving) "جارٍ حفظ العملية..." else if (savingsDraftType == "CONTRIBUTION") "مراجعة وتأكيد المساهمة" else "مراجعة وتأكيد السحب")
+                        }
+                        TextButton(
+                            onClick = ::cancelVoiceDraft,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isSavingsSaving
+                        ) { Text("إلغاء العملية") }
+                    }
+                }
+            }
+        }
         if (hasDebtDraft) {
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
@@ -1108,7 +1155,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 }
             }
         }
-        if (!hasTransferDraft && !hasDebtDraft) item {
+        if (!hasTransferDraft && !hasDebtDraft && !hasSavingsDraft) item {
             Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(if (hasDraft) "راجع وعدّل قبل الحفظ" else "إدخال يدوي بديل", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
