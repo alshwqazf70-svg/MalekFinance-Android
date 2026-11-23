@@ -42,11 +42,23 @@ class FinanceBillPolicyTest {
         assertEquals(Triple(2025, 2, 28), parts(next))
         val following = FinanceBillPolicy.nextDueAt(next, "YEARLY", 29, 1)!!
         assertEquals(Triple(2026, 2, 28), parts(following))
+        val leapReturn = FinanceBillPolicy.nextDueAt(following, "YEARLY", 29, 1)!!
+        assertEquals(Triple(2027, 2, 28), parts(leapReturn))
+        val nextLeap = FinanceBillPolicy.nextDueAt(leapReturn, "YEARLY", 29, 1)!!
+        assertEquals(Triple(2028, 2, 29), parts(nextLeap))
     }
 
     @Test
     fun oneTimeBillsDoNotGenerateAnotherOccurrence() {
         assertNull(FinanceBillPolicy.nextDueAt(date(2026, 1, 1), "ONCE", 1, 0))
+    }
+
+    @Test
+    fun reminderIsScheduledOneDayBeforeDueOrImmediatelyWhenCloser() {
+        val now = date(2026, 11, 23)
+        assertEquals(now, FinanceBillPolicy.reminderAt(now + 3 * 86_400_000L, now) - 2 * 86_400_000L)
+        assertEquals(now, FinanceBillPolicy.reminderAt(now + 12 * 60 * 60 * 1000L, now))
+        assertEquals(now, FinanceBillPolicy.reminderAt(now - 60_000L, now))
     }
 
     @Test
