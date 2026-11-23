@@ -142,6 +142,12 @@ object FinanceBackupManager {
                             val columns = row.getJSONArray("columns")
                             val values = row.getJSONArray("values")
                             require(columns.length() == values.length())
+                            val rowColumnNames = buildSet {
+                                for (columnIndex in 0 until columns.length()) add(columns.getString(columnIndex))
+                            }
+                            require(
+                                rowColumnNames.size == columns.length() && rowColumnNames == actualColumns
+                            ) { "Backup row does not match the current $table schema" }
                             val content = ContentValues()
                             for (columnIndex in 0 until columns.length()) {
                                 val column = columns.getString(columnIndex)
