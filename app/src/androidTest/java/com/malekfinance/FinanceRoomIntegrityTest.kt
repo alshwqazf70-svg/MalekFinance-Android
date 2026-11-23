@@ -177,6 +177,71 @@ class FinanceRoomIntegrityTest {
         assertEquals(before, rowCount("transactions"))
     }
 
+
+    @Test
+    fun debtAndSavingsLedgerLinksRollbackWhenTheirFinalInsertFails() = runBlocking {
+        val walletId = db.walletDao().insert(FinanceWallet(name = "المحفظة", currencyCode = "YER"))
+        val debtId = db.debtDao().insert(
+            FinanceDebt(
+                personName = "شخص",
+                description = "دين اختباري",
+                debtType = "OWED_BY_ME",
+                principalMinor = 1_000,
+                currencyCode = "YER",
+                walletId = walletId
+            )
+        )
+        val goalId = db.savingsGoalDao().insert(
+            FinanceSavingsGoal(
+                name = "هدف",
+                targetMinor = 2_000,
+                currencyCode = "YER",
+                walletId = walletId
+            )
+        )
+        db.debtPaymentDao().insert(
+            FinanceDebtPayment(debtId = debtId, transactionId = 7001, amountMinor = 100)
+        )
+        db.savingsEntryDao().insert(
+            FinanceSavingsEntry(
+                goalId = goalId,
+                transactionId = 8001,
+                entryType = "CONTRIBUTION",
+                amountMinor = 200
+            )
+        )
+        val before = rowCount("transactions")
+
+        expectFailure {
+            db.withTransaction {
+                val transactionId = db.dao().insert(
+                    FinanceTransaction(amountMinor = 100, kind = "EXPENSE", note = "debt repayment", walletId = walletId)
+                )
+                db.debtPaymentDao().insert(
+                    FinanceDebtPayment(debtId = debtId, transactionId = 7001, amountMinor = 100)
+                )
+            }
+        }
+        assertEquals(before, rowCount("transactions"))
+
+        expectFailure {
+            db.withTransaction {
+                val transactionId = db.dao().insert(
+                    FinanceTransaction(amountMinor = 200, kind = "EXPENSE", note = "savings contribution", walletId = walletId)
+                )
+                db.savingsEntryDao().insert(
+                    FinanceSavingsEntry(
+                        goalId = goalId,
+                        transactionId = 8001,
+                        entryType = "CONTRIBUTION",
+                        amountMinor = 200
+                    )
+                )
+            }
+        }
+        assertEquals(before, rowCount("transactions"))
+    }
+
     private suspend fun expectFailure(block: suspend () -> Unit) {
         var failed = false
         try {
