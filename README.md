@@ -1,6 +1,6 @@
-# Malek Finance
+# MK Finance
 
-**مالك فاينانس — أموالك تحت سيطرتك، بصوتك فقط.**
+**MK Finance — إدارتك المالية الذكية — أموالك تحت سيطرتك، بصوتك فقط.**
 
 An independent Arabic-first Android personal finance manager. The approved product direction is a complete personal finance manager with a purple dark visual identity and voice-first interaction. Only features present in the source and verified by appropriate tests should be considered implemented.
 
