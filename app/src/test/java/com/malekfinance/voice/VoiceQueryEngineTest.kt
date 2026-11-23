@@ -55,4 +55,17 @@ class VoiceQueryEngineTest {
         assertEquals("1000", result.amountMinor.toString())
     }
 
+    @Test
+    fun previousDayAndPreviousMonthQueriesUseExactCalendarWindows() {
+        val now = date(20, Calendar.JUNE)
+        val rows = listOf(
+            FinanceTransaction(amountMinor = 100, kind = "EXPENSE", note = "day before yesterday", walletId = 1, currencyCode = "YER", createdAt = date(18)),
+            FinanceTransaction(amountMinor = 200, kind = "EXPENSE", note = "yesterday", walletId = 1, currencyCode = "YER", createdAt = date(19)),
+            FinanceTransaction(amountMinor = 300, kind = "EXPENSE", note = "this month", walletId = 1, currencyCode = "YER", createdAt = date(5)),
+            FinanceTransaction(amountMinor = 400, kind = "EXPENSE", note = "previous month", walletId = 1, currencyCode = "YER", createdAt = date(31, Calendar.MAY))
+        )
+        assertEquals("100", VoiceQueryEngine.calculate(rows, "EXPENSE", 1, "YER", "DAY_BEFORE_YESTERDAY", now).amountMinor.toString())
+        assertEquals("400", VoiceQueryEngine.calculate(rows, "EXPENSE", 1, "YER", "LAST_MONTH", now).amountMinor.toString())
+    }
+
 }
