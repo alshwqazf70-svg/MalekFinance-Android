@@ -5,6 +5,9 @@ import java.math.BigInteger
 /**
  * Deterministic, currency-isolated ledger calculations.
  * Transfers are represented separately from income/expense transactions.
+ *
+ * Invalid persisted rows are ignored rather than allowing a negative amount,
+ * self-transfer, or currency mismatch to reverse or fabricate wallet balance.
  */
 class InsufficientWalletFundsException : IllegalStateException("Insufficient wallet funds")
 
@@ -17,7 +20,11 @@ object FinanceLedger {
         var balance = BigInteger.valueOf(wallet.openingBalanceMinor)
 
         transactions.asSequence()
-            .filter { it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
+            .filter {
+                it.walletId == wallet.id &&
+                    it.currencyCode == wallet.currencyCode &&
+                    it.amountMinor > 0L
+            }
             .forEach { transaction ->
                 val amount = BigInteger.valueOf(transaction.amountMinor)
                 when (transaction.kind) {
@@ -28,12 +35,18 @@ object FinanceLedger {
             }
 
         transfers.asSequence()
-            .filter { it.currencyCode == wallet.currencyCode }
+            .filter {
+                it.amountMinor > 0L &&
+                    it.fromWalletId != it.toWalletId &&
+                    it.currencyCode == wallet.currencyCode &&
+                    (it.fromWalletId == wallet.id || it.toWalletId == wallet.id)
+            }
             .forEach { transfer ->
                 val amount = BigInteger.valueOf(transfer.amountMinor)
-                when (wallet.id) {
-                    transfer.fromWalletId -> balance = balance.subtract(amount)
-                    transfer.toWalletId -> balance = balance.add(amount)
+                if (wallet.id == transfer.fromWalletId) {
+                    balance = balance.subtract(amount)
+                } else {
+                    balance = balance.add(amount)
                 }
             }
 
