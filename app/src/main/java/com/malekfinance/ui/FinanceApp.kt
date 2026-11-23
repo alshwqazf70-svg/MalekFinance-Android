@@ -7,6 +7,7 @@ import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.background
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -29,6 +30,8 @@ import com.malekfinance.FinanceDb
 import com.malekfinance.FinanceTransaction
 import com.malekfinance.FinanceWallet
 import com.malekfinance.FinanceTransfer
+import com.malekfinance.FinanceReportAnalytics
+import com.malekfinance.FinanceReportRange
 import com.malekfinance.voice.VoiceTransactionParser
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
@@ -113,7 +116,7 @@ val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAs
                     FinanceSection.HOME -> HomeDashboard(income, expenses, transactions, Modifier.padding(padding), onVoice = { section = FinanceSection.VOICE }, onTransactions = { section = FinanceSection.TRANSACTIONS })
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, categories.filter { it.isActive }, Modifier.padding(padding))
-                    FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
+                    FinanceSection.REPORTS -> ReportsLandingScreen(transactions, wallets, Modifier.padding(padding))
                     FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, debts, debtPayments, savingsGoals, savingsEntries, recurringIncomeRules, recurringIncomeEntries, recurringExpenseRules, recurringExpenseEntries, bills, billPayments, Modifier.padding(padding))
             }
         }
@@ -864,13 +867,110 @@ private fun DebtManagementSection(
 }
 
 @Composable
-private fun ReportsLandingScreen(income: java.math.BigInteger, expenses: java.math.BigInteger, count: Int, modifier: Modifier = Modifier) {
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        item { SectionCard("إجمالي الدخل بالريال اليمني", formatMoney(income)) }
-        item { SectionCard("إجمالي المصروفات بالريال اليمني", formatMoney(expenses)) }
-        item { SectionCard("صافي العمليات بالريال اليمني", formatMoney(income.subtract(expenses))) }
-        item { SectionCard("عدد العمليات", count.toString(), "الرسوم البيانية والتقارير الزمنية ستضاف في مرحلة التقارير.") }
+private fun ReportsLandingScreen(
+    transactions: List<FinanceTransaction>,
+    wallets: List<FinanceWallet>,
+    modifier: Modifier = Modifier
+) {
+    var selectedWalletId by remember { mutableStateOf<Long?>(null) }
+    var selectedRange by remember { mutableStateOf(FinanceReportRange.MONTHLY) }
+    LaunchedEffect(wallets) {
+        if (selectedWalletId == null && wallets.isNotEmpty()) selectedWalletId = wallets.first().id
     }
+    val wallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
+    val timeline = wallet?.let {
+        FinanceReportAnalytics.timeline(transactions, it.id, it.currencyCode, selectedRange)
+    }.orEmpty()
+    val current = timeline.lastOrNull()
+    val categories = wallet?.let {
+        FinanceReportAnalytics.categoryBreakdown(transactions, it.id, it.currencyCode, selectedRange)
+    }.orEmpty()
+    val maximum = timeline.flatMap { listOf(it.incomeMinor, it.expenseMinor) }
+        .maxOrNull()?.coerceAtLeast(java.math.BigInteger.ONE) ?: java.math.BigInteger.ONE
+
+    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text("التقارير حسب المحفظة", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("لا نخلط العملات المختلفة؛ اختر المحفظة لعرض أرقامها وحدها.", color = FinanceColors.TextSecondary)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(wallets, key = { it.id }) { item ->
+                    FilterChip(selected = wallet?.id == item.id, onClick = { selectedWalletId = item.id }, label = { Text(item.name + " · " + item.currencyCode) })
+                }
+            }
+        }
+        if (wallet == null) {
+            item { SectionCard("لا توجد محافظ", "أنشئ محفظة أولاً لبدء التقارير.") }
+        } else {
+            item {
+                Text("الفترة الزمنية", color = FinanceColors.TextSecondary)
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf(
+                        FinanceReportRange.DAILY to "يومي",
+                        FinanceReportRange.WEEKLY to "أسبوعي",
+                        FinanceReportRange.MONTHLY to "شهري",
+                        FinanceReportRange.YEARLY to "سنوي"
+                    ).forEach { (range, label) ->
+                        FilterChip(selected = selectedRange == range, onClick = { selectedRange = range }, label = { Text(label) })
+                    }
+                }
+            }
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("ملخص الفترة الحالية", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("الدخل: " + reportMoney(current?.incomeMinor ?: java.math.BigInteger.ZERO, wallet.currencyCode), color = FinanceColors.Income)
+                        Text("المصروف: " + reportMoney(current?.expenseMinor ?: java.math.BigInteger.ZERO, wallet.currencyCode), color = FinanceColors.Expense)
+                        Text("الصافي: " + reportMoney((current?.incomeMinor ?: java.math.BigInteger.ZERO).subtract(current?.expenseMinor ?: java.math.BigInteger.ZERO), wallet.currencyCode), fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            item {
+                Text("التدفق المالي عبر الفترات", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    timeline.forEach { bucket ->
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(bucket.label, style = MaterialTheme.typography.labelMedium, color = FinanceColors.TextSecondary)
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("دخل", modifier = Modifier.width(36.dp), color = FinanceColors.Income, style = MaterialTheme.typography.labelSmall)
+                                Box(Modifier.weight(1f).height(9.dp).background(FinanceColors.SurfaceElevated, RoundedCornerShape(8.dp))) {
+                                    Box(Modifier.fillMaxWidth((bucket.incomeMinor.toDouble() / maximum.toDouble()).coerceIn(0.0, 1.0).toFloat()).fillMaxHeight().background(FinanceColors.Income, RoundedCornerShape(8.dp)))
+                                }
+                                Text("مصروف", modifier = Modifier.width(48.dp), color = FinanceColors.Expense, style = MaterialTheme.typography.labelSmall)
+                                Box(Modifier.weight(1f).height(9.dp).background(FinanceColors.SurfaceElevated, RoundedCornerShape(8.dp))) {
+                                    Box(Modifier.fillMaxWidth((bucket.expenseMinor.toDouble() / maximum.toDouble()).coerceIn(0.0, 1.0).toFloat()).fillMaxHeight().background(FinanceColors.Expense, RoundedCornerShape(8.dp)))
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            item {
+                Text("توزيع المصروفات حسب التصنيف", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                if (categories.isEmpty()) Text("لا توجد مصروفات في هذه الفترة.", color = FinanceColors.TextSecondary)
+                else {
+                    val total = categories.fold(java.math.BigInteger.ZERO) { sum, item -> sum.add(item.amountMinor) }
+                    Column(verticalArrangement = Arrangement.spacedBy(9.dp)) {
+                        categories.forEach { item ->
+                            val fraction = (item.amountMinor.toDouble() / total.toDouble()).coerceIn(0.0, 1.0).toFloat()
+                            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(item.category)
+                                Text(reportMoney(item.amountMinor, wallet.currencyCode), color = FinanceColors.TextSecondary)
+                            }
+                            Box(Modifier.fillMaxWidth().height(8.dp).background(FinanceColors.SurfaceElevated, RoundedCornerShape(8.dp))) {
+                                Box(Modifier.fillMaxWidth(fraction).fillMaxHeight().background(FinanceColors.Primary, RoundedCornerShape(8.dp)))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun reportMoney(minor: java.math.BigInteger, currency: String): String {
+    val major = minor.divide(java.math.BigInteger.valueOf(100))
+    val fraction = minor.remainder(java.math.BigInteger.valueOf(100)).abs()
+    return String.format(java.util.Locale.ROOT, "%s.%02d %s", major.toString(), fraction.toInt(), currency)
 }
 
 @Composable
