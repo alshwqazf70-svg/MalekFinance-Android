@@ -434,7 +434,15 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         } else {
             val parsed = VoiceTransactionParser.parse(spoken)
             transcript = spoken
-            if (parsed.command != VoiceCommandType.TRANSACTION) {
+            if (parsed.command == VoiceCommandType.CANCEL_DRAFT) {
+                transcript = ""
+                amount = ""
+                description = ""
+                kind = null
+                category = "عام"
+                hasDraft = false
+                status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
+            } else if (parsed.command != VoiceCommandType.TRANSACTION) {
                 hasDraft = false
                 amount = ""
                 description = ""
@@ -471,7 +479,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                     val expense = VoiceQueryEngine.calculate(walletTransactions, "EXPENSE", wallet.id, wallet.currencyCode, parsed.queryPeriod)
                                     "ملخص " + wallet.name + ": الدخل " + VoiceQueryEngine.formatAmount(income) + "، المصروف " + VoiceQueryEngine.formatAmount(expense)
                                 }
-                                VoiceCommandType.TRANSACTION -> ""
+                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
                             .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
