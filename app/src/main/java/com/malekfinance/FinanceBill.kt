@@ -30,7 +30,8 @@ data class FinanceBill(
     val anchorMonth: Int,
     val nextDueAt: Long,
     val isActive: Boolean = true,
-    val createdAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(),
+    @androidx.room.ColumnInfo(defaultValue = "NULL") val lastReminderOccurrenceKey: String? = null
 )
 
 @Entity(
