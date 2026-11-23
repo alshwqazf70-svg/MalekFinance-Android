@@ -418,6 +418,11 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var debtRecordCashMovement by remember { mutableStateOf(true) }
     var isDebtSaving by remember { mutableStateOf(false) }
     var hasDebtPaymentDraft by remember { mutableStateOf(false) }
+    var debtPaymentDirection by remember { mutableStateOf("OWED_BY_ME") }
+    var debtPaymentAmountDraft by remember { mutableStateOf("") }
+    var debtPaymentDebtId by remember { mutableStateOf<Long?>(null) }
+    var isDebtPaymentSaving by remember { mutableStateOf(false) }
+    var hasDebtPaymentDraft by remember { mutableStateOf(false) }
     var debtPaymentDraftId by remember { mutableStateOf<Long?>(null) }
     var debtPaymentAmountDraft by remember { mutableStateOf("") }
     var debtPaymentTypeDraft by remember { mutableStateOf("OWED_BY_ME") }
@@ -431,6 +436,8 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var billDraftId by remember { mutableStateOf<Long?>(null) }
     var isBillSaving by remember { mutableStateOf(false) }
     val voiceBills by db.billDao().observeAll().collectAsState(initial = emptyList())
+    val voiceDebts by db.debtDao().observeAll().collectAsState(initial = emptyList())
+    val voiceDebtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
     val voiceDebts by db.debtDao().observeAll().collectAsState(initial = emptyList())
     val voiceDebtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
     val voiceSavingsGoals by db.savingsGoalDao().observeAll().collectAsState(initial = emptyList())
@@ -526,6 +533,23 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 } else {
                     "راجع الشخص والمبلغ والمتبقي. لن يتم تسجيل السداد أو التحصيل إلا بعد التأكيد."
                 }
+            } else if (parsed.command == VoiceCommandType.DEBT_PAYMENT_DRAFT) {
+                hasDraft = false
+                hasTransferDraft = false
+                hasDebtDraft = false
+                hasSavingsDraft = false
+                hasBillDraft = false
+                amount = ""
+                description = ""
+                kind = null
+                hasDebtPaymentDraft = true
+                debtPaymentDirection = parsed.debtPaymentDirection ?: "OWED_BY_ME"
+                debtPaymentAmountDraft = parsed.amount.orEmpty()
+                debtPaymentDebtId = voiceDebts.firstOrNull { debt ->
+                    debt.debtType == debtPaymentDirection && spoken.contains(debt.personName, ignoreCase = true) &&
+                        com.malekfinance.FinanceDebtPolicy.outstanding(debt.principalMinor, voiceDebtPayments.filter { it.debtId == debt.id }).signum() > 0
+                }?.id
+                status = "اختر الدين الصحيح وراجع مبلغ الدفعة. لن يتم السداد أو التحصيل إلا بعد التأكيد."
             } else if (parsed.command == VoiceCommandType.BILL_PAYMENT_DRAFT) {
                 hasDraft = false
                 hasTransferDraft = false
@@ -720,7 +744,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                             "، المتبقي " + java.math.BigDecimal(remaining, 2).toPlainString() + " " + wallet.currencyCode
                                     }
                                 }
-                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT -> ""
+                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
                             .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
@@ -777,7 +801,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 
     fun cancelVoiceDraft() {
-        if (isSavingDraft || isTransferSaving || isDebtSaving || isSavingsSaving || isBillSaving) return
+        if (isSavingDraft || isTransferSaving || isDebtSaving || isDebtPaymentSaving || isSavingsSaving || isBillSaving) return
         transcript = ""
         amount = ""
         description = ""
@@ -787,6 +811,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         hasDraft = false
         hasTransferDraft = false
         hasDebtDraft = false
+        hasDebtPaymentDraft = false
+        debtPaymentAmountDraft = ""
+        debtPaymentDebtId = null
         hasSavingsDraft = false
         savingsAmountDraft = ""
         savingsGoalDraftId = null
@@ -805,7 +832,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 
     fun saveReviewedDraft() {
-        if (isSavingDraft || hasTransferDraft || hasDebtDraft || hasSavingsDraft || hasBillDraft) return
+        if (isSavingDraft || hasTransferDraft || hasDebtDraft || hasDebtPaymentDraft || hasSavingsDraft || hasBillDraft) return
         val normalized = normalizeFinanceAmount(amount).replace('٫', '.').replace(',', '.').trim()
         val minor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
         val selectedKind = kind
@@ -957,6 +984,42 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                         }
                     }
                     isDebtSaving = false
+                }
+            }
+        }
+    }
+
+    fun confirmVoiceDebtPayment() {
+        if (isDebtPaymentSaving) return
+        val debt = voiceDebts.firstOrNull { it.id == debtPaymentDebtId && it.debtType == debtPaymentDirection }
+        val minor = runCatching {
+            normalizeFinanceAmount(debtPaymentAmountDraft).replace('٫', '.').replace(',', '.').toBigDecimalOrNull()
+                ?.movePointRight(2)?.longValueExact()
+        }.getOrNull()
+        val outstanding = debt?.let {
+            com.malekfinance.FinanceDebtPolicy.outstanding(
+                it.principalMinor, voiceDebtPayments.filter { payment -> payment.debtId == it.id }
+            )
+        }
+        when {
+            debt == null -> status = "اختر ديناً قائماً من القائمة قبل التأكيد."
+            minor == null || minor <= 0L -> status = "أدخل مبلغ دفعة صحيحاً أكبر من صفر."
+            outstanding == null || java.math.BigInteger.valueOf(minor) > outstanding -> status = "مبلغ الدفعة أكبر من المتبقي من الدين."
+            else -> {
+                isDebtPaymentSaving = true
+                scope.launch {
+                    runCatching { com.malekfinance.FinanceDebtPaymentOperations.applyPayment(db, debt.id, minor) }
+                        .onSuccess {
+                            hasDebtPaymentDraft = false
+                            debtPaymentAmountDraft = ""
+                            debtPaymentDebtId = null
+                            transcript = ""
+                            status = if (debtPaymentDirection == "OWED_BY_ME") "تم تسجيل سداد الدفعة وربطها بالمحفظة والدين." else "تم تسجيل تحصيل الدفعة وربطها بالمحفظة والدين."
+                        }
+                        .onFailure {
+                            status = if (it is com.malekfinance.InsufficientWalletFundsException) "رصيد المحفظة لا يكفي لإتمام سداد الدين." else "تعذر تسجيل الدفعة؛ لم يُحفظ أي جزء منها. تحقق من المتبقي وحاول مجدداً."
+                        }
+                    isDebtPaymentSaving = false
                 }
             }
         }
@@ -1176,6 +1239,32 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 }
             }
         }
+        if (hasDebtPaymentDraft) {
+            item {
+                val eligibleDebts = voiceDebts.filter { debt ->
+                    debt.debtType == debtPaymentDirection && com.malekfinance.FinanceDebtPolicy.outstanding(
+                        debt.principalMinor, voiceDebtPayments.filter { it.debtId == debt.id }
+                    ).signum() > 0
+                }
+                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(if (debtPaymentDirection == "OWED_BY_ME") "مراجعة سداد الدين صوتياً" else "مراجعة تحصيل الدين صوتياً", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        OutlinedTextField(value = debtPaymentAmountDraft, onValueChange = { debtPaymentAmountDraft = it }, modifier = Modifier.fillMaxWidth(), label = { Text("مبلغ الدفعة") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, enabled = !isDebtPaymentSaving)
+                        Text("اختر الدين المرتبط بالدفعة", color = FinanceColors.TextSecondary)
+                        LazyColumn(modifier = Modifier.heightIn(max = 190.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(eligibleDebts, key = { it.id }) { debt ->
+                                val outstanding = com.malekfinance.FinanceDebtPolicy.outstanding(debt.principalMinor, voiceDebtPayments.filter { it.debtId == debt.id })
+                                FilterChip(selected = debtPaymentDebtId == debt.id, onClick = { debtPaymentDebtId = debt.id }, enabled = !isDebtPaymentSaving, label = { Text(debt.personName + " · المتبقي " + formatCurrencyMoney(outstanding, debt.currencyCode)) })
+                            }
+                        }
+                        if (eligibleDebts.isEmpty()) Text("لا توجد ديون مفتوحة من النوع المطلوب. سجّل الدين أولاً.", color = FinanceColors.TextSecondary)
+                        Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Button(onClick = ::confirmVoiceDebtPayment, modifier = Modifier.fillMaxWidth(), enabled = !isDebtPaymentSaving && eligibleDebts.isNotEmpty(), colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)) { Text(if (isDebtPaymentSaving) "جارٍ تسجيل الدفعة..." else "مراجعة وتأكيد الدفعة") }
+                        TextButton(onClick = ::cancelVoiceDraft, modifier = Modifier.fillMaxWidth(), enabled = !isDebtPaymentSaving) { Text("إلغاء الدفعة") }
+                    }
+                }
+            }
+        }
         if (hasDebtDraft) {
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
@@ -1315,7 +1404,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 }
             }
         }
-        if (!hasTransferDraft && !hasDebtDraft && !hasSavingsDraft && !hasBillDraft) item {
+        if (!hasTransferDraft && !hasDebtDraft && !hasDebtPaymentDraft && !hasSavingsDraft && !hasBillDraft) item {
             Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(if (hasDraft) "راجع وعدّل قبل الحفظ" else "إدخال يدوي بديل", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
