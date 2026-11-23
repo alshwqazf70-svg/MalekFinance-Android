@@ -34,24 +34,26 @@ object FinanceBackupManager {
         "bills", "bill_payments"
     )
 
-    fun export(db: FinanceDb, output: OutputStream, password: CharArray) {
+    suspend fun export(db: FinanceDb, output: OutputStream, password: CharArray) {
         require(password.size >= 8) { "Backup password must contain at least 8 characters" }
-        val database = db.openHelper.readableDatabase
-        val payload = JSONObject()
-            .put("format", MAGIC)
-            .put("schemaVersion", 12)
-            .put("createdAt", System.currentTimeMillis())
-            .put("tables", JSONObject().apply {
-                tables.forEach { table ->
-                    val rows = JSONArray()
-                    database.query("SELECT * FROM $table").use { cursor ->
-                        while (cursor.moveToNext()) rows.put(encodeRow(cursor))
+        val payload = db.withTransaction {
+            val database = db.openHelper.readableDatabase
+            JSONObject()
+                .put("format", MAGIC)
+                .put("schemaVersion", 12)
+                .put("createdAt", System.currentTimeMillis())
+                .put("tables", JSONObject().apply {
+                    tables.forEach { table ->
+                        val rows = JSONArray()
+                        database.query("SELECT * FROM $table").use { cursor ->
+                            while (cursor.moveToNext()) rows.put(encodeRow(cursor))
+                        }
+                        put(table, rows)
                     }
-                    put(table, rows)
-                }
-            })
-            .toString()
-            .toByteArray(StandardCharsets.UTF_8)
+                })
+                .toString()
+                .toByteArray(StandardCharsets.UTF_8)
+        }
 
         val salt = ByteArray(16).also(SecureRandom()::nextBytes)
         val nonce = ByteArray(12).also(SecureRandom()::nextBytes)
