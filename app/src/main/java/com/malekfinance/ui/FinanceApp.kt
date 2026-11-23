@@ -49,6 +49,8 @@ fun FinanceApp(db: FinanceDb) {
     val budgets by db.budgetDao().observeAll().collectAsState(initial = emptyList())
     val debts by db.debtDao().observeAll().collectAsState(initial = emptyList())
     val debtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
+    val savingsGoals by db.savingsGoalDao().observeAll().collectAsState(initial = emptyList())
+    val savingsEntries by db.savingsEntryDao().observeAll().collectAsState(initial = emptyList())
     // Never combine different currencies into one misleading total.
     val yerTransactions = transactions.filter { it.currencyCode == "YER" }
     val income = yerTransactions.filter { it.kind == "INCOME" }
@@ -103,7 +105,7 @@ fun FinanceApp(db: FinanceDb) {
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
-                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, debts, debtPayments, Modifier.padding(padding))
+                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, debts, debtPayments, savingsGoals, savingsEntries, Modifier.padding(padding))
             }
         }
         }
@@ -336,7 +338,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                if (row.debtId == null) {
+                                if (row.debtId == null && row.savingsGoalId == null) {
                                     Column {
                                         TextButton(onClick = {
                                             editingId = row.id
@@ -355,7 +357,11 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                         }) { Text("حذف", color = FinanceColors.Expense) }
                                     }
                                 } else {
-                                    Text("مرتبطة بدين؛ تُدار من قسم الديون", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
+                                    Text(
+                                        if (row.debtId != null) "مرتبطة بدين؛ تُدار من قسم الديون" else "مرتبطة بهدف ادخار؛ تُدار من قسم الادخار",
+                                        color = FinanceColors.TextSecondary,
+                                        style = MaterialTheme.typography.labelSmall
+                                    )
                                 }
                             }
                         }
@@ -822,6 +828,8 @@ private fun MoneyLandingScreen(
     budgets: List<com.malekfinance.FinanceBudget>,
     debts: List<com.malekfinance.FinanceDebt>,
     debtPayments: List<com.malekfinance.FinanceDebtPayment>,
+    savingsGoals: List<com.malekfinance.FinanceSavingsGoal>,
+    savingsEntries: List<com.malekfinance.FinanceSavingsEntry>,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -1196,7 +1204,7 @@ private fun MoneyLandingScreen(
             }
         }
         item { SectionCard("الديون والسلف", "تسجيل المستحقات والسداد الجزئي — لم تُفعّل بعد.") }
-        item { SectionCard("الادخار", "أهداف الادخار ومتابعة التقدم — لم تُفعّل بعد.") }
+        item { SavingsManagementSection(db, wallets, savingsGoals, savingsEntries) }
         item { SectionCard("الرواتب والفواتير", "الدخل المتكرر والاستحقاقات — لم تُفعّل بعد.") }
     }
 }
