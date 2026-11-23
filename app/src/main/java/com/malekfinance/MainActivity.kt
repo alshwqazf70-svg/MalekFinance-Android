@@ -94,6 +94,9 @@ interface FinanceWalletDao {
     @Query("SELECT * FROM wallets ORDER BY createdAt ASC, id ASC")
     fun observe(): Flow<List<FinanceWallet>>
 
+    @Query("SELECT * FROM wallets WHERE id = :walletId LIMIT 1")
+    suspend fun findById(walletId: Long): FinanceWallet?
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(wallet: FinanceWallet): Long
 
