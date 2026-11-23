@@ -42,7 +42,7 @@ The `docs/` directory is the canonical reference for product scope and engineeri
 The existing source has been described as containing:
 - Kotlin, Jetpack Compose and Material 3.
 - Arabic-first dark UI and right-to-left layout.
-- Local Room storage for transactions, wallets, transfers, categories, budgets, debts, savings goals, recurring income, recurring expenses and bills/payment records (Room schema v11; migrations 1→11 are implemented, but the full upgrade chain still requires database-level verification).
+- Local Room storage for transactions, wallets, transfers, categories, budgets, debts, savings goals, recurring income, recurring expenses and bills/payment records (Room schema v12; migrations 1→12 are implemented, but the full upgrade chain still requires database-level verification).
 - Wallet creation with opening balances and per-wallet currency balances; transaction entry can select a wallet.
 - Internal transfers are stored separately from income/expense, currently limited to wallets with the same currency and sufficient source balance.
 - Currency-isolated YER dashboard/report totals; balances are not combined across currencies.
