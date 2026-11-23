@@ -210,7 +210,7 @@ abstract class FinanceDb : RoomDatabase() {
                     "CREATE TABLE IF NOT EXISTS debts (" +
                         "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, personName TEXT NOT NULL, " +
                         "description TEXT NOT NULL, debtType TEXT NOT NULL, principalMinor INTEGER NOT NULL, " +
-                        "currencyCode TEXT NOT NULL, walletId INTEGER NOT NULL, createdAt INTEGER NOT NULL)"
+                        "currencyCode TEXT NOT NULL, walletId INTEGER NOT NULL, cashMovementRecorded INTEGER NOT NULL DEFAULT 1, createdAt INTEGER NOT NULL)"
                 )
                 db.execSQL("CREATE INDEX IF NOT EXISTS index_debts_walletId ON debts(walletId)")
                 db.execSQL(
