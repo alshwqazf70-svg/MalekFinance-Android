@@ -18,6 +18,7 @@ object VoiceQueryEngine {
         walletId: Long,
         currencyCode: String,
         period: String?,
+        category: String? = null,
         nowMillis: Long = System.currentTimeMillis()
     ): VoiceQueryResult {
         require(kind == "INCOME" || kind == "EXPENSE")
@@ -34,6 +35,7 @@ object VoiceQueryEngine {
         val total = transactions.asSequence()
             .filter { it.walletId == walletId && it.currencyCode == currencyCode }
             .filter { it.kind == kind && it.amountMinor > 0L }
+            .filter { category == null || it.category.equals(category, ignoreCase = true) }
             .filter { it.createdAt >= start.timeInMillis && it.createdAt < end }
             .fold(BigInteger.ZERO) { sum, item -> sum.add(BigInteger.valueOf(item.amountMinor)) }
         return VoiceQueryResult(total, currencyCode, period ?: "MONTH")
