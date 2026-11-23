@@ -167,4 +167,14 @@ class VoiceTransactionParserTest {
         assertEquals("LAST_WEEK", VoiceTransactionParser.parse("كم صرفت الأسبوع الماضي؟").queryPeriod)
     }
 
+    @Test fun parsesSavingsContributionAndWithdrawalDrafts() {
+        val contribution = VoiceTransactionParser.parse("أضف للادخار ٥٠٠ ريال")
+        assertEquals(VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, contribution.command)
+        assertEquals("500", contribution.amount)
+
+        val withdrawal = VoiceTransactionParser.parse("اسحب من الادخار ٢٠٠ ريال")
+        assertEquals(VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, withdrawal.command)
+        assertEquals("200", withdrawal.amount)
+    }
+
 }
