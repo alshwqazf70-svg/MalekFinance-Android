@@ -486,7 +486,46 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 debtAmountDraft = ""
                 transferAmountText = ""
                 transferNote = ""
+                hasDebtPaymentDraft = false
+                debtPaymentDraftId = null
+                debtPaymentAmountDraft = ""
                 status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
+            } else if (parsed.command == VoiceCommandType.DEBT_PAYMENT_DRAFT) {
+                hasDraft = false
+                hasTransferDraft = false
+                hasDebtDraft = false
+                hasSavingsDraft = false
+                hasBillDraft = false
+                savingsAmountDraft = ""
+                savingsGoalDraftId = null
+                billDraftId = null
+                transferAmountText = ""
+                transferNote = ""
+                transferFromWalletId = null
+                transferToWalletId = null
+                debtPersonDraft = ""
+                debtDescriptionDraft = ""
+                debtAmountDraft = ""
+                debtWalletDraftId = null
+                amount = ""
+                description = ""
+                kind = null
+                debtPaymentTypeDraft = parsed.debtType ?: "OWED_BY_ME"
+                debtPaymentAmountDraft = parsed.amount.orEmpty()
+                val matchingDebts = voiceDebts.filter { debt ->
+                    debt.debtType == debtPaymentTypeDraft &&
+                        (parsed.debtPersonName.isNullOrBlank() || debt.personName.contains(parsed.debtPersonName, ignoreCase = true)) &&
+                        com.malekfinance.FinanceDebtPolicy.outstanding(
+                            debt.principalMinor, voiceDebtPayments.filter { it.debtId == debt.id }
+                        ).signum() > 0
+                }
+                debtPaymentDraftId = matchingDebts.singleOrNull()?.id
+                hasDebtPaymentDraft = true
+                status = if (matchingDebts.isEmpty()) {
+                    "لم أجد ديناً مفتوحاً مطابقاً. اختر الدين الصحيح من القائمة أو راجع سجلات الديون."
+                } else {
+                    "راجع الشخص والمبلغ والمتبقي. لن يتم تسجيل السداد أو التحصيل إلا بعد التأكيد."
+                }
             } else if (parsed.command == VoiceCommandType.BILL_PAYMENT_DRAFT) {
                 hasDraft = false
                 hasTransferDraft = false
