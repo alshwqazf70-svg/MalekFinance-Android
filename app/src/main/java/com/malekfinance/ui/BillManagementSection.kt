@@ -309,7 +309,6 @@ internal fun BillManagementSection(
                                             busyBills[bill.id] = true
                                             try {
                                                 FinanceBillOperations.pay(db, bill.id)
-                                                }
                                                 status = "تم تأكيد دفع الفاتورة وتسجيل المصروف."
                                             } catch (_: Exception) {
                                                 status = "لم يتم تسجيل الدفع. تحقق من الرصيد أو الموعد وحاول مجدداً."
