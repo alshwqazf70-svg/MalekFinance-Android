@@ -449,6 +449,13 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         } else {
             val parsed = VoiceTransactionParser.parse(spoken)
             transcript = spoken
+            hasTransferDraft = false
+            hasDebtDraft = false
+            transferAmountText = ""
+            transferNote = ""
+            debtPersonDraft = ""
+            debtDescriptionDraft = ""
+            debtAmountDraft = ""
             if (parsed.command == VoiceCommandType.CANCEL_DRAFT) {
                 transcript = ""
                 amount = ""
