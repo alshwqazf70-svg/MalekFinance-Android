@@ -1,7 +1,7 @@
-# نظام التصميم — Malek Finance
+# نظام التصميم — MK Finance
 
 ## 1. الهوية المعتمدة
-- الاسم: Malek Finance — مالك فاينانس.
+- الاسم: MK Finance — MK Finance.
 - الأسلوب: Dark / Premium / Purple Neon / Glassmorphism معتدل.
 - اللغة الافتراضية: العربية واتجاه RTL.
 - الصوت عنصر أساسي في التجربة وليس زينة بصرية.
