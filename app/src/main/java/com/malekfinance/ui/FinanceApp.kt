@@ -424,7 +424,10 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val spoken = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
+        val alternatives = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty()
+        val confidence = result.data?.getFloatArrayExtra(RecognizerIntent.EXTRA_CONFIDENCE_SCORES)
+        val bestIndex = if (confidence != null && confidence.size == alternatives.size) confidence.indices.maxByOrNull { confidence[it] } ?: 0 else 0
+        val spoken = alternatives.getOrNull(bestIndex)
         if (spoken.isNullOrBlank()) {
             status = "لم يتم التقاط كلام واضح. يمكنك إعادة المحاولة أو الكتابة يدوياً."
         } else {
@@ -500,6 +503,17 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             if (!launchFinanceRecognition(speechLauncher)) status = "خدمة التعرف الصوتي غير متاحة على هذا الجهاز. يمكنك الكتابة يدوياً."
         } else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+    }
+
+    fun cancelVoiceDraft() {
+        if (isSavingDraft) return
+        transcript = ""
+        amount = ""
+        description = ""
+        kind = null
+        category = "عام"
+        hasDraft = false
+        status = "تم إلغاء المسودة دون حفظ أي عملية."
     }
 
     fun saveReviewedDraft() {
@@ -653,6 +667,13 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                         colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
                     ) {
                         Text(if (isSavingDraft) "جارٍ حفظ العملية..." else "تأكيد وحفظ العملية")
+                    }
+                    if (hasDraft) {
+                        TextButton(
+                            onClick = ::cancelVoiceDraft,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isSavingDraft
+                        ) { Text("إلغاء المسودة دون حفظ") }
                     }
                 }
             }
