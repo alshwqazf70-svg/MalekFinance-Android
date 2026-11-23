@@ -1246,6 +1246,9 @@ private fun ReportsLandingScreen(
                 visualTransformation = PasswordVisualTransformation(),
                 label = { Text("تأكيد كلمة المرور عند إنشاء نسخة") }
             )
+            if (backupPassword.isNotBlank() && backupPassword != backupPasswordConfirm) {
+                Text("كلمتا المرور غير متطابقتين.", color = FinanceColors.Warning)
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 Button(onClick = { backupLauncher.launch("malek-finance-backup.mfb") }, enabled = !backupBusy && backupPassword.length >= 8 && backupPassword == backupPasswordConfirm) {
                     Text(if (backupBusy) "جارٍ العمل..." else "إنشاء نسخة")
