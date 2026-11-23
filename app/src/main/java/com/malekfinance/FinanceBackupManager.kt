@@ -63,13 +63,14 @@ object FinanceBackupManager {
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, nonce))
             cipher.updateAAD(MAGIC.toByteArray(StandardCharsets.US_ASCII))
-            encrypted = cipher.doFinal(payload)
-            require(encrypted.size + 40 <= MAX_BACKUP_BYTES) { "Backup exceeds the supported 64 MiB limit" }
+            val ciphertext = cipher.doFinal(payload)
+            encrypted = ciphertext
+            require(ciphertext.size + 40 <= MAX_BACKUP_BYTES) { "Backup exceeds the supported 64 MiB limit" }
             output.write(MAGIC.toByteArray(StandardCharsets.US_ASCII))
             output.write(salt)
             output.write(nonce)
-            output.write(ByteBuffer.allocate(4).putInt(encrypted.size).array())
-            output.write(encrypted)
+            output.write(ByteBuffer.allocate(4).putInt(ciphertext.size).array())
+            output.write(ciphertext)
             output.flush()
         } finally {
             payload.fill(0)
