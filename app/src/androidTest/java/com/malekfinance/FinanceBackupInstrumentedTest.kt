@@ -53,6 +53,36 @@ class FinanceBackupInstrumentedTest {
     }
 
     @Test
+    fun restoreFailureDuringRowInsertRollsBackTheExistingDatabase() = runBlocking {
+        val walletId = db.walletDao().insert(FinanceWallet(name = "النقد", currencyCode = "YER"))
+        db.dao().insert(
+            FinanceTransaction(amountMinor = 300, kind = "EXPENSE", note = "داخل النسخة", walletId = walletId)
+        )
+        val backup = ByteArrayOutputStream()
+        FinanceBackupManager.export(db, backup, "rollback-pass".toCharArray())
+
+        db.dao().insert(
+            FinanceTransaction(amountMinor = 900, kind = "EXPENSE", note = "البيانات الحالية", walletId = walletId)
+        )
+        db.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER reject_restore_transaction BEFORE INSERT ON transactions " +
+                "BEGIN SELECT RAISE(ABORT, 'injected restore failure'); END"
+        )
+
+        var failed = false
+        try {
+            FinanceBackupManager.restore(db, ByteArrayInputStream(backup.toByteArray()), "rollback-pass".toCharArray())
+        } catch (_: Exception) {
+            failed = true
+        }
+
+        assertTrue(failed)
+        val remaining = db.dao().forWallet(walletId)
+        assertEquals(1, remaining.size)
+        assertEquals("البيانات الحالية", remaining.single().note)
+    }
+
+    @Test
     fun wrongPasswordDoesNotChangeExistingData() = runBlocking {
         val walletId = db.walletDao().insert(FinanceWallet(name = "النقد", currencyCode = "YER"))
         db.dao().insert(FinanceTransaction(amountMinor = 500, kind = "EXPENSE", note = "محفوظ", walletId = walletId))
