@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.room.withTransaction
 import com.malekfinance.FinanceCategory
 import com.malekfinance.FinanceDb
+import com.malekfinance.FinanceLedger
 import com.malekfinance.FinanceRecurringExpenseEntry
 import com.malekfinance.FinanceRecurringExpensePolicy
 import com.malekfinance.FinanceRecurringExpenseRule
