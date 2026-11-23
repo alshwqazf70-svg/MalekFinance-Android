@@ -43,6 +43,35 @@ class FinanceRecurringIncomePolicyTest {
     }
 
     @Test
+    fun firstMonthlyDueUsesTheSelectedDayInTheCurrentMonthWhenStillAhead() {
+        val now = date(2025, 4, 10, 12)
+        val due = FinanceRecurringIncomePolicy.firstDueAt(now, "MONTHLY", 25)!!
+        assertEquals(listOf(2025, 4, 25, 12), parts(due))
+    }
+
+    @Test
+    fun firstMonthlyDueMovesToNextMonthWhenSelectedDayHasPassed() {
+        val now = date(2025, 4, 26, 12)
+        val due = FinanceRecurringIncomePolicy.firstDueAt(now, "MONTHLY", 25)!!
+        assertEquals(listOf(2025, 5, 25, 12), parts(due))
+    }
+
+    @Test
+    fun firstMonthlyDueClampsToMonthLengthWithoutLosingAnchorDay() {
+        val now = date(2025, 2, 1, 12)
+        val due = FinanceRecurringIncomePolicy.firstDueAt(now, "MONTHLY", 31)!!
+        assertEquals(listOf(2025, 2, 28, 12), parts(due))
+        val following = FinanceRecurringIncomePolicy.nextDueAt(due, "MONTHLY", 31)!!
+        assertEquals(listOf(2025, 3, 31, 12), parts(following))
+    }
+
+    @Test
+    fun firstWeeklyDueIsImmediatelyReviewable() {
+        val now = date(2025, 4, 10, 12)
+        assertEquals(now, FinanceRecurringIncomePolicy.firstDueAt(now, "WEEKLY", 10))
+    }
+
+    @Test
     fun occurrenceKeyIsStableForTheScheduledLocalDate() {
         val first = date(2025, 8, 19, 8)
         val sameDayLater = date(2025, 8, 19, 22)
