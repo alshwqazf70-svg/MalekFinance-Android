@@ -490,7 +490,6 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 transferAmountText = ""
                 transferNote = ""
                 hasDebtPaymentDraft = false
-                debtPaymentDraftId = null
                 debtPaymentAmountDraft = ""
                 status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
             } else if (parsed.command == VoiceCommandType.DEBT_PAYMENT_DRAFT) {
