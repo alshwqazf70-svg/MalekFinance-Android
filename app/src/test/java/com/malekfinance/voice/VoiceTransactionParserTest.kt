@@ -160,4 +160,11 @@ class VoiceTransactionParserTest {
         assertEquals("أحمد", borrowedYemeni.debtPersonName)
     }
 
+    @Test fun distinguishesFirstDayBeforeYesterdayFromYesterdayAndPreviousPeriods() {
+        assertEquals("DAY_BEFORE_YESTERDAY", VoiceTransactionParser.parse("كم صرفت أول أمس؟").queryPeriod)
+        assertEquals("YESTERDAY", VoiceTransactionParser.parse("كم صرفت أمس؟").queryPeriod)
+        assertEquals("LAST_MONTH", VoiceTransactionParser.parse("كم صرفت الشهر الماضي؟").queryPeriod)
+        assertEquals("LAST_WEEK", VoiceTransactionParser.parse("كم صرفت الأسبوع الماضي؟").queryPeriod)
+    }
+
 }
