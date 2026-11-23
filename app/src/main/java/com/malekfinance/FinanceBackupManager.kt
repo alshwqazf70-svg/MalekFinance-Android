@@ -84,7 +84,7 @@ object FinanceBackupManager {
         } finally {
             // Also clear the password when validation fails before key derivation
             // (for example, when the backup exceeds the supported size).
-            password.fill('\\u0000')
+            password.fill('\u0000')
             payload.fill(0)
             salt.fill(0)
             nonce.fill(0)
