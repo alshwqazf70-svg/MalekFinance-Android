@@ -88,6 +88,22 @@ class FinanceRecurringIncomePolicyTest {
     }
 
     @Test
+    fun confirmedRecurringSalaryIsPostedAsNormalIncomeToItsWallet() {
+        val wallet = FinanceWallet(id = 4, name = "الحساب البنكي", currencyCode = "YER", openingBalanceMinor = 2_000)
+        val salary = FinanceTransaction(
+            amountMinor = 75_000,
+            kind = "INCOME",
+            note = "راتب: الراتب الشهري",
+            category = "راتب",
+            walletId = wallet.id,
+            currencyCode = wallet.currencyCode,
+            recurringIncomeRuleId = 9
+        )
+        assertEquals(java.math.BigInteger.valueOf(77_000), FinanceLedger.calculateBalance(wallet, listOf(salary), emptyList()))
+        assertEquals(9L, salary.recurringIncomeRuleId)
+    }
+
+    @Test
     fun unsupportedFrequencyIsRejected() {
         assertNull(FinanceRecurringIncomePolicy.nextDueAt(date(2025, 1, 1), "DAILY", 1))
     }
