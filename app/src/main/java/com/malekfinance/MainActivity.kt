@@ -40,7 +40,7 @@ import com.malekfinance.ui.FinanceColors
 import java.text.NumberFormat
 import java.util.Locale
 
-@Entity(tableName = "transactions", indices = [Index(value = ["walletId"]), Index(value = ["debtId"])])
+@Entity(tableName = "transactions", indices = [Index(value = ["walletId"]), Index(value = ["debtId"]), Index(value = ["savingsGoalId"])])
 data class FinanceTransaction(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val amountMinor: Long,
