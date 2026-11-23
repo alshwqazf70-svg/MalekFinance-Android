@@ -225,7 +225,7 @@ internal fun RecurringIncomeSection(
                                                     val now = System.currentTimeMillis()
                                                     check(FinanceRecurringIncomePolicy.isDue(current.nextDueAt, now))
                                                     val occurrence = FinanceRecurringIncomePolicy.occurrenceKey(current.nextDueAt)
-                                                    check(db.recurringIncomeEntryDao().forRule(current.id).none { it.occurrenceKey == occurrence })
+                                                    check(!db.recurringIncomeEntryDao().exists(current.id, occurrence))
                                                     val currentWallet = db.walletDao().findById(current.walletId) ?: error("Wallet not found")
                                                     check(currentWallet.currencyCode == current.currencyCode)
                                                     val transactionId = db.dao().insert(
