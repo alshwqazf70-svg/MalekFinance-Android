@@ -854,6 +854,7 @@ private fun MoneyLandingScreen(
     var budgetCategoryName by remember { mutableStateOf("") }
     var budgetCurrency by remember { mutableStateOf("YER") }
     var budgetLimit by remember { mutableStateOf("") }
+    var editingBudgetId by remember { mutableStateOf<Long?>(null) }
     var isCreatingBudget by remember { mutableStateOf(false) }
     val budgetMonth = remember { com.malekfinance.FinanceBudgetPolicy.monthWindow(System.currentTimeMillis()) }
     val budgetCategories = categories.filter { it.isActive && (it.kind == "EXPENSE" || it.kind == "BOTH") }
@@ -1133,28 +1134,43 @@ private fun MoneyLandingScreen(
                         )
                         Button(
                             onClick = {
-                                val selectedCategory = budgetCategoryName.ifBlank { budgetCategories.first().name }
                                 val normalized = normalizeFinanceAmount(budgetLimit).replace('٫', '.').replace(',', '.').trim()
                                 val limitMinor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
+                                val editingBudget = editingBudgetId?.let { id -> budgets.firstOrNull { it.id == id } }
+                                val selectedCategory = editingBudget?.categoryName ?: budgetCategoryName.ifBlank { budgetCategories.first().name }
+                                val selectedCurrency = editingBudget?.currencyCode ?: budgetCurrency
                                 when {
                                     limitMinor == null || limitMinor <= 0L -> status = "أدخل حداً صحيحاً للميزانية أكبر من صفر."
-                                    budgetCategories.none { it.name == selectedCategory } -> status = "اختر تصنيف مصروف نشطاً."
-                                    budgets.any { it.categoryName == selectedCategory && it.currencyCode == budgetCurrency && it.periodKey == budgetMonth.periodKey } -> status = "توجد ميزانية لهذا التصنيف والعملة في الشهر الحالي."
+                                    editingBudgetId != null && editingBudget == null -> {
+                                        editingBudgetId = null
+                                        budgetLimit = ""
+                                        status = "لم تعد الميزانية المحددة موجودة؛ حدّث القائمة وحاول مجدداً."
+                                    }
+                                    editingBudget == null && budgetCategories.none { it.name == selectedCategory } -> status = "اختر تصنيف مصروف نشطاً."
+                                    editingBudget == null && budgets.any { it.categoryName == selectedCategory && it.currencyCode == selectedCurrency && it.periodKey == budgetMonth.periodKey } -> status = "توجد ميزانية لهذا التصنيف والعملة في الشهر الحالي."
                                     else -> scope.launch {
                                         if (isCreatingBudget) return@launch
                                         isCreatingBudget = true
                                         try {
-                                            db.budgetDao().insert(com.malekfinance.FinanceBudget(
-                                                categoryName = selectedCategory,
-                                                currencyCode = budgetCurrency,
-                                                periodKey = budgetMonth.periodKey,
-                                                limitMinor = limitMinor
-                                            ))
-                                            budgetCategoryName = selectedCategory
+                                            if (editingBudget != null) {
+                                                val latest = budgets.firstOrNull { it.id == editingBudget.id } ?: error("Budget not found")
+                                                val changed = db.budgetDao().update(latest.copy(limitMinor = limitMinor))
+                                                check(changed == 1) { "Budget was not updated" }
+                                                editingBudgetId = null
+                                                status = "تم تحديث حد الميزانية دون تغيير تصنيفها أو عملتها أو شهرها."
+                                            } else {
+                                                db.budgetDao().insert(com.malekfinance.FinanceBudget(
+                                                    categoryName = selectedCategory,
+                                                    currencyCode = selectedCurrency,
+                                                    periodKey = budgetMonth.periodKey,
+                                                    limitMinor = limitMinor
+                                                ))
+                                                budgetCategoryName = selectedCategory
+                                                status = "تم إنشاء الميزانية الشهرية."
+                                            }
                                             budgetLimit = ""
-                                            status = "تم إنشاء الميزانية الشهرية."
                                         } catch (_: Exception) {
-                                            status = "تعذر إنشاء الميزانية؛ قد تكون موجودة بالفعل."
+                                            status = "تعذر حفظ الميزانية؛ لم يتم تغيير بياناتها."
                                         } finally {
                                             isCreatingBudget = false
                                         }
@@ -1164,7 +1180,16 @@ private fun MoneyLandingScreen(
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !isCreatingBudget && budgetCategories.isNotEmpty(),
                             colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
-                        ) { Text(if (isCreatingBudget) "جارٍ إنشاء الميزانية..." else "إضافة ميزانية لهذا الشهر") }
+                        ) { Text(if (isCreatingBudget) "جارٍ الحفظ..." else if (editingBudgetId != null) "حفظ تعديل الميزانية" else "إضافة ميزانية لهذا الشهر") }
+                        if (editingBudgetId != null) {
+                            TextButton(
+                                onClick = {
+                                    editingBudgetId = null
+                                    budgetLimit = ""
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("إلغاء تعديل الميزانية", color = FinanceColors.TextSecondary) }
+                        }
                     }
                     val currentBudgets = budgets.filter { it.periodKey == budgetMonth.periodKey }
                     if (currentBudgets.isEmpty()) {
@@ -1194,13 +1219,27 @@ private fun MoneyLandingScreen(
                                     color = if (alert == "OVER_LIMIT") FinanceColors.Expense else FinanceColors.TextSecondary,
                                     style = MaterialTheme.typography.bodySmall
                                 )
-                                TextButton(onClick = {
-                                    scope.launch {
-                                        runCatching { db.budgetDao().delete(budget.id) }
-                                            .onSuccess { status = "تم حذف الميزانية." }
-                                            .onFailure { status = "تعذر حذف الميزانية." }
-                                    }
-                                }) { Text("حذف الميزانية") }
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    TextButton(onClick = {
+                                        editingBudgetId = budget.id
+                                        budgetCategoryName = budget.categoryName
+                                        budgetCurrency = budget.currencyCode
+                                        budgetLimit = java.math.BigDecimal.valueOf(budget.limitMinor, 2).stripTrailingZeros().toPlainString()
+                                    }) { Text("تعديل الحد", color = FinanceColors.PrimaryLight) }
+                                    TextButton(onClick = {
+                                        scope.launch {
+                                            runCatching { db.budgetDao().delete(budget.id) }
+                                                .onSuccess {
+                                                    if (editingBudgetId == budget.id) {
+                                                        editingBudgetId = null
+                                                        budgetLimit = ""
+                                                    }
+                                                    status = "تم حذف الميزانية."
+                                                }
+                                                .onFailure { status = "تعذر حذف الميزانية." }
+                                        }
+                                    }) { Text("حذف الميزانية") }
+                                }
                             }
                         }
                     }
