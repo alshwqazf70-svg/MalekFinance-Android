@@ -46,6 +46,7 @@ fun FinanceApp(db: FinanceDb) {
     val wallets by db.walletDao().observe().collectAsState(initial = emptyList())
     val transfers by db.transferDao().observe().collectAsState(initial = emptyList())
     val categories by db.categoryDao().observeAll().collectAsState(initial = emptyList())
+    val budgets by db.budgetDao().observeAll().collectAsState(initial = emptyList())
     // Never combine different currencies into one misleading total.
     val yerTransactions = transactions.filter { it.currencyCode == "YER" }
     val income = yerTransactions.filter { it.kind == "INCOME" }
@@ -100,7 +101,7 @@ fun FinanceApp(db: FinanceDb) {
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
-                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, Modifier.padding(padding))
+                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, Modifier.padding(padding))
             }
         }
         }
@@ -602,6 +603,7 @@ private fun MoneyLandingScreen(
     transactions: List<FinanceTransaction>,
     transfers: List<FinanceTransfer>,
     categories: List<com.malekfinance.FinanceCategory>,
+    budgets: List<com.malekfinance.FinanceBudget>,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -619,6 +621,12 @@ private fun MoneyLandingScreen(
     var categoryName by remember { mutableStateOf("") }
     var categoryKind by remember { mutableStateOf("EXPENSE") }
     var isTransferring by remember { mutableStateOf(false) }
+    var budgetCategoryName by remember { mutableStateOf("") }
+    var budgetCurrency by remember { mutableStateOf("YER") }
+    var budgetLimit by remember { mutableStateOf("") }
+    var isCreatingBudget by remember { mutableStateOf(false) }
+    val budgetMonth = remember { com.malekfinance.FinanceBudgetPolicy.monthWindow(System.currentTimeMillis()) }
+    val budgetCategories = categories.filter { it.isActive && (it.kind == "EXPENSE" || it.kind == "BOTH") }
 
     LaunchedEffect(wallets) {
         if (fromWalletId == null && wallets.isNotEmpty()) fromWalletId = wallets.first().id
@@ -854,7 +862,113 @@ private fun MoneyLandingScreen(
             }
         }
         if (status != null) item { Text(status!!, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall) }
-        item { SectionCard("الميزانيات", "تحديد حدود الإنفاق ومتابعتها — لم تُفعّل بعد.") }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("الميزانيات الشهرية", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("حدد سقفاً لكل تصنيف وعملة. الإنفاق يُحسب من المصروفات المسجلة خلال الشهر الحالي فقط.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    if (budgetCategories.isEmpty()) {
+                        Text("أضف تصنيف مصروف نشطاً أولاً.", color = FinanceColors.TextSecondary)
+                    } else {
+                        Text("التصنيف", color = FinanceColors.TextSecondary)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(budgetCategories, key = { it.id }) { category ->
+                                FilterChip(
+                                    selected = budgetCategoryName == category.name,
+                                    onClick = { budgetCategoryName = category.name },
+                                    label = { Text(category.name) }
+                                )
+                            }
+                        }
+                        Text("العملة", color = FinanceColors.TextSecondary)
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("YER", "USD", "SAR", "AED").forEach { code ->
+                                FilterChip(selected = budgetCurrency == code, onClick = { budgetCurrency = code }, label = { Text(code) })
+                            }
+                        }
+                        OutlinedTextField(
+                            value = budgetLimit,
+                            onValueChange = { budgetLimit = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("حد الميزانية ($budgetCurrency) لهذا الشهر") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true
+                        )
+                        Button(
+                            onClick = {
+                                val selectedCategory = budgetCategoryName.ifBlank { budgetCategories.first().name }
+                                val normalized = normalizeFinanceAmount(budgetLimit).replace('٫', '.').replace(',', '.').trim()
+                                val limitMinor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
+                                when {
+                                    limitMinor == null || limitMinor <= 0L -> status = "أدخل حداً صحيحاً للميزانية أكبر من صفر."
+                                    budgets.any { it.categoryName == selectedCategory && it.currencyCode == budgetCurrency && it.periodStartMillis == budgetMonth.startMillis } -> status = "توجد ميزانية لهذا التصنيف والعملة في الشهر الحالي."
+                                    else -> scope.launch {
+                                        if (isCreatingBudget) return@launch
+                                        isCreatingBudget = true
+                                        try {
+                                            db.budgetDao().insert(com.malekfinance.FinanceBudget(
+                                                categoryName = selectedCategory,
+                                                currencyCode = budgetCurrency,
+                                                periodStartMillis = budgetMonth.startMillis,
+                                                limitMinor = limitMinor
+                                            ))
+                                            budgetCategoryName = selectedCategory
+                                            budgetLimit = ""
+                                            status = "تم إنشاء الميزانية الشهرية."
+                                        } catch (_: Exception) {
+                                            status = "تعذر إنشاء الميزانية؛ قد تكون موجودة بالفعل."
+                                        } finally {
+                                            isCreatingBudget = false
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isCreatingBudget && budgetCategories.isNotEmpty(),
+                            colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                        ) { Text(if (isCreatingBudget) "جارٍ إنشاء الميزانية..." else "إضافة ميزانية لهذا الشهر") }
+                    }
+                    val currentBudgets = budgets.filter { it.periodStartMillis == budgetMonth.startMillis }
+                    if (currentBudgets.isEmpty()) {
+                        Text("لم تُحدد ميزانيات لهذا الشهر بعد.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    } else {
+                        currentBudgets.forEach { budget ->
+                            val spent = com.malekfinance.FinanceBudgetPolicy.calculateSpent(budget, transactions, budgetMonth.endExclusiveMillis)
+                            val percent = com.malekfinance.FinanceBudgetPolicy.usagePercent(spent, budget.limitMinor)
+                            val alert = com.malekfinance.FinanceBudgetPolicy.alertLevel(spent, budget.limitMinor)
+                            Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text(budget.categoryName, fontWeight = FontWeight.SemiBold)
+                                    Text("$percent%", color = if (alert == "OVER_LIMIT") FinanceColors.Expense else if (alert == "NEAR_LIMIT") FinanceColors.PrimaryLight else FinanceColors.TextSecondary)
+                                }
+                                LinearProgressIndicator(
+                                    progress = { (spent.toDouble() / budget.limitMinor.toDouble()).toFloat().coerceIn(0f, 1f) },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = if (alert == "OVER_LIMIT") FinanceColors.Expense else FinanceColors.Primary
+                                )
+                                Text(
+                                    formatCurrencyMoney(spent, budget.currencyCode) + " من " + formatCurrencyMoney(budget.limitMinor, budget.currencyCode) +
+                                        when (alert) {
+                                            "OVER_LIMIT" -> " • تجاوزت الميزانية"
+                                            "NEAR_LIMIT" -> " • اقتربت من الحد (80% أو أكثر)"
+                                            else -> ""
+                                        },
+                                    color = if (alert == "OVER_LIMIT") FinanceColors.Expense else FinanceColors.TextSecondary,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                TextButton(onClick = {
+                                    scope.launch {
+                                        runCatching { db.budgetDao().delete(budget.id) }
+                                            .onSuccess { status = "تم حذف الميزانية." }
+                                            .onFailure { status = "تعذر حذف الميزانية." }
+                                    }
+                                }) { Text("حذف الميزانية") }
+                            }
+                        }
+                    }
+                }
+            }
+        }
         item { SectionCard("الديون والسلف", "تسجيل المستحقات والسداد الجزئي — لم تُفعّل بعد.") }
         item { SectionCard("الادخار", "أهداف الادخار ومتابعة التقدم — لم تُفعّل بعد.") }
         item { SectionCard("الرواتب والفواتير", "الدخل المتكرر والاستحقاقات — لم تُفعّل بعد.") }
