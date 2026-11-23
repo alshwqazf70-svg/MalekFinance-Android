@@ -422,6 +422,10 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var savingsGoalDraftId by remember { mutableStateOf<Long?>(null) }
     var savingsDraftType by remember { mutableStateOf("CONTRIBUTION") }
     var isSavingsSaving by remember { mutableStateOf(false) }
+    var hasBillDraft by remember { mutableStateOf(false) }
+    var billDraftId by remember { mutableStateOf<Long?>(null) }
+    var isBillSaving by remember { mutableStateOf(false) }
+    val voiceBills by db.billDao().observeAll().collectAsState(initial = emptyList())
     val voiceSavingsGoals by db.savingsGoalDao().observeAll().collectAsState(initial = emptyList())
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
@@ -476,6 +480,17 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 transferAmountText = ""
                 transferNote = ""
                 status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
+            } else if (parsed.command == VoiceCommandType.BILL_PAYMENT_DRAFT) {
+                hasDraft = false
+                hasTransferDraft = false
+                hasDebtDraft = false
+                hasSavingsDraft = false
+                amount = ""
+                description = ""
+                kind = null
+                hasBillDraft = true
+                billDraftId = voiceBills.firstOrNull { spoken.contains(it.title, ignoreCase = true) }?.id
+                status = "اختر الفاتورة وراجع المبلغ وموعد الاستحقاق. لن يتم تسجيل الدفع إلا بعد التأكيد."
             } else if (parsed.command == VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT ||
                 parsed.command == VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT) {
                 hasDraft = false
@@ -656,7 +671,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                             "، المتبقي " + java.math.BigDecimal(remaining, 2).toPlainString() + " " + wallet.currencyCode
                                     }
                                 }
-                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT -> ""
+                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
                             .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
@@ -713,7 +728,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 
     fun cancelVoiceDraft() {
-        if (isSavingDraft || isTransferSaving || isDebtSaving || isSavingsSaving) return
+        if (isSavingDraft || isTransferSaving || isDebtSaving || isSavingsSaving || isBillSaving) return
         transcript = ""
         amount = ""
         description = ""
@@ -739,7 +754,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 
     fun saveReviewedDraft() {
-        if (isSavingDraft || hasTransferDraft || hasDebtDraft || hasSavingsDraft) return
+        if (isSavingDraft || hasTransferDraft || hasDebtDraft || hasSavingsDraft || hasBillDraft) return
         val normalized = normalizeFinanceAmount(amount).replace('٫', '.').replace(',', '.').trim()
         val minor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
         val selectedKind = kind
