@@ -550,7 +550,7 @@ class FinanceRoomIntegrityTest {
     }
 
     private fun rowCount(table: String): Int {
-        require(table in setOf("transactions", "transfers", "debts", "savings_entries", "debt_payments"))
+        require(table in setOf("transactions", "transfers", "debts", "savings_entries", "debt_payments", "bill_payments"))
         return db.openHelper.writableDatabase.query("SELECT COUNT(*) FROM $table").use { cursor ->
             check(cursor.moveToFirst())
             cursor.getInt(0)
