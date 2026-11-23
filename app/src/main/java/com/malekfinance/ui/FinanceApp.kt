@@ -543,12 +543,34 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                     "ملخص " + wallet.name + ": الدخل " + VoiceQueryEngine.formatAmount(income) + "، المصروف " + VoiceQueryEngine.formatAmount(expense)
                                 }
                                 VoiceCommandType.RECENT_TRANSACTIONS_QUERY -> {
-                                    val recent = walletTransactions.sortedByDescending { it.createdAt }.take(5)
-                                    if (recent.isEmpty()) "لا توجد عمليات مسجلة في " + wallet.name + "."
-                                    else "آخر العمليات في " + wallet.name + ": " + recent.joinToString("؛ ") {
-                                        val kindLabel = if (it.kind == "INCOME") "دخل" else if (it.kind == "EXPENSE") "مصروف" else it.kind
-                                        kindLabel + " " + java.math.BigDecimal.valueOf(it.amountMinor, 2).toPlainString() + " " + wallet.currencyCode + " — " + it.note
+                                    val transactionItems = walletTransactions.map { item ->
+                                        item.createdAt to run {
+                                            val kindLabel = when (item.kind) {
+                                                "INCOME" -> "دخل"
+                                                "EXPENSE" -> "مصروف"
+                                                "DEBT_ISSUED" -> "إقراض"
+                                                "DEBT_RECEIVED" -> "قرض مستلم"
+                                                "SAVINGS_CONTRIBUTION" -> "ادخار"
+                                                "SAVINGS_WITHDRAWAL" -> "سحب من الادخار"
+                                                else -> item.kind
+                                            }
+                                            kindLabel + " " + java.math.BigDecimal.valueOf(item.amountMinor, 2).toPlainString() +
+                                                " " + item.currencyCode + " — " + item.note
+                                        }
                                     }
+                                    val transferItems = transfers.map { transfer ->
+                                        transfer.createdAt to run {
+                                            val outgoing = transfer.fromWalletId == wallet.id
+                                            val otherWalletId = if (outgoing) transfer.toWalletId else transfer.fromWalletId
+                                            val otherWalletName = wallets.firstOrNull { it.id == otherWalletId }?.name ?: "محفظة أخرى"
+                                            (if (outgoing) "تحويل صادر إلى " else "تحويل وارد من ") + otherWalletName +
+                                                " بمبلغ " + java.math.BigDecimal.valueOf(transfer.amountMinor, 2).toPlainString() +
+                                                " " + transfer.currencyCode
+                                        }
+                                    }
+                                    val recent = (transactionItems + transferItems).sortedByDescending { it.first }.take(5)
+                                    if (recent.isEmpty()) "لا توجد عمليات مسجلة في " + wallet.name + "."
+                                    else "آخر العمليات في " + wallet.name + ": " + recent.joinToString("؛ ") { it.second }
                                 }
                                 VoiceCommandType.DEBT_OWED_BY_ME_QUERY, VoiceCommandType.DEBT_OWED_TO_ME_QUERY -> {
                                     val debtType = if (parsed.command == VoiceCommandType.DEBT_OWED_BY_ME_QUERY) "OWED_BY_ME" else "OWED_TO_ME"
