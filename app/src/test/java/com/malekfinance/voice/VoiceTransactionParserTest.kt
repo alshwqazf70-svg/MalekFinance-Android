@@ -113,4 +113,11 @@ class VoiceTransactionParserTest {
         )
     }
 
+    @Test fun recognizesSavingsBalanceQuestion() {
+        assertEquals(
+            VoiceCommandType.SAVINGS_BALANCE_QUERY,
+            VoiceTransactionParser.parse("كم ادخرت حتى الآن؟").command
+        )
+    }
+
 }
