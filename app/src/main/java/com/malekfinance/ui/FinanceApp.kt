@@ -407,6 +407,18 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, kind!!)
     }
 
+    LaunchedEffect(activeCategories, kind) {
+        if (activeCategories.isNotEmpty() && activeCategories.none {
+                it.name == category && (kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, kind!!))
+            }) {
+            category = activeCategories.firstOrNull {
+                it.name == "عام" && (kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, kind!!))
+            }?.name ?: activeCategories.firstOrNull {
+                kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, kind!!)
+            }?.name ?: "عام"
+        }
+    }
+
     LaunchedEffect(wallets) {
         if (selectedWalletId == null && wallets.isNotEmpty()) selectedWalletId = wallets.first().id
     }
@@ -460,8 +472,14 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             } else {
                 amount = parsed.amount.orEmpty()
                 description = parsed.description
-                category = parsed.category
                 kind = parsed.kind
+                category = activeCategories.firstOrNull {
+                    it.name == parsed.category && (parsed.kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, parsed.kind))
+                }?.name ?: activeCategories.firstOrNull {
+                    it.name == "عام" && (parsed.kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, parsed.kind))
+                }?.name ?: activeCategories.firstOrNull {
+                    parsed.kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, parsed.kind)
+                }?.name ?: "عام"
                 hasDraft = true
                 status = when {
                     parsed.amount == null && parsed.kind == null -> "لم أتعرف على المبلغ أو نوع العملية. أكمل البيانات وحدد دخل أو مصروف."
@@ -501,12 +519,13 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             status = "أدخل وصفاً للعملية قبل الحفظ."
             return
         }
-        if (activeCategories.none {
-                it.name == category && (selectedKind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, selectedKind))
-            }) {
-            status = "اختر تصنيفاً نشطاً يناسب نوع العملية."
-            return
-        }
+        val resolvedCategory = activeCategories.firstOrNull {
+            it.name == category && com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, selectedKind)
+        }?.name ?: activeCategories.firstOrNull {
+            it.name == "عام" && com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, selectedKind)
+        }?.name ?: activeCategories.firstOrNull {
+            com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, selectedKind)
+        }?.name ?: "عام"
         val wallet = selectedWallet
         if (wallet == null) {
             status = "أنشئ محفظة أولاً من قسم مالي."
@@ -520,7 +539,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                         amountMinor = minor,
                         kind = selectedKind,
                         note = description.trim(),
-                        category = category,
+                        category = resolvedCategory,
                         walletId = wallet.id,
                         currencyCode = wallet.currencyCode
                     )
