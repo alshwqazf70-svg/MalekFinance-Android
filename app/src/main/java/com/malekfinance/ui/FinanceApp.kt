@@ -931,6 +931,11 @@ private fun ReportsLandingScreen(
     var backupPassword by remember { mutableStateOf("") }
     var backupBusy by remember { mutableStateOf(false) }
     var showRestoreConfirmation by remember { mutableStateOf(false) }
+    var customStartText by remember { mutableStateOf("") }
+    var customEndText by remember { mutableStateOf("") }
+    var customStartMillis by remember { mutableStateOf<Long?>(null) }
+    var customEndExclusive by remember { mutableStateOf<Long?>(null) }
+    var customRangeStatus by remember { mutableStateOf("") }
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     var selectedRange by remember { mutableStateOf(FinanceReportRange.MONTHLY) }
     LaunchedEffect(wallets) {
@@ -995,6 +1000,12 @@ private fun ReportsLandingScreen(
     }.orEmpty()
     val maximum = timeline.flatMap { listOf(it.incomeMinor, it.expenseMinor) }
         .maxOrNull()?.coerceAtLeast(java.math.BigInteger.ONE) ?: java.math.BigInteger.ONE
+    val customResult = if (wallet != null && customStartMillis != null && customEndExclusive != null) {
+        FinanceReportAnalytics.customRange(transactions, wallet.id, wallet.currencyCode, customStartMillis!!, customEndExclusive!!)
+    } else null
+    val customCategories = if (wallet != null && customStartMillis != null && customEndExclusive != null) {
+        FinanceReportAnalytics.customCategoryBreakdown(transactions, wallet.id, wallet.currencyCode, customStartMillis!!, customEndExclusive!!)
+    } else emptyList()
 
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -1093,6 +1104,53 @@ private fun ReportsLandingScreen(
                             }
                         }
                     }
+                }
+            }
+            item {
+                Text("مقارنة فترة مخصصة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = customStartText,
+                    onValueChange = { customStartText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("من تاريخ YYYY-MM-DD") }
+                )
+                OutlinedTextField(
+                    value = customEndText,
+                    onValueChange = { customEndText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    label = { Text("إلى تاريخ YYYY-MM-DD") }
+                )
+                Button(onClick = {
+                    val start = com.malekfinance.FinanceBillPolicy.parseLocalDate(customStartText)
+                    val end = com.malekfinance.FinanceBillPolicy.parseLocalDate(customEndText)
+                    if (start == null || end == null || end < start) {
+                        customRangeStatus = "أدخل تاريخي بداية ونهاية صحيحين، وتأكد أن النهاية ليست قبل البداية."
+                        customStartMillis = null
+                        customEndExclusive = null
+                    } else {
+                        val startDay = java.util.Calendar.getInstance().apply {
+                            timeInMillis = start
+                            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                        }
+                        val endDay = java.util.Calendar.getInstance().apply {
+                            timeInMillis = end
+                            set(java.util.Calendar.HOUR_OF_DAY, 0); set(java.util.Calendar.MINUTE, 0)
+                            set(java.util.Calendar.SECOND, 0); set(java.util.Calendar.MILLISECOND, 0)
+                            add(java.util.Calendar.DAY_OF_YEAR, 1)
+                        }
+                        customStartMillis = startDay.timeInMillis
+                        customEndExclusive = endDay.timeInMillis
+                        customRangeStatus = "تم تحديث نتائج الفترة المخصصة."
+                    }
+                }, enabled = wallet != null) { Text("عرض الفترة المخصصة") }
+                if (customRangeStatus.isNotBlank()) Text(customRangeStatus, color = FinanceColors.TextSecondary)
+                if (customResult != null && wallet != null) {
+                    Text("الدخل: " + reportMoney(customResult.incomeMinor, wallet.currencyCode), color = FinanceColors.Income)
+                    Text("المصروف: " + reportMoney(customResult.expenseMinor, wallet.currencyCode), color = FinanceColors.Expense)
+                    Text("عدد تصنيفات المصروف: " + customCategories.size)
                 }
             }
             item {
