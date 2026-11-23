@@ -8,7 +8,8 @@ data class ParsedTransaction(
     val category: String,
     val description: String,
     val command: VoiceCommandType = VoiceCommandType.TRANSACTION,
-    val queryPeriod: String? = null
+    val queryPeriod: String? = null,
+    val relativeDayOffset: Int? = null
 )
 
 /**
@@ -84,7 +85,8 @@ object VoiceTransactionParser {
             category = category,
             description = description,
             command = command,
-            queryPeriod = detectPeriod(lower)
+            queryPeriod = detectPeriod(lower),
+            relativeDayOffset = detectRelativeDay(lower)
         )
     }
 
@@ -94,6 +96,13 @@ object VoiceTransactionParser {
         containsAny(text, listOf("كم دخل", "كم استلمت", "إجمالي الدخل", "مجموع الدخل")) -> VoiceCommandType.INCOME_QUERY
         containsAny(text, listOf("ملخص مالي", "ملخص حسابي", "اعطني ملخص", "أعطني ملخص", "التقرير المالي")) -> VoiceCommandType.SUMMARY_QUERY
         else -> VoiceCommandType.TRANSACTION
+    }
+
+    private fun detectRelativeDay(text: String): Int? = when {
+        containsAny(text, listOf("أول أمس", "اول امس")) -> -2
+        containsAny(text, listOf("أمس", "امس")) -> -1
+        containsAny(text, listOf("اليوم", "هذا اليوم")) -> 0
+        else -> null
     }
 
     private fun detectPeriod(text: String): String? = when {
