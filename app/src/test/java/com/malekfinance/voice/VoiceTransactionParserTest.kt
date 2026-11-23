@@ -205,4 +205,16 @@ class VoiceTransactionParserTest {
         assertEquals("700", collection.amount)
     }
 
+    @Test fun recognizesSpokenDebtRepaymentAndCollectionAsSeparateDrafts() {
+        val repayment = VoiceTransactionParser.parse("سددت دين أحمد ٥٠٠ ريال")
+        assertEquals(VoiceCommandType.DEBT_PAYMENT_DRAFT, repayment.command)
+        assertEquals("OWED_BY_ME", repayment.debtPaymentDirection)
+        assertEquals("500", repayment.amount)
+
+        val collection = VoiceTransactionParser.parse("حصلت دين أحمد ٧٥٠ ريال")
+        assertEquals(VoiceCommandType.DEBT_PAYMENT_DRAFT, collection.command)
+        assertEquals("OWED_TO_ME", collection.debtPaymentDirection)
+        assertEquals("750", collection.amount)
+    }
+
 }
