@@ -323,6 +323,30 @@ class FinanceRoomIntegrityTest {
         assertEquals(0, rowCount("transactions"))
     }
 
+
+    @Test
+    fun debtInsertRollsBackWhenLinkedCashTransactionFails() = runBlocking {
+        val walletId = db.walletDao().insert(FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 5_000))
+        db.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER reject_debt_cash_insert BEFORE INSERT ON transactions " +
+                "BEGIN SELECT RAISE(ABORT, 'injected transaction failure'); END"
+        )
+
+        expectFailure {
+            FinanceDebtOperations.create(
+                db = db,
+                personName = "أحمد",
+                description = "قرض",
+                debtType = "OWED_BY_ME",
+                principalMinor = 1_000,
+                walletId = walletId,
+                recordCashMovement = true
+            )
+        }
+        assertEquals(0, rowCount("debts"))
+        assertEquals(0, rowCount("transactions"))
+    }
+
     private suspend fun expectFailure(block: suspend () -> Unit) {
         var failed = false
         try {
