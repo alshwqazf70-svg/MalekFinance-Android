@@ -67,6 +67,7 @@ object FinanceBackupManager {
         val nonce = ByteArray(12).also(SecureRandom()::nextBytes)
         var encrypted: ByteArray? = null
         try {
+            require(payload.size + 40 <= MAX_BACKUP_BYTES) { "Backup exceeds the supported 64 MiB limit" }
             val key = try { deriveKey(password, salt) } finally { password.fill('\u0000') }
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, nonce))
@@ -162,7 +163,12 @@ object FinanceBackupManager {
                                     else -> error("Unsupported cell type")
                                 }
                             }
-                            database.insert(table, android.database.sqlite.SQLiteDatabase.CONFLICT_ABORT, content)
+                            val insertedRowId = database.insert(
+                                table,
+                                android.database.sqlite.SQLiteDatabase.CONFLICT_ABORT,
+                                content
+                            )
+                            check(insertedRowId != -1L) { "Could not restore a row in table $table" }
                         }
                     }
                 }
@@ -213,7 +219,11 @@ object FinanceBackupManager {
         val spec = PBEKeySpec(password, salt, ITERATIONS, KEY_BITS)
         return try {
             val encoded = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1").generateSecret(spec).encoded
-            SecretKeySpec(encoded, "AES")
+            try {
+                SecretKeySpec(encoded, "AES")
+            } finally {
+                encoded.fill(0)
+            }
         } finally {
             spec.clearPassword()
         }
