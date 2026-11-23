@@ -57,18 +57,26 @@ object FinanceBackupManager {
 
         val salt = ByteArray(16).also(SecureRandom()::nextBytes)
         val nonce = ByteArray(12).also(SecureRandom()::nextBytes)
-        val key = try { deriveKey(password, salt) } finally { password.fill('\u0000') }
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, nonce))
-        cipher.updateAAD(MAGIC.toByteArray(StandardCharsets.US_ASCII))
-        val encrypted = cipher.doFinal(payload)
-        require(encrypted.size + 40 <= MAX_BACKUP_BYTES) { "Backup exceeds the supported 64 MiB limit" }
-        output.write(MAGIC.toByteArray(StandardCharsets.US_ASCII))
-        output.write(salt)
-        output.write(nonce)
-        output.write(ByteBuffer.allocate(4).putInt(encrypted.size).array())
-        output.write(encrypted)
-        output.flush()
+        var encrypted: ByteArray? = null
+        try {
+            val key = try { deriveKey(password, salt) } finally { password.fill('\u0000') }
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, nonce))
+            cipher.updateAAD(MAGIC.toByteArray(StandardCharsets.US_ASCII))
+            encrypted = cipher.doFinal(payload)
+            require(encrypted.size + 40 <= MAX_BACKUP_BYTES) { "Backup exceeds the supported 64 MiB limit" }
+            output.write(MAGIC.toByteArray(StandardCharsets.US_ASCII))
+            output.write(salt)
+            output.write(nonce)
+            output.write(ByteBuffer.allocate(4).putInt(encrypted.size).array())
+            output.write(encrypted)
+            output.flush()
+        } finally {
+            payload.fill(0)
+            salt.fill(0)
+            nonce.fill(0)
+            encrypted?.fill(0)
+        }
     }
 
     suspend fun restore(db: FinanceDb, input: InputStream, password: CharArray) {
