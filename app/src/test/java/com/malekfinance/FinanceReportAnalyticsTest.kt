@@ -47,4 +47,20 @@ class FinanceReportAnalyticsTest {
         assertEquals(5, timeline.size)
         assertEquals("1000", timeline.last().incomeMinor.toString())
     }
+    @Test
+    fun customDateRangeIncludesStartAndExcludesDayAfterEnd() {
+        val start = time(10)
+        val endExclusive = time(13)
+        val rows = listOf(
+            FinanceTransaction(amountMinor = 1_000, kind = "EXPENSE", note = "start", walletId = 1, currencyCode = "YER", createdAt = time(10)),
+            FinanceTransaction(amountMinor = 2_000, kind = "INCOME", note = "middle", walletId = 1, currencyCode = "YER", createdAt = time(11)),
+            FinanceTransaction(amountMinor = 3_000, kind = "EXPENSE", note = "end", walletId = 1, currencyCode = "YER", createdAt = time(12)),
+            FinanceTransaction(amountMinor = 9_000, kind = "EXPENSE", note = "outside", walletId = 1, currencyCode = "YER", createdAt = time(13))
+        )
+        val result = FinanceReportAnalytics.customRange(rows, 1, "YER", start, endExclusive)
+        assertEquals("2000", result.expenseMinor.toString())
+        assertEquals("2000", result.incomeMinor.toString())
+        assertEquals(2, FinanceReportAnalytics.customCategoryBreakdown(rows, 1, "YER", start, endExclusive).size)
+    }
+
 }
