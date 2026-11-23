@@ -142,4 +142,18 @@ class VoiceTransactionParserTest {
         )
     }
 
+    @Test fun parsesLentAndBorrowedDebtDraftsWithoutSavingThem() {
+        val lent = VoiceTransactionParser.parse("أعطيت أحمد عشرين ألف سلفة")
+        assertEquals(VoiceCommandType.DEBT_CREATE_DRAFT, lent.command)
+        assertEquals("OWED_TO_ME", lent.debtType)
+        assertEquals("أحمد", lent.debtPersonName)
+        assertEquals("20000", lent.amount)
+
+        val borrowed = VoiceTransactionParser.parse("استلفت من خالد خمسة آلاف")
+        assertEquals(VoiceCommandType.DEBT_CREATE_DRAFT, borrowed.command)
+        assertEquals("OWED_BY_ME", borrowed.debtType)
+        assertEquals("خالد", borrowed.debtPersonName)
+        assertEquals("5000", borrowed.amount)
+    }
+
 }
