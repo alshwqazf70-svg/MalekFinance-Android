@@ -122,7 +122,7 @@ interface FinanceTransferDao {
 
 @Database(
     entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class, FinanceBudget::class, FinanceDebt::class, FinanceDebtPayment::class, FinanceSavingsGoal::class, FinanceSavingsEntry::class, FinanceRecurringIncomeRule::class, FinanceRecurringIncomeEntry::class, FinanceRecurringExpenseRule::class, FinanceRecurringExpenseEntry::class, FinanceBill::class, FinanceBillPayment::class],
-    version = 11,
+    version = 12,
     exportSchema = false
 )
 abstract class FinanceDb : RoomDatabase() {
@@ -287,6 +287,12 @@ abstract class FinanceDb : RoomDatabase() {
             }
         }
 
+        val MIGRATION_11_12 = object : Migration(11, 12) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE bills ADD COLUMN lastReminderOccurrenceKey TEXT DEFAULT NULL")
+            }
+        }
+
         fun seedDefaultWallet(db: SupportSQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS wallets (" +
@@ -333,7 +339,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val db = Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
-            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5, FinanceDb.MIGRATION_5_6, FinanceDb.MIGRATION_6_7, FinanceDb.MIGRATION_7_8, FinanceDb.MIGRATION_8_9, FinanceDb.MIGRATION_9_10, FinanceDb.MIGRATION_10_11)
+            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5, FinanceDb.MIGRATION_5_6, FinanceDb.MIGRATION_6_7, FinanceDb.MIGRATION_7_8, FinanceDb.MIGRATION_8_9, FinanceDb.MIGRATION_9_10, FinanceDb.MIGRATION_10_11, FinanceDb.MIGRATION_11_12)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
