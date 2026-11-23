@@ -403,6 +403,12 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var hasDraft by remember { mutableStateOf(false) }
     var isSavingDraft by remember { mutableStateOf(false) }
     var draftCreatedAt by remember { mutableStateOf(System.currentTimeMillis()) }
+    var hasTransferDraft by remember { mutableStateOf(false) }
+    var transferAmountText by remember { mutableStateOf("") }
+    var transferNote by remember { mutableStateOf("") }
+    var transferFromWalletId by remember { mutableStateOf<Long?>(null) }
+    var transferToWalletId by remember { mutableStateOf<Long?>(null) }
+    var isTransferSaving by remember { mutableStateOf(false) }
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
     val compatibleCategories = activeCategories.filter {
@@ -442,7 +448,19 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 kind = null
                 category = "عام"
                 hasDraft = false
+                hasTransferDraft = false
+                transferAmountText = ""
+                transferNote = ""
                 status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
+            } else if (parsed.command == VoiceCommandType.TRANSFER_DRAFT) {
+                hasDraft = false
+                hasTransferDraft = true
+                transferAmountText = parsed.amount.orEmpty()
+                transferNote = spoken
+                val mentionedWallets = wallets.filter { spoken.contains(it.name, ignoreCase = true) }
+                transferFromWalletId = mentionedWallets.getOrNull(0)?.id
+                transferToWalletId = mentionedWallets.getOrNull(1)?.id
+                status = "راجع محفظة المصدر والوجهة والمبلغ. لن يتم التحويل إلا بعد ضغط زر التأكيد."
             } else if (parsed.command != VoiceCommandType.TRANSACTION) {
                 hasDraft = false
                 amount = ""
@@ -527,7 +545,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                             it.currencyCode + "، الاستحقاق " + com.malekfinance.FinanceBillPolicy.formatLocalDate(it.nextDueAt)
                                     }
                                 }
-                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT -> ""
+                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
                             .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
