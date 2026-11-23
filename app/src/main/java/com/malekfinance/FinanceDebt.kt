@@ -1,5 +1,6 @@
 package com.malekfinance
 
+import androidx.room.ColumnInfo
 import androidx.room.Dao
 import androidx.room.Entity
 import androidx.room.Index
@@ -23,6 +24,7 @@ data class FinanceDebt(
     val principalMinor: Long,
     val currencyCode: String,
     val walletId: Long,
+    @ColumnInfo(defaultValue = "1") val cashMovementRecorded: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 )
 
