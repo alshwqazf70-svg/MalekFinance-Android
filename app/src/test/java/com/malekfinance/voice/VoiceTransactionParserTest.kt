@@ -89,4 +89,9 @@ class VoiceTransactionParserTest {
         assertEquals(null, VoiceTransactionParser.parse("صرفت مئة ريال").relativeDayOffset)
     }
 
+    @Test fun recognizesSpokenDraftCancellation() {
+        assertEquals(VoiceCommandType.CANCEL_DRAFT, VoiceTransactionParser.parse("ألغ المسودة").command)
+        assertEquals(VoiceCommandType.CANCEL_DRAFT, VoiceTransactionParser.parse("لا تسجلها").command)
+    }
+
 }
