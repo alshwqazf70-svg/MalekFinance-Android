@@ -83,6 +83,29 @@ class FinanceBackupInstrumentedTest {
     }
 
     @Test
+    fun tooShortPasswordsAreClearedForBothBackupDirections() = runBlocking {
+        val exportPassword = "short".toCharArray()
+        var exportFailed = false
+        try {
+            FinanceBackupManager.export(db, ByteArrayOutputStream(), exportPassword)
+        } catch (_: Exception) {
+            exportFailed = true
+        }
+        assertTrue(exportFailed)
+        assertTrue(exportPassword.all { it == '\u0000' })
+
+        val restorePassword = "short".toCharArray()
+        var restoreFailed = false
+        try {
+            FinanceBackupManager.restore(db, ByteArrayInputStream(byteArrayOf()), restorePassword)
+        } catch (_: Exception) {
+            restoreFailed = true
+        }
+        assertTrue(restoreFailed)
+        assertTrue(restorePassword.all { it == '\u0000' })
+    }
+
+    @Test
     fun invalidBackupHeaderStillClearsTheSuppliedPasswordBuffer() = runBlocking {
         val backup = ByteArrayOutputStream()
         FinanceBackupManager.export(db, backup, "header-pass".toCharArray())
