@@ -628,6 +628,12 @@ private fun MoneyLandingScreen(
     val budgetMonth = remember { com.malekfinance.FinanceBudgetPolicy.monthWindow(System.currentTimeMillis()) }
     val budgetCategories = categories.filter { it.isActive && (it.kind == "EXPENSE" || it.kind == "BOTH") }
 
+    LaunchedEffect(budgetCategories) {
+        if (budgetCategoryName.isBlank() && budgetCategories.isNotEmpty()) {
+            budgetCategoryName = budgetCategories.first().name
+        }
+    }
+
     LaunchedEffect(wallets) {
         if (fromWalletId == null && wallets.isNotEmpty()) fromWalletId = wallets.first().id
         if (toWalletId == null && wallets.size > 1) toWalletId = wallets.first { it.id != fromWalletId }.id
