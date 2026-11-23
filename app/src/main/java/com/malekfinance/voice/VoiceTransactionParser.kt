@@ -112,16 +112,16 @@ object VoiceTransactionParser {
     }
 
     private fun detectDebtType(text: String): String? = when {
+        containsAny(text, listOf("استلفت", "اقترضت", "سلفت من", "أخذت قرض", "اخذت قرض")) -> "OWED_BY_ME"
         containsAny(text, listOf("أعطيت", "اعطيت", "أقرضت", "اقرضت", "سلفت")) -> "OWED_TO_ME"
-        containsAny(text, listOf("استلفت", "اقترضت", "أخذت قرض", "اخذت قرض")) -> "OWED_BY_ME"
         else -> null
     }
 
     private fun extractDebtPersonName(text: String): String? {
         val queryMatch = Regex("""(?:عند|لدى)\s+([^؟،,]+)""").find(text)
         if (queryMatch != null) return queryMatch.groupValues[1].trim().trimEnd('؟', '?', '.', '،', ',').ifBlank { null }
-        val loanMatch = Regex("""(?:أعطيت|اعطيت|أقرضت|اقرضت|سلفت)\s+(?:لـ)?([^\s،؟,]+)""").find(text)
-            ?: Regex("""(?:استلفت|اقترضت)\s+من\s+([^\s،؟,]+)""").find(text)
+        val loanMatch = Regex("""(?:استلفت|اقترضت|سلفت)\s+من\s+([^\s،؟,]+)""").find(text)
+            ?: Regex("""(?:أعطيت|اعطيت|أقرضت|اقرضت|سلفت)\s+(?:لـ)?([^\s،؟,]+)""").find(text)
         return loanMatch?.groupValues?.get(1)?.trim()?.trimStart('ل')?.trimEnd('؟', '?', '.', '،', ',')?.ifBlank { null }
     }
 
