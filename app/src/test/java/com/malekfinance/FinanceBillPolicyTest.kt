@@ -62,6 +62,29 @@ class FinanceBillPolicyTest {
     }
 
     @Test
+    fun alreadyDeliveredReminderIsNotScheduledAgainForSameOccurrence() {
+        val dueAt = date(2026, 11, 23)
+        val bill = FinanceBill(
+            id = 4,
+            title = "Internet",
+            categoryName = "Bills",
+            amountMinor = 12_000,
+            currencyCode = "YER",
+            walletId = 1,
+            frequency = "MONTHLY",
+            anchorDay = 23,
+            anchorMonth = 10,
+            nextDueAt = dueAt
+        )
+        assertEquals(true, FinanceBillPolicy.shouldScheduleReminder(bill))
+        val delivered = bill.copy(lastReminderOccurrenceKey = FinanceBillPolicy.occurrenceKey(dueAt))
+        assertEquals(false, FinanceBillPolicy.shouldScheduleReminder(delivered))
+        assertEquals(false, FinanceBillPolicy.shouldScheduleReminder(delivered.copy(isActive = false)))
+        val nextCycle = delivered.copy(nextDueAt = FinanceBillPolicy.nextDueAt(dueAt, "MONTHLY", 23, 10)!!)
+        assertEquals(true, FinanceBillPolicy.shouldScheduleReminder(nextCycle))
+    }
+
+    @Test
     fun occurrenceKeyUsesLocalCalendarDate() {
         assertEquals("2026-11-23", FinanceBillPolicy.occurrenceKey(date(2026, 11, 23)))
     }
