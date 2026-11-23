@@ -130,23 +130,23 @@ class FinanceRoomIntegrityTest {
         )
 
         db.recurringIncomeEntryDao().insert(
-            FinanceRecurringIncomeEntry(incomeRuleId, "2030-01-01", 1001, 10_000)
+            FinanceRecurringIncomeEntry(ruleId = incomeRuleId, occurrenceKey = "2030-01-01", transactionId = 1001, amountMinor = 10_000)
         )
         db.recurringExpenseEntryDao().insert(
-            FinanceRecurringExpenseEntry(expenseRuleId, "2030-01-01", 2001, 5_000)
+            FinanceRecurringExpenseEntry(ruleId = expenseRuleId, occurrenceKey = "2030-01-01", transactionId = 2001, amountMinor = 5_000)
         )
         db.billPaymentDao().insert(
-            FinanceBillPayment(billId, "2030-01-01", 3001, 2_000)
+            FinanceBillPayment(billId = billId, occurrenceKey = "2030-01-01", transactionId = 3001, amountMinor = 2_000)
         )
         val before = rowCount("transactions")
 
         expectFailure {
             db.withTransaction {
                 val transactionId = db.dao().insert(
-                    FinanceTransaction(100, "INCOME", "duplicate salary", walletId = walletId)
+                    FinanceTransaction(amountMinor = 100, kind = "INCOME", note = "duplicate salary", walletId = walletId)
                 )
                 db.recurringIncomeEntryDao().insert(
-                    FinanceRecurringIncomeEntry(incomeRuleId, "2030-01-01", transactionId, 100)
+                    FinanceRecurringIncomeEntry(ruleId = incomeRuleId, occurrenceKey = "2030-01-01", transactionId = transactionId, amountMinor = 100)
                 )
             }
         }
@@ -155,10 +155,10 @@ class FinanceRoomIntegrityTest {
         expectFailure {
             db.withTransaction {
                 val transactionId = db.dao().insert(
-                    FinanceTransaction(100, "EXPENSE", "duplicate rent", walletId = walletId)
+                    FinanceTransaction(amountMinor = 100, kind = "EXPENSE", note = "duplicate rent", walletId = walletId)
                 )
                 db.recurringExpenseEntryDao().insert(
-                    FinanceRecurringExpenseEntry(expenseRuleId, "2030-01-01", transactionId, 100)
+                    FinanceRecurringExpenseEntry(ruleId = expenseRuleId, occurrenceKey = "2030-01-01", transactionId = transactionId, amountMinor = 100)
                 )
             }
         }
@@ -167,10 +167,10 @@ class FinanceRoomIntegrityTest {
         expectFailure {
             db.withTransaction {
                 val transactionId = db.dao().insert(
-                    FinanceTransaction(100, "EXPENSE", "duplicate bill", walletId = walletId)
+                    FinanceTransaction(amountMinor = 100, kind = "EXPENSE", note = "duplicate bill", walletId = walletId)
                 )
                 db.billPaymentDao().insert(
-                    FinanceBillPayment(billId, "2030-01-01", transactionId, 100)
+                    FinanceBillPayment(billId = billId, occurrenceKey = "2030-01-01", transactionId = transactionId, amountMinor = 100)
                 )
             }
         }
