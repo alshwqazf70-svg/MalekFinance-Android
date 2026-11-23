@@ -111,6 +111,7 @@ class VoiceTransactionParserTest {
             VoiceCommandType.DEBT_OWED_TO_ME_QUERY,
             VoiceTransactionParser.parse("كم لي عند أحمد؟").command
         )
+        assertEquals("أحمد", VoiceTransactionParser.parse("كم لي عند أحمد؟").debtPersonName)
     }
 
     @Test fun recognizesSavingsBalanceQuestion() {
