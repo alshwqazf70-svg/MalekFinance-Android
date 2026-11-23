@@ -23,6 +23,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,9 +34,12 @@ import com.malekfinance.FinanceTransfer
 import com.malekfinance.FinanceReportAnalytics
 import com.malekfinance.FinanceReportRange
 import com.malekfinance.FinanceReportExporter
+import com.malekfinance.FinanceBackupManager
 import com.malekfinance.voice.VoiceTransactionParser
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.malekfinance.voice.VoiceCommandType
 import com.malekfinance.voice.VoiceQueryEngine
 import com.malekfinance.voice.VoiceRecognitionIntentFactory
@@ -117,7 +121,7 @@ val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAs
                     FinanceSection.HOME -> HomeDashboard(income, expenses, transactions, Modifier.padding(padding), onVoice = { section = FinanceSection.VOICE }, onTransactions = { section = FinanceSection.TRANSACTIONS })
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, categories.filter { it.isActive }, Modifier.padding(padding))
-                    FinanceSection.REPORTS -> ReportsLandingScreen(transactions, wallets, Modifier.padding(padding))
+                    FinanceSection.REPORTS -> ReportsLandingScreen(db, transactions, wallets, Modifier.padding(padding))
                     FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, debts, debtPayments, savingsGoals, savingsEntries, recurringIncomeRules, recurringIncomeEntries, recurringExpenseRules, recurringExpenseEntries, bills, billPayments, Modifier.padding(padding))
             }
         }
@@ -869,12 +873,17 @@ private fun DebtManagementSection(
 
 @Composable
 private fun ReportsLandingScreen(
+    db: FinanceDb,
     transactions: List<FinanceTransaction>,
     wallets: List<FinanceWallet>,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var exportStatus by remember { mutableStateOf("") }
+    var backupPassword by remember { mutableStateOf("") }
+    var backupBusy by remember { mutableStateOf(false) }
+    var showRestoreConfirmation by remember { mutableStateOf(false) }
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     var selectedRange by remember { mutableStateOf(FinanceReportRange.MONTHLY) }
     LaunchedEffect(wallets) {
@@ -896,6 +905,40 @@ private fun ReportsLandingScreen(
             context.contentResolver.openOutputStream(uri)?.use { FinanceReportExporter.writePdf(it, wallet, transactions) } ?: error("Unable to open output")
         }.onSuccess { exportStatus = "تم تصدير ملف PDF." }.onFailure { exportStatus = "تعذر تصدير PDF." }
     }
+    val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        if (uri != null && backupPassword.length >= 8 && !backupBusy) {
+            backupBusy = true
+            val password = backupPassword.toCharArray()
+            scope.launch {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.use { FinanceBackupManager.export(db, it, password) }
+                            ?: error("Unable to open backup destination")
+                    }
+                }.onSuccess { exportStatus = "تم إنشاء نسخة احتياطية مشفرة." }
+                    .onFailure { exportStatus = "تعذر إنشاء النسخة الاحتياطية: " + (it.message ?: "خطأ غير معروف") }
+                backupPassword = ""
+                backupBusy = false
+            }
+        } else if (backupPassword.length < 8) exportStatus = "اجعل كلمة مرور النسخة الاحتياطية 8 أحرف على الأقل."
+    }
+    val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null && backupPassword.length >= 8 && !backupBusy) {
+            backupBusy = true
+            val password = backupPassword.toCharArray()
+            scope.launch {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        val stream = context.contentResolver.openInputStream(uri) ?: error("Unable to open backup")
+                        FinanceBackupManager.restore(db, stream, password)
+                    }
+                }.onSuccess { exportStatus = "تمت استعادة النسخة الاحتياطية. أُعيد تحميل بيانات الحساب." }
+                    .onFailure { exportStatus = "فشلت الاستعادة ولم تُعتمد بيانات جزئية: " + (it.message ?: "تحقق من الملف وكلمة المرور") }
+                backupPassword = ""
+                backupBusy = false
+            }
+        } else if (backupPassword.length < 8) exportStatus = "أدخل كلمة مرور النسخة الاحتياطية أولاً."
+    }
     val timeline = wallet?.let {
         FinanceReportAnalytics.timeline(transactions, it.id, it.currencyCode, selectedRange)
     }.orEmpty()
@@ -907,6 +950,40 @@ private fun ReportsLandingScreen(
         .maxOrNull()?.coerceAtLeast(java.math.BigInteger.ONE) ?: java.math.BigInteger.ONE
 
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text("النسخ الاحتياطي المشفر", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            OutlinedTextField(
+                value = backupPassword,
+                onValueChange = { backupPassword = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                label = { Text("كلمة مرور النسخة (8 أحرف على الأقل)") }
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                Button(onClick = { backupLauncher.launch("malek-finance-backup.mfb") }, enabled = !backupBusy && backupPassword.length >= 8) {
+                    Text(if (backupBusy) "جارٍ العمل..." else "إنشاء نسخة")
+                }
+                OutlinedButton(onClick = { showRestoreConfirmation = true }, enabled = !backupBusy && backupPassword.length >= 8) {
+                    Text("استعادة نسخة")
+                }
+            }
+            Text("النسخة مشفرة محلياً بكلمة مرور تختارها. لا تحفظ كلمة المرور في التطبيق؛ ستحتاجها عند الاستعادة.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+            if (showRestoreConfirmation) {
+                AlertDialog(
+                    onDismissRequest = { showRestoreConfirmation = false },
+                    title = { Text("استبدال البيانات الحالية؟") },
+                    text = { Text("ستستبدل الاستعادة بيانات التطبيق الحالية بالكامل. أنشئ نسخة احتياطية من بياناتك الحالية قبل المتابعة.") },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showRestoreConfirmation = false
+                            restoreLauncher.launch(arrayOf("application/octet-stream", "application/x-malek-finance-backup", "*/*"))
+                        }) { Text("متابعة الاستعادة") }
+                    },
+                    dismissButton = { TextButton(onClick = { showRestoreConfirmation = false }) { Text("إلغاء") } }
+                )
+            }
+        }
         item {
             Text("تصدير التقارير", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
