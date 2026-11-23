@@ -29,7 +29,7 @@ object VoiceTransactionParser {
         "اربعين" to 40L, "أربعين" to 40L, "خمسين" to 50L, "ستين" to 60L,
         "سبعين" to 70L, "ثمانين" to 80L, "تسعين" to 90L,
         "مئة" to 100L, "مائة" to 100L, "ميه" to 100L, "مية" to 100L,
-        "مئتين" to 200L, "مائتين" to 200L, "ثلاثمئة" to 300L, "اربعمئة" to 400L,
+        "مئتين" to 200L, "مائتين" to 200L, "ألف" to 1_000L, "الف" to 1_000L, "آلاف" to 1_000L, "ثلاثمئة" to 300L, "اربعمئة" to 400L,
         "خمسمئة" to 500L, "ستمئة" to 600L, "سبعمئة" to 700L, "ثمانمئة" to 800L, "تسعمئة" to 900L,
         "الفين" to 2_000L, "ألفين" to 2_000L, "مليون" to 1_000_000L, "مليونين" to 2_000_000L
     )
@@ -72,7 +72,7 @@ object VoiceTransactionParser {
 
         val description = normalized
             .replace(digitAmount, " ")
-            .replace(Regex("""\b(صفر|واحد|واحدة|واحده|اثنين|اثنان|ثنين|ثلاثة|ثلاث|اربعة|أربعة|اربع|خمسة|خمس|ستة|ست|سبعة|سبع|ثمانية|ثمان|تسعة|تسع|عشرة|عشر|عشرين|ثلاثين|اربعين|أربعين|خمسين|ستين|سبعين|ثمانين|تسعين|مئة|مائة|ميه|مية|الفين|ألفين|مليون|مليونين)\b"""), " ")
+            .replace(Regex("""\b(صفر|واحد|واحدة|واحده|اثنين|اثنان|ثنين|ثلاثة|ثلاث|اربعة|أربعة|اربع|خمسة|خمس|ستة|ست|سبعة|سبع|ثمانية|ثمان|تسعة|تسع|عشرة|عشر|عشرين|ثلاثين|اربعين|أربعين|خمسين|ستين|سبعين|ثمانين|تسعين|مئة|مائة|ميه|مية|الف|ألف|آلاف|الفين|ألفين|مليون|مليونين)\b"""), " ")
             .replace(Regex("""(ريال|ريالات|ر\.ي|صرف|صرفت|دفعت|اشتريت|استلمت|قبضت|سجل|سجّل)"""), " ")
             .replace(Regex("""\s+"""), " ")
             .trim()
@@ -118,11 +118,11 @@ object VoiceTransactionParser {
                 1_000_000L -> { total = Math.addExact(total, Math.multiplyExact(if (group == 0L) 1L else group, value)); group = 0L }
                 2_000_000L -> { total = Math.addExact(total, value); group = 0L }
                 2_000L -> { total = Math.addExact(total, value); group = 0L }
+                1_000L -> {
+                    total = Math.addExact(total, Math.multiplyExact(if (group == 0L) 1L else group, 1_000L))
+                    group = 0L
+                }
                 else -> group = Math.addExact(group, value)
-            }
-            if (token == "ألف" || token == "الف") {
-                total = Math.addExact(total, Math.multiplyExact(if (group == 0L) 1L else group, 1_000L))
-                group = 0L
             }
         }
         if (!found) return null
