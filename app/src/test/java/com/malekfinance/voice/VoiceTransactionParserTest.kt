@@ -154,6 +154,10 @@ class VoiceTransactionParserTest {
         assertEquals("OWED_BY_ME", borrowed.debtType)
         assertEquals("خالد", borrowed.debtPersonName)
         assertEquals("5000", borrowed.amount)
+
+        val borrowedYemeni = VoiceTransactionParser.parse("سلفت من أحمد خمسة آلاف")
+        assertEquals("OWED_BY_ME", borrowedYemeni.debtType)
+        assertEquals("أحمد", borrowedYemeni.debtPersonName)
     }
 
 }
