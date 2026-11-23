@@ -1381,34 +1381,7 @@ private fun DebtManagementSection(
                                             if (busy) return@launch
                                             busy = true
                                             try {
-                                                db.withTransaction {
-                                                    val current = db.debtDao().findById(debt.id) ?: error("Debt not found")
-                                                    val currentPayments = db.debtPaymentDao().forDebt(debt.id)
-                                                    check(com.malekfinance.FinanceDebtPolicy.canApplyPayment(current.principalMinor, currentPayments, amountMinor))
-                                                    val paymentWallet = db.walletDao().findById(current.walletId) ?: error("Wallet not found")
-                                                    check(paymentWallet.currencyCode == current.currencyCode)
-                                                    if (current.debtType == "OWED_BY_ME") {
-                                                        val latestTransactions = db.dao().forWallet(paymentWallet.id)
-                                                        val latestTransfers = db.transferDao().forWallet(paymentWallet.id)
-                                                        if (!com.malekfinance.FinanceLedger.hasSufficientFunds(paymentWallet, amountMinor, latestTransactions, latestTransfers)) {
-                                                            throw com.malekfinance.InsufficientWalletFundsException()
-                                                        }
-                                                    }
-                                                    val transactionId = db.dao().insert(FinanceTransaction(
-                                                        amountMinor = amountMinor,
-                                                        kind = if (current.debtType == "OWED_BY_ME") "EXPENSE" else "INCOME",
-                                                        note = (if (current.debtType == "OWED_BY_ME") "سداد دين: " else "تحصيل دين: ") + current.personName,
-                                                        category = if (current.debtType == "OWED_BY_ME") "سداد دين" else "تحصيل دين",
-                                                        walletId = paymentWallet.id,
-                                                        currencyCode = paymentWallet.currencyCode,
-                                                        debtId = current.id
-                                                    ))
-                                                    db.debtPaymentDao().insert(com.malekfinance.FinanceDebtPayment(
-                                                        debtId = current.id,
-                                                        transactionId = transactionId,
-                                                        amountMinor = amountMinor
-                                                    ))
-                                                }
+                                                com.malekfinance.FinanceDebtPaymentOperations.applyPayment(db, debt.id, amountMinor)
                                                 paymentInputs = paymentInputs - debt.id
                                                 status = "تم تسجيل الدفعة وربطها بالعملية المالية."
                                             } catch (_: com.malekfinance.InsufficientWalletFundsException) {
