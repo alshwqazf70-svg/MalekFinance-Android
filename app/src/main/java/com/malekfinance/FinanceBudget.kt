@@ -7,6 +7,7 @@ import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.PrimaryKey
 import androidx.room.Query
+import androidx.room.Update
 import kotlinx.coroutines.flow.Flow
 import java.math.BigDecimal
 import java.math.BigInteger
@@ -34,6 +35,9 @@ interface FinanceBudgetDao {
 
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(budget: FinanceBudget): Long
+
+    @Update
+    suspend fun update(budget: FinanceBudget): Int
 
     @Query("DELETE FROM budgets WHERE id = :budgetId")
     suspend fun delete(budgetId: Long): Int
