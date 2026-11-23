@@ -34,6 +34,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import com.malekfinance.voice.VoiceCommandType
 import com.malekfinance.voice.VoiceQueryEngine
+import com.malekfinance.voice.VoiceRecognitionIntentFactory
 import androidx.room.withTransaction
 
 private enum class FinanceSection(val title: String) {
@@ -465,7 +466,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if (granted) {
-            if (!launchFinanceRecognition(speechLauncher)) status = "خدمة التعرف الصوتي غير متاحة على هذا الجهاز. يمكنك الكتابة يدوياً."
+            if (!launchFinanceRecognition(context, speechLauncher)) status = "خدمة التعرف الصوتي غير متاحة على هذا الجهاز. يمكنك الكتابة يدوياً."
         } else status = "إذن الميكروفون مرفوض. يمكنك إدخال العملية يدوياً."
     }
 
@@ -632,14 +633,11 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 }
 
-private fun launchFinanceRecognition(launcher: androidx.activity.result.ActivityResultLauncher<Intent>): Boolean {
-    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-YE")
-        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ar-YE")
-        putExtra(RecognizerIntent.EXTRA_PROMPT, "مثال: صرفت خمسة آلاف ريال بنزين")
-        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
-    }
+private fun launchFinanceRecognition(
+    context: android.content.Context,
+    launcher: androidx.activity.result.ActivityResultLauncher<Intent>
+): Boolean {
+    val intent = VoiceRecognitionIntentFactory.create(context) ?: return false
     return runCatching { launcher.launch(intent) }.isSuccess
 }
 
