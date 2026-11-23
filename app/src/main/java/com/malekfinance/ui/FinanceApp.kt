@@ -481,10 +481,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 hasDraft = false
                 hasTransferDraft = false
                 hasDebtDraft = false
-                hasDebtPaymentDraft = false
                 clearDebtPaymentDraft()
-                debtPaymentAmountDraft = ""
-                debtPaymentDebtId = null
                 hasSavingsDraft = false
                 savingsAmountDraft = ""
                 clearDebtPaymentDraft()
@@ -497,8 +494,6 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 debtAmountDraft = ""
                 transferAmountText = ""
                 transferNote = ""
-                hasDebtPaymentDraft = false
-                debtPaymentAmountDraft = ""
                 status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
             } else if (parsed.command == VoiceCommandType.DEBT_PAYMENT_DRAFT) {
                 hasDraft = false
@@ -559,6 +554,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 hasDraft = false
                 hasTransferDraft = false
                 hasSavingsDraft = false
+                clearDebtPaymentDraft()
                 savingsAmountDraft = ""
                 savingsGoalDraftId = null
                 transferAmountText = ""
@@ -578,6 +574,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 status = "راجع اسم الشخص واتجاه الدين والمبلغ والمحفظة. لن يُسجّل الدين إلا بعد التأكيد."
             } else if (parsed.command == VoiceCommandType.TRANSFER_DRAFT) {
                 hasDraft = false
+                clearDebtPaymentDraft()
                 amount = ""
                 description = ""
                 kind = null
@@ -722,6 +719,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 }
             } else {
                 // A newly parsed transaction replaces any older, unconfirmed special draft.
+                clearDebtPaymentDraft()
                 hasTransferDraft = false
                 hasDebtDraft = false
                 hasDebtPaymentDraft = false
