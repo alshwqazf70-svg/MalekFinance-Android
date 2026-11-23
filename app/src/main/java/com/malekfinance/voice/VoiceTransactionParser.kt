@@ -94,7 +94,7 @@ object VoiceTransactionParser {
 
         val description = normalized
             .replace(digitAmount, " ")
-            .replace(spokenNumberPattern, " "))
+            .replace(spokenNumberPattern, " ")
             .replace(Regex("""(ريال|ريالات|ر\.ي|صرف|صرفت|دفعت|اشتريت|شريت|بعت|جاني|جاءني|خسرت|ربحت|استلمت|قبضت|سجل|سجّل)"""), " ")
             .replace(Regex("""\s+"""), " ")
             .trim()
