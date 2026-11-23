@@ -5,6 +5,7 @@ import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextInput
 import kotlinx.coroutines.runBlocking
@@ -65,6 +66,9 @@ class FinanceNavigationUiTest {
     @Test
     fun manualVoiceReviewSavePersistsTransactionToRoom() = runBlocking {
         val walletId = db.walletDao().insert(FinanceWallet(name = "اختبار", currencyCode = "YER"))
+        composeRule.waitUntil(5_000) {
+            composeRule.onAllNodesWithText("اختبار (YER)").fetchSemanticsNodes().isNotEmpty()
+        }
         composeRule.onNodeWithText("الصوت").performClick()
         composeRule.onNodeWithText("مصروف").performClick()
         composeRule.onNodeWithText("المبلغ بعملة YER").performTextInput("12.50")
