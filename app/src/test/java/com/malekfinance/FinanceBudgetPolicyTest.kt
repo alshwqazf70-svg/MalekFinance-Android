@@ -29,7 +29,7 @@ class FinanceBudgetPolicyTest {
         val budget = FinanceBudget(
             categoryName = "مطاعم",
             currencyCode = "YER",
-            periodStartMillis = 1_000L,
+            periodKey = "1970-01",
             limitMinor = 10_000L
         )
         val rows = listOf(
