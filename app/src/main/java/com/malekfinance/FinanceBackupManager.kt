@@ -39,7 +39,8 @@ object FinanceBackupManager {
             password.fill('\u0000')
             throw IllegalArgumentException("Backup password must contain at least 8 characters")
         }
-        val payload = db.withTransaction {
+        val payload = try {
+            db.withTransaction {
             val database = db.openHelper.readableDatabase
             JSONObject()
                 .put("format", MAGIC)
@@ -56,6 +57,10 @@ object FinanceBackupManager {
                 })
                 .toString()
                 .toByteArray(StandardCharsets.UTF_8)
+            }
+        } catch (failure: Throwable) {
+            password.fill('\u0000')
+            throw failure
         }
 
         val salt = ByteArray(16).also(SecureRandom()::nextBytes)
