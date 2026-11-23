@@ -77,7 +77,10 @@ class FinanceDbMigrationInstrumentedTest {
                 while (cursor.moveToNext()) billColumns += cursor.getString(nameColumn)
             }
             assertTrue(billColumns.contains("lastReminderOccurrenceKey"))
-            assertEquals(1, migratedDb.walletDao().observe().let { 1 })
+            sqlite.query("SELECT COUNT(*) FROM wallets WHERE id = 1").use { cursor ->
+                assertTrue(cursor.moveToFirst())
+                assertEquals(1, cursor.getInt(0))
+            }
         } finally {
             migratedDb.close()
             context.deleteDatabase(databaseName)
