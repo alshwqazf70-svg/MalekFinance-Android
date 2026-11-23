@@ -41,22 +41,22 @@ object FinanceBackupManager {
         }
         val payload = try {
             db.withTransaction {
-            val database = db.openHelper.readableDatabase
-            JSONObject()
-                .put("format", MAGIC)
-                .put("schemaVersion", 12)
-                .put("createdAt", System.currentTimeMillis())
-                .put("tables", JSONObject().apply {
-                    tables.forEach { table ->
-                        val rows = JSONArray()
-                        database.query("SELECT * FROM $table").use { cursor ->
-                            while (cursor.moveToNext()) rows.put(encodeRow(cursor))
+                val database = db.openHelper.readableDatabase
+                JSONObject()
+                    .put("format", MAGIC)
+                    .put("schemaVersion", 12)
+                    .put("createdAt", System.currentTimeMillis())
+                    .put("tables", JSONObject().apply {
+                        tables.forEach { table ->
+                            val rows = JSONArray()
+                            database.query("SELECT * FROM $table").use { cursor ->
+                                while (cursor.moveToNext()) rows.put(encodeRow(cursor))
+                            }
+                            put(table, rows)
                         }
-                        put(table, rows)
-                    }
-                })
-                .toString()
-                .toByteArray(StandardCharsets.UTF_8)
+                    })
+                    .toString()
+                    .toByteArray(StandardCharsets.UTF_8)
             }
         } catch (failure: Throwable) {
             password.fill('\u0000')
@@ -90,7 +90,12 @@ object FinanceBackupManager {
 
     suspend fun restore(db: FinanceDb, input: InputStream, password: CharArray) {
         require(password.size >= 8) { "Backup password must contain at least 8 characters" }
-        val bytes = input.use { readBounded(it, MAX_BACKUP_BYTES) }
+        val bytes = try {
+            input.use { readBounded(it, MAX_BACKUP_BYTES) }
+        } catch (failure: Throwable) {
+            password.fill('\u0000')
+            throw failure
+        }
         try {
             require(bytes.size in 40..MAX_BACKUP_BYTES) { "Backup file size is invalid" }
             val magicBytes = MAGIC.toByteArray(StandardCharsets.US_ASCII)
