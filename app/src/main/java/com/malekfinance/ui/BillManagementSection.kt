@@ -196,7 +196,7 @@ internal fun BillManagementSection(
                                 val reminderScheduled = runCatching { BillReminderScheduler.schedule(context, newBillId, dueAt) }.isSuccess
                                 title = ""
                                 amount = ""
-                                status = if (reminderScheduled) "تمت إضافة الفاتورة وجدولة تذكيرها. موعدها القادم: " + FinanceBillPolicy.formatLocalDate(dueAt) else "تمت إضافة الفاتورة، لكن تعذرت جدولة الإشعار؛ سيظل موعدها ظاهراً داخل التطبيق.",
+                                status = if (reminderScheduled) "تمت إضافة الفاتورة وجدولة تذكيرها. موعدها القادم: " + FinanceBillPolicy.formatLocalDate(dueAt) else "تمت إضافة الفاتورة، لكن تعذرت جدولة الإشعار؛ سيظل موعدها ظاهراً داخل التطبيق."
                             } catch (_: Exception) {
                                 status = "تعذرت إضافة الفاتورة؛ تحقق من البيانات وحاول مجدداً."
                             } finally {
