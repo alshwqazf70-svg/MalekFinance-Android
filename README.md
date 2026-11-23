@@ -54,7 +54,7 @@ The existing source has been described as containing:
 - Debt and advance tracking with partial repayment/collection.
 - Savings goals with partial contributions and withdrawals. Contributions reserve wallet funds without being counted as expenses; withdrawals return funds without being counted as income.
 - Salary and recurring income rules (weekly/monthly), with manually confirmed receipts, wallet routing, pause/resume and per-period duplicate protection.
-- Bills with one-time, monthly or yearly due dates, in-app due/overdue status and user-confirmed payment records linked to expenses. No automatic bill payment or background system notification is claimed.
+- Bills with one-time, monthly or yearly due dates, in-app due/overdue status, WorkManager reminders before due dates, and user-confirmed payment records linked to expenses. Notifications require Android 13+ permission where applicable; no automatic bill payment is performed.
 
 Recurring income is not posted automatically: the user confirms actual receipt for each due period. Monthly schedules retain the chosen day across short months; weekly schedules advance by seven days.
 
