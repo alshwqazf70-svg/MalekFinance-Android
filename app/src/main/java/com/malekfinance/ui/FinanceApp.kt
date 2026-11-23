@@ -331,10 +331,10 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text(row.note, fontWeight = FontWeight.SemiBold)
-                                    Text(row.category + " • " + when (row.kind) { "INCOME" -> "دخل"; "EXPENSE" -> "مصروف"; "DEBT_RECEIVED" -> "استلام قرض"; "DEBT_ISSUED" -> "إقراض سلفة"; else -> "عملية" }, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                                    Text(row.category + " • " + when (row.kind) { "INCOME" -> "دخل"; "EXPENSE" -> "مصروف"; "DEBT_RECEIVED" -> "استلام قرض"; "DEBT_ISSUED" -> "إقراض سلفة"; "SAVINGS_CONTRIBUTION" -> "مساهمة ادخار"; "SAVINGS_WITHDRAWAL" -> "سحب ادخار"; else -> "عملية" }, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                                     Text(
-                                        (if (row.kind == "INCOME" || row.kind == "DEBT_RECEIVED") "+" else "−") + formatCurrencyMoney(row.amountMinor, row.currencyCode),
-                                        color = if (row.kind == "INCOME" || row.kind == "DEBT_RECEIVED") FinanceColors.Income else FinanceColors.Expense,
+                                        (if (row.kind == "INCOME" || row.kind == "DEBT_RECEIVED" || row.kind == "SAVINGS_WITHDRAWAL") "+" else "−") + formatCurrencyMoney(row.amountMinor, row.currencyCode),
+                                        color = if (row.kind == "INCOME" || row.kind == "DEBT_RECEIVED" || row.kind == "SAVINGS_WITHDRAWAL") FinanceColors.Income else FinanceColors.Expense,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
