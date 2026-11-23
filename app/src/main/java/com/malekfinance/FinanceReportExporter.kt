@@ -10,6 +10,9 @@ import java.io.OutputStream
 import java.nio.charset.StandardCharsets
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 object FinanceReportExporter {
     fun writeCsv(output: OutputStream, wallet: FinanceWallet, transactions: List<FinanceTransaction>) {
@@ -20,7 +23,7 @@ object FinanceReportExporter {
                 .sortedBy { it.createdAt }
                 .forEach { row ->
                     writer.appendLine(listOf(
-                        row.createdAt.toString(),
+                        dateText(row.createdAt),
                         row.kind,
                         decimalAmount(row.amountMinor),
                         row.currencyCode,
@@ -37,7 +40,7 @@ object FinanceReportExporter {
             add(listOf("التاريخ", "النوع", "المبلغ", "العملة", "التصنيف", "الوصف"))
             transactions.filter { it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
                 .sortedBy { it.createdAt }
-                .forEach { add(listOf(it.createdAt.toString(), it.kind, decimalAmount(it.amountMinor), it.currencyCode, it.category, it.note)) }
+                .forEach { add(listOf(dateText(it.createdAt), it.kind, decimalAmount(it.amountMinor), it.currencyCode, it.category, it.note)) }
         }
         ZipOutputStream(output).use { zip ->
             zip.putNextEntry(ZipEntry("[Content_Types].xml"))
@@ -78,7 +81,7 @@ object FinanceReportExporter {
             add("تقرير مالي — ${wallet.name} (${wallet.currencyCode})")
             add("عدد العمليات: ${rows.size}")
             add(" ")
-            rows.forEach { add("${it.kind} | ${decimalAmount(it.amountMinor)} ${it.currencyCode} | ${it.category} | ${it.note}") }
+            rows.forEach { add("${dateText(it.createdAt)} | ${it.kind} | ${decimalAmount(it.amountMinor)} ${it.currencyCode} | ${it.category} | ${it.note}") }
         }
         val document = PdfDocument()
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 11f; color = android.graphics.Color.BLACK }
@@ -111,7 +114,14 @@ object FinanceReportExporter {
     private fun decimalAmount(minor: Long) =
         java.math.BigDecimal.valueOf(minor, 2).toPlainString()
 
-    private fun csvCell(value: String): String = "\"" + value.replace("\"", "\"\"") + "\""
+    private fun csvCell(value: String): String {
+        val first = value.firstOrNull()
+        val safe = if (first == '=' || first == '+' || first == '-' || first == '@' || first == '\\t' || first == '\\r') "'$value" else value
+        return "\"" + safe.replace("\"", "\"\"") + "\""
+    }
+
+    private fun dateText(timestamp: Long): String =
+        SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT).format(Date(timestamp))
 
     private fun xmlEscape(value: String): String = value
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
