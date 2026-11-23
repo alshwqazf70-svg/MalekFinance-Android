@@ -145,6 +145,7 @@ object FinanceBackupManager {
             }
         } finally {
             bytes.fill(0)
+            password.fill('\u0000')
         }
     }
 
