@@ -94,4 +94,11 @@ class VoiceTransactionParserTest {
         assertEquals(VoiceCommandType.CANCEL_DRAFT, VoiceTransactionParser.parse("لا تسجلها").command)
     }
 
+    @Test fun recognizesRecentTransactionHistoryQuery() {
+        assertEquals(
+            VoiceCommandType.RECENT_TRANSACTIONS_QUERY,
+            VoiceTransactionParser.parse("اعرض آخر العمليات").command
+        )
+    }
+
 }
