@@ -629,8 +629,8 @@ private fun MoneyLandingScreen(
     val budgetCategories = categories.filter { it.isActive && (it.kind == "EXPENSE" || it.kind == "BOTH") }
 
     LaunchedEffect(budgetCategories) {
-        if (budgetCategoryName.isBlank() && budgetCategories.isNotEmpty()) {
-            budgetCategoryName = budgetCategories.first().name
+        if (budgetCategories.none { it.name == budgetCategoryName }) {
+            budgetCategoryName = budgetCategories.firstOrNull()?.name.orEmpty()
         }
     }
 
@@ -907,6 +907,7 @@ private fun MoneyLandingScreen(
                                 val limitMinor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
                                 when {
                                     limitMinor == null || limitMinor <= 0L -> status = "أدخل حداً صحيحاً للميزانية أكبر من صفر."
+                                    budgetCategories.none { it.name == selectedCategory } -> status = "اختر تصنيف مصروف نشطاً."
                                     budgets.any { it.categoryName == selectedCategory && it.currencyCode == budgetCurrency && it.periodKey == budgetMonth.periodKey } -> status = "توجد ميزانية لهذا التصنيف والعملة في الشهر الحالي."
                                     else -> scope.launch {
                                         if (isCreatingBudget) return@launch
