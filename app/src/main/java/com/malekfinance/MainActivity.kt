@@ -113,14 +113,15 @@ interface FinanceTransferDao {
 }
 
 @Database(
-    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class],
-    version = 3,
+    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class],
+    version = 4,
     exportSchema = false
 )
 abstract class FinanceDb : RoomDatabase() {
     abstract fun dao(): FinanceDao
     abstract fun walletDao(): FinanceWalletDao
     abstract fun transferDao(): FinanceTransferDao
+    abstract fun categoryDao(): FinanceCategoryDao
 
     companion object {
         private const val DEFAULT_WALLET_SQL =
@@ -157,6 +158,19 @@ abstract class FinanceDb : RoomDatabase() {
             }
         }
 
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS categories (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "name TEXT NOT NULL, kind TEXT NOT NULL, colorHex TEXT NOT NULL, " +
+                        "isActive INTEGER NOT NULL, createdAt INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categories_name_kind ON categories(name, kind)")
+                seedDefaultCategories(db)
+            }
+        }
+
         fun seedDefaultWallet(db: SupportSQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS wallets (" +
@@ -166,6 +180,31 @@ abstract class FinanceDb : RoomDatabase() {
             )
             db.execSQL(DEFAULT_WALLET_SQL)
         }
+
+        fun seedDefaultCategories(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS categories (" +
+                    "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "name TEXT NOT NULL, kind TEXT NOT NULL, colorHex TEXT NOT NULL, " +
+                    "isActive INTEGER NOT NULL, createdAt INTEGER NOT NULL)"
+            )
+            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categories_name_kind ON categories(name, kind)")
+            val defaults = listOf(
+                Triple("عام", "BOTH", "#A855F7"),
+                Triple("بقالة", "EXPENSE", "#A855F7"),
+                Triple("مطاعم", "EXPENSE", "#A855F7"),
+                Triple("مواصلات", "EXPENSE", "#A855F7"),
+                Triple("بنزين", "EXPENSE", "#A855F7"),
+                Triple("فواتير", "EXPENSE", "#A855F7"),
+                Triple("راتب", "INCOME", "#A855F7")
+            )
+            defaults.forEach { (name, kind, color) ->
+                db.execSQL(
+                    "INSERT OR IGNORE INTO categories(name, kind, colorHex, isActive, createdAt) VALUES(?, ?, ?, 1, ?)",
+                    arrayOf(name, kind, color, System.currentTimeMillis())
+                )
+            }
+        }
     }
 }
 
@@ -173,11 +212,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val db = Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
-            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3)
+            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
                     FinanceDb.seedDefaultWallet(db)
+                    FinanceDb.seedDefaultCategories(db)
                 }
             })
             .build()
