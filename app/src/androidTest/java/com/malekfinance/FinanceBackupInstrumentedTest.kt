@@ -48,7 +48,7 @@ class FinanceBackupInstrumentedTest {
         val restored = db.dao().forWallet(walletId)
         assertEquals(1, restored.size)
         assertEquals("عملية أصلية", restored.single().note)
-        assertEquals(1, db.walletDao().findById(walletId)?.id)
+        assertEquals(walletId, db.walletDao().findById(walletId)?.id)
     }
 
     @Test
