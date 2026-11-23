@@ -204,6 +204,9 @@ internal fun BillManagementSection(
                 val due = FinanceBillPolicy.isDue(bill.nextDueAt, now)
                 val wallet = wallets.firstOrNull { it.id == bill.walletId }
                 val billPayments = payments.filter { it.billId == bill.id }
+                val oneTimeAlreadyPaid = bill.frequency == "ONCE" && billPayments.any {
+                    it.occurrenceKey == FinanceBillPolicy.occurrenceKey(bill.nextDueAt)
+                }
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(18.dp),
@@ -237,7 +240,8 @@ internal fun BillManagementSection(
                         )
                         Text(
                             when {
-                                !bill.isActive -> "مكتملة أو متوقفة"
+                                oneTimeAlreadyPaid -> "مدفوعة"
+                                !bill.isActive -> "متوقفة"
                                 due -> "مستحقة — بانتظار تأكيد الدفع"
                                 else -> "قادمة"
                             },
@@ -312,18 +316,20 @@ internal fun BillManagementSection(
                                     colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
                                 ) { Text(if (busyBills[bill.id] == true) "جارٍ التسجيل..." else "تأكيد دفع الفاتورة") }
                             }
-                            TextButton(
-                                onClick = {
-                                    scope.launch {
-                                        runCatching {
-                                            val current = db.billDao().findById(bill.id) ?: error("Bill not found")
-                                            db.billDao().update(current.copy(isActive = !current.isActive))
-                                        }.onSuccess {
-                                            status = if (bill.isActive) "تم إيقاف الفاتورة." else "تمت إعادة تفعيل الفاتورة."
-                                        }.onFailure { status = "تعذر تغيير حالة الفاتورة." }
+                            if (!oneTimeAlreadyPaid) {
+                                TextButton(
+                                    onClick = {
+                                        scope.launch {
+                                            runCatching {
+                                                val current = db.billDao().findById(bill.id) ?: error("Bill not found")
+                                                db.billDao().update(current.copy(isActive = !current.isActive))
+                                            }.onSuccess {
+                                                status = if (bill.isActive) "تم إيقاف الفاتورة." else "تمت إعادة تفعيل الفاتورة."
+                                            }.onFailure { status = "تعذر تغيير حالة الفاتورة." }
+                                        }
                                     }
-                                }
-                            ) { Text(if (bill.isActive) "إيقاف" else "تفعيل", color = FinanceColors.PrimaryLight) }
+                                ) { Text(if (bill.isActive) "إيقاف" else "تفعيل", color = FinanceColors.PrimaryLight) }
+                            }
                         }
                     }
                 }
