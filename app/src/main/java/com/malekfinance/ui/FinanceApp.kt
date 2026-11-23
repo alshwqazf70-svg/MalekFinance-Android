@@ -55,6 +55,8 @@ fun FinanceApp(db: FinanceDb) {
     val recurringIncomeEntries by db.recurringIncomeEntryDao().observeAll().collectAsState(initial = emptyList())
 val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAsState(initial = emptyList())
     val recurringExpenseEntries by db.recurringExpenseEntryDao().observeAll().collectAsState(initial = emptyList())
+    val bills by db.billDao().observeAll().collectAsState(initial = emptyList())
+    val billPayments by db.billPaymentDao().observeAll().collectAsState(initial = emptyList())
     // Never combine different currencies into one misleading total.
     val yerTransactions = transactions.filter { it.currencyCode == "YER" }
     val income = yerTransactions.filter { it.kind == "INCOME" }
@@ -109,8 +111,7 @@ val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAs
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
-                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, debts, debtPayments, savingsGoals, savingsEntries, recurringIncomeRules, recurringIncomeEntries, Modifier.padding(padding))
-FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, debts, debtPayments, savingsGoals, savingsEntries, recurringIncomeRules, recurringIncomeEntries, recurringExpenseRules, recurringExpenseEntries, Modifier.padding(padding))
+                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, debts, debtPayments, savingsGoals, savingsEntries, recurringIncomeRules, recurringIncomeEntries, recurringExpenseRules, recurringExpenseEntries, bills, billPayments, Modifier.padding(padding))
             }
         }
         }
@@ -343,7 +344,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                if (row.debtId == null && row.savingsGoalId == null && row.recurringIncomeRuleId == null && row.recurringExpenseRuleId == null) {
+                                if (row.debtId == null && row.savingsGoalId == null && row.recurringIncomeRuleId == null && row.recurringExpenseRuleId == null && row.billId == null) {
                                     Column {
                                         TextButton(onClick = {
                                             editingId = row.id
@@ -363,7 +364,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                     }
                                 } else {
                                     Text(
-                                        when { row.debtId != null -> "مرتبطة بدين؛ تُدار من قسم الديون"; row.savingsGoalId != null -> "مرتبطة بهدف ادخار؛ تُدار من قسم الادخار"; else -> "دخل دوري؛ يُدار من قسم الرواتب" },
+                                        when { row.debtId != null -> "مرتبطة بدين؛ تُدار من قسم الديون"; row.savingsGoalId != null -> "مرتبطة بهدف ادخار؛ تُدار من قسم الادخار"; row.billId != null -> "فاتورة مدفوعة؛ تُدار من قسم الفواتير"; row.recurringExpenseRuleId != null -> "مصروف دوري؛ يُدار من قسم المصروفات المتكررة"; else -> "دخل دوري؛ يُدار من قسم الرواتب" },
                                         color = FinanceColors.TextSecondary,
                                         style = MaterialTheme.typography.labelSmall
                                     )
@@ -837,10 +838,10 @@ private fun MoneyLandingScreen(
     savingsEntries: List<com.malekfinance.FinanceSavingsEntry>,
     recurringIncomeRules: List<com.malekfinance.FinanceRecurringIncomeRule>,
     recurringIncomeEntries: List<com.malekfinance.FinanceRecurringIncomeEntry>,
-    modifier: Modifier = Modifier
-    recurringIncomeEntries: List<com.malekfinance.FinanceRecurringIncomeEntry>,
     recurringExpenseRules: List<com.malekfinance.FinanceRecurringExpenseRule>,
     recurringExpenseEntries: List<com.malekfinance.FinanceRecurringExpenseEntry>,
+    bills: List<com.malekfinance.FinanceBill>,
+    billPayments: List<com.malekfinance.FinanceBillPayment>,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -1256,10 +1257,8 @@ private fun MoneyLandingScreen(
         }
         item { SavingsManagementSection(db, wallets, savingsGoals, savingsEntries) }
         item { RecurringIncomeSection(db, wallets, recurringIncomeRules, recurringIncomeEntries) }
-        item { SectionCard("الفواتير والتذكيرات", "إدارة الفواتير والتنبيهات الدورية ستكون المرحلة التالية.") }
-        item { RecurringIncomeSection(db, wallets, recurringIncomeRules, recurringIncomeEntries) }
         item { RecurringExpenseSection(db, wallets, budgetCategories, recurringExpenseRules, recurringExpenseEntries) }
-        item { SectionCard("الفواتير والتذكيرات", "إدارة الفواتير والتنبيهات الدورية ستكون المرحلة التالية.") }
+        item { BillManagementSection(db, wallets, categories, bills, billPayments) }
     }
 }
 
