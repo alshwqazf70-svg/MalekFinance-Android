@@ -38,7 +38,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.room.withTransaction
 import com.malekfinance.FinanceBill
 import com.malekfinance.FinanceBillPayment
 import com.malekfinance.FinanceBillPolicy
@@ -309,50 +308,7 @@ internal fun BillManagementSection(
                                             if (busyBills[bill.id] == true) return@launch
                                             busyBills[bill.id] = true
                                             try {
-                                                db.withTransaction {
-                                                    val current = db.billDao().findById(bill.id) ?: error("Bill not found")
-                                                    check(current.isActive)
-                                                    check(FinanceBillPolicy.isDue(current.nextDueAt, System.currentTimeMillis()))
-                                                    val occurrence = FinanceBillPolicy.occurrenceKey(current.nextDueAt)
-                                                    check(!db.billPaymentDao().exists(current.id, occurrence))
-                                                    val currentWallet = db.walletDao().findById(current.walletId) ?: error("Wallet not found")
-                                                    check(currentWallet.currencyCode == current.currencyCode)
-                                                    val transactions = db.dao().forWallet(current.walletId)
-                                                    val transfers = db.transferDao().forWallet(current.walletId)
-                                                    check(FinanceLedger.hasSufficientFunds(currentWallet, current.amountMinor, transactions, transfers))
-                                                    val paidAt = System.currentTimeMillis()
-                                                    val transactionId = db.dao().insert(
-                                                        FinanceTransaction(
-                                                            amountMinor = current.amountMinor,
-                                                            kind = "EXPENSE",
-                                                            note = "دفع فاتورة: " + current.title,
-                                                            category = current.categoryName,
-                                                            createdAt = paidAt,
-                                                            walletId = current.walletId,
-                                                            currencyCode = current.currencyCode,
-                                                            billId = current.id
-                                                        )
-                                                    )
-                                                    db.billPaymentDao().insert(
-                                                        FinanceBillPayment(
-                                                            billId = current.id,
-                                                            occurrenceKey = occurrence,
-                                                            transactionId = transactionId,
-                                                            amountMinor = current.amountMinor,
-                                                            paidAt = paidAt
-                                                        )
-                                                    )
-                                                    if (current.frequency == "ONCE") {
-                                                        db.billDao().update(current.copy(isActive = false))
-                                                    } else {
-                                                        val next = FinanceBillPolicy.nextDueAt(
-                                                            current.nextDueAt,
-                                                            current.frequency,
-                                                            current.anchorDay,
-                                                            current.anchorMonth
-                                                        ) ?: error("Unsupported bill frequency")
-                                                        db.billDao().update(current.copy(nextDueAt = next))
-                                                    }
+                                                FinanceBillOperations.pay(db, bill.id)
                                                 }
                                                 status = "تم تأكيد دفع الفاتورة وتسجيل المصروف."
                                             } catch (_: Exception) {
