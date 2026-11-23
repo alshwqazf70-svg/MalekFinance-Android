@@ -455,8 +455,12 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                     "رصيد " + wallet.name + ": " + String.format(java.util.Locale.ROOT, "%s.%02d %s", major.toString(), minor.toInt(), wallet.currencyCode)
                                 }
                                 VoiceCommandType.SPENDING_QUERY -> {
-                                    val result = VoiceQueryEngine.calculate(walletTransactions, "EXPENSE", wallet.id, wallet.currencyCode, parsed.queryPeriod)
-                                    "مصروفات " + wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
+                                    val result = VoiceQueryEngine.calculate(
+                                        walletTransactions, "EXPENSE", wallet.id, wallet.currencyCode,
+                                        parsed.queryPeriod, category = parsed.category.takeIf { it != "عام" }
+                                    )
+                                    "مصروفات " + (parsed.category.takeIf { it != "عام" }?.let { "تصنيف " + it + " في " } ?: "في ") +
+                                        wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
                                 }
                                 VoiceCommandType.INCOME_QUERY -> {
                                     val result = VoiceQueryEngine.calculate(walletTransactions, "INCOME", wallet.id, wallet.currencyCode, parsed.queryPeriod)
