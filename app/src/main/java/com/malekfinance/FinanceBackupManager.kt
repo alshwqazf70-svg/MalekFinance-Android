@@ -83,54 +83,68 @@ object FinanceBackupManager {
     suspend fun restore(db: FinanceDb, input: InputStream, password: CharArray) {
         require(password.size >= 8) { "Backup password must contain at least 8 characters" }
         val bytes = input.use { readBounded(it, MAX_BACKUP_BYTES) }
-        require(bytes.size in 40..MAX_BACKUP_BYTES) { "Backup file size is invalid" }
-        val magicBytes = MAGIC.toByteArray(StandardCharsets.US_ASCII)
-        require(bytes.copyOfRange(0, magicBytes.size).contentEquals(magicBytes)) { "Unsupported backup format" }
-        val salt = bytes.copyOfRange(8, 24)
-        val nonce = bytes.copyOfRange(24, 36)
-        val encryptedLength = ByteBuffer.wrap(bytes, 36, 4).int
-        require(encryptedLength > 16 && encryptedLength == bytes.size - 40) { "Backup file is incomplete" }
-        val key = try { deriveKey(password, salt) } finally { password.fill('\u0000') }
-        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, nonce))
-        cipher.updateAAD(magicBytes)
-        val json = JSONObject(String(cipher.doFinal(bytes.copyOfRange(40, bytes.size)), StandardCharsets.UTF_8))
-        require(json.optString("format") == MAGIC && json.optInt("schemaVersion") == 12) {
-            "Backup database version is not supported by this app version"
-        }
-        val tableData = json.getJSONObject("tables")
-        tables.forEach { require(tableData.has(it)) { "Backup is missing table: $it" } }
-
-        db.withTransaction {
-            val database = db.openHelper.writableDatabase
-            tables.asReversed().forEach { database.execSQL("DELETE FROM $it") }
-            tables.forEach { table ->
-                val expectedColumns = tableData.getJSONArray(table)
-                val actualColumns = database.query("PRAGMA table_info($table)").use { cursor ->
-                    buildSet { while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name"))) }
+        try {
+            require(bytes.size in 40..MAX_BACKUP_BYTES) { "Backup file size is invalid" }
+            val magicBytes = MAGIC.toByteArray(StandardCharsets.US_ASCII)
+            require(bytes.copyOfRange(0, magicBytes.size).contentEquals(magicBytes)) { "Unsupported backup format" }
+            val salt = bytes.copyOfRange(8, 24)
+            val nonce = bytes.copyOfRange(24, 36)
+            try {
+                val encryptedLength = ByteBuffer.wrap(bytes, 36, 4).int
+                require(encryptedLength > 16 && encryptedLength == bytes.size - 40) { "Backup file is incomplete" }
+                val key = try { deriveKey(password, salt) } finally { password.fill('\u0000') }
+                val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+                cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, nonce))
+                cipher.updateAAD(magicBytes)
+                val plaintext = cipher.doFinal(bytes.copyOfRange(40, bytes.size))
+                val json = try {
+                    JSONObject(String(plaintext, StandardCharsets.UTF_8))
+                } finally {
+                    plaintext.fill(0)
                 }
-                for (index in 0 until expectedColumns.length()) {
-                    val row = expectedColumns.getJSONObject(index)
-                    val columns = row.getJSONArray("columns")
-                    val values = row.getJSONArray("values")
-                    require(columns.length() == values.length())
-                    val content = ContentValues()
-                    for (columnIndex in 0 until columns.length()) {
-                        val column = columns.getString(columnIndex)
-                        require(column in actualColumns) { "Unknown column $column in $table" }
-                        val cell = values.getJSONObject(columnIndex)
-                        when (cell.getInt("type")) {
-                            Cursor.FIELD_TYPE_NULL -> content.putNull(column)
-                            Cursor.FIELD_TYPE_INTEGER -> content.put(column, cell.getLong("value"))
-                            Cursor.FIELD_TYPE_FLOAT -> content.put(column, cell.getDouble("value"))
-                            Cursor.FIELD_TYPE_STRING -> content.put(column, cell.getString("value"))
-                            Cursor.FIELD_TYPE_BLOB -> content.put(column, Base64.decode(cell.getString("value"), Base64.NO_WRAP))
-                            else -> error("Unsupported cell type")
+                require(json.optString("format") == MAGIC && json.optInt("schemaVersion") == 12) {
+                    "Backup database version is not supported by this app version"
+                }
+                val tableData = json.getJSONObject("tables")
+                tables.forEach { require(tableData.has(it)) { "Backup is missing table: $it" } }
+
+                db.withTransaction {
+                    val database = db.openHelper.writableDatabase
+                    tables.asReversed().forEach { database.execSQL("DELETE FROM $it") }
+                    tables.forEach { table ->
+                        val expectedColumns = tableData.getJSONArray(table)
+                        val actualColumns = database.query("PRAGMA table_info($table)").use { cursor ->
+                            buildSet { while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name"))) }
+                        }
+                        for (index in 0 until expectedColumns.length()) {
+                            val row = expectedColumns.getJSONObject(index)
+                            val columns = row.getJSONArray("columns")
+                            val values = row.getJSONArray("values")
+                            require(columns.length() == values.length())
+                            val content = ContentValues()
+                            for (columnIndex in 0 until columns.length()) {
+                                val column = columns.getString(columnIndex)
+                                require(column in actualColumns) { "Unknown column $column in $table" }
+                                val cell = values.getJSONObject(columnIndex)
+                                when (cell.getInt("type")) {
+                                    Cursor.FIELD_TYPE_NULL -> content.putNull(column)
+                                    Cursor.FIELD_TYPE_INTEGER -> content.put(column, cell.getLong("value"))
+                                    Cursor.FIELD_TYPE_FLOAT -> content.put(column, cell.getDouble("value"))
+                                    Cursor.FIELD_TYPE_STRING -> content.put(column, cell.getString("value"))
+                                    Cursor.FIELD_TYPE_BLOB -> content.put(column, Base64.decode(cell.getString("value"), Base64.NO_WRAP))
+                                    else -> error("Unsupported cell type")
+                                }
+                            }
+                            database.insert(table, android.database.sqlite.SQLiteDatabase.CONFLICT_ABORT, content)
                         }
                     }
-                    database.insert(table, android.database.sqlite.SQLiteDatabase.CONFLICT_ABORT, content)
                 }
+            } finally {
+                salt.fill(0)
+                nonce.fill(0)
             }
+        } finally {
+            bytes.fill(0)
         }
     }
 
