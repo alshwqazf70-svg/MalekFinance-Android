@@ -509,7 +509,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
 
     fun startListening() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            if (!launchFinanceRecognition(speechLauncher)) status = "خدمة التعرف الصوتي غير متاحة على هذا الجهاز. يمكنك الكتابة يدوياً."
+            if (!launchFinanceRecognition(context, speechLauncher)) status = "خدمة التعرف الصوتي غير متاحة على هذا الجهاز. يمكنك الكتابة يدوياً."
         } else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
