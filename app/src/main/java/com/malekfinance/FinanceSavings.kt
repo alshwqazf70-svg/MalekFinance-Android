@@ -67,7 +67,7 @@ object FinanceSavingsPolicy {
                 "WITHDRAWAL" -> total.subtract(amount)
                 else -> total
             }
-        }
+        }.max(BigInteger.ZERO)
 
     fun canContribute(targetMinor: Long, entries: List<FinanceSavingsEntry>, amountMinor: Long): Boolean =
         targetMinor > 0L && amountMinor > 0L &&
