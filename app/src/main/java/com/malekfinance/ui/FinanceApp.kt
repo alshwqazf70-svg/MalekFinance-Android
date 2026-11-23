@@ -457,6 +457,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             transcript = spoken
             hasTransferDraft = false
             hasDebtDraft = false
+            hasSavingsDraft = false
+            savingsAmountDraft = ""
+            savingsGoalDraftId = null
             transferAmountText = ""
             transferNote = ""
             debtPersonDraft = ""
@@ -699,7 +702,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 
     fun cancelVoiceDraft() {
-        if (isSavingDraft || isTransferSaving || isDebtSaving) return
+        if (isSavingDraft || isTransferSaving || isDebtSaving || isSavingsSaving) return
         transcript = ""
         amount = ""
         description = ""
@@ -722,7 +725,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 
     fun saveReviewedDraft() {
-        if (isSavingDraft || hasTransferDraft || hasDebtDraft) return
+        if (isSavingDraft || hasTransferDraft || hasDebtDraft || hasSavingsDraft) return
         val normalized = normalizeFinanceAmount(amount).replace('٫', '.').replace(',', '.').trim()
         val minor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
         val selectedKind = kind
@@ -876,6 +879,50 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                     isDebtSaving = false
                 }
             }
+        }
+    }
+
+    fun confirmVoiceSavings() {
+        if (isSavingsSaving) return
+        val goal = voiceSavingsGoals.firstOrNull { it.id == savingsGoalDraftId }
+        val minor = runCatching {
+            normalizeFinanceAmount(savingsAmountDraft).replace('٫', '.').replace(',', '.').toBigDecimalOrNull()
+                ?.movePointRight(2)?.longValueExact()
+        }.getOrNull()
+        if (goal == null) {
+            status = "اختر هدف الادخار المرتبط بهذه العملية."
+            return
+        }
+        if (minor == null || minor <= 0L) {
+            status = "أدخل مبلغاً صحيحاً أكبر من صفر."
+            return
+        }
+        isSavingsSaving = true
+        scope.launch {
+            runCatching {
+                if (savingsDraftType == "CONTRIBUTION") {
+                    com.malekfinance.FinanceSavingsOperations.contribute(db, goal.id, minor)
+                } else {
+                    com.malekfinance.FinanceSavingsOperations.withdraw(db, goal.id, minor)
+                }
+            }.onSuccess {
+                hasSavingsDraft = false
+                savingsAmountDraft = ""
+                savingsGoalDraftId = null
+                transcript = ""
+                status = if (savingsDraftType == "CONTRIBUTION") {
+                    "تمت إضافة المساهمة إلى هدف " + goal.name + " وتحديث المحفظة."
+                } else {
+                    "تم تسجيل السحب من هدف " + goal.name + " وإعادة المبلغ للمحفظة."
+                }
+            }.onFailure {
+                status = when {
+                    it is com.malekfinance.InsufficientWalletFundsException -> "رصيد المحفظة لا يكفي لهذه المساهمة."
+                    savingsDraftType == "CONTRIBUTION" -> "المساهمة تتجاوز المتبقي من الهدف أو تعذر حفظها."
+                    else -> "السحب يتجاوز رصيد الادخار المتاح أو تعذر حفظه."
+                }
+            }
+            isSavingsSaving = false
         }
     }
 
