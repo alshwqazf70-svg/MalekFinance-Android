@@ -1203,7 +1203,6 @@ private fun MoneyLandingScreen(
                 }
             }
         }
-        item { SectionCard("الديون والسلف", "تسجيل المستحقات والسداد الجزئي — لم تُفعّل بعد.") }
         item { SavingsManagementSection(db, wallets, savingsGoals, savingsEntries) }
         item { SectionCard("الرواتب والفواتير", "الدخل المتكرر والاستحقاقات — لم تُفعّل بعد.") }
     }
