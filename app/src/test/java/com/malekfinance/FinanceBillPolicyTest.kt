@@ -56,7 +56,7 @@ class FinanceBillPolicyTest {
     @Test
     fun reminderIsScheduledOneDayBeforeDueOrImmediatelyWhenCloser() {
         val now = date(2026, 11, 23)
-        assertEquals(now, FinanceBillPolicy.reminderAt(now + 3 * 86_400_000L, now) - 2 * 86_400_000L)
+        assertEquals(now + 2 * 86_400_000L, FinanceBillPolicy.reminderAt(now + 3 * 86_400_000L, now))
         assertEquals(now, FinanceBillPolicy.reminderAt(now + 12 * 60 * 60 * 1000L, now))
         assertEquals(now, FinanceBillPolicy.reminderAt(now - 60_000L, now))
     }
