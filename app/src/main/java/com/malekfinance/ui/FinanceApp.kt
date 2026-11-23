@@ -652,6 +652,15 @@ private fun DebtManagementSection(
                             busy = true
                             try {
                                 db.withTransaction {
+                                    val currentWallet = db.walletDao().findById(wallet.id) ?: error("Wallet not found")
+                                    check(currentWallet.currencyCode == wallet.currencyCode)
+                                    if (debtType == "OWED_TO_ME") {
+                                        val currentTransactions = db.dao().forWallet(currentWallet.id)
+                                        val currentTransfers = db.transferDao().forWallet(currentWallet.id)
+                                        if (!com.malekfinance.FinanceLedger.hasSufficientFunds(currentWallet, amountMinor, currentTransactions, currentTransfers)) {
+                                            throw com.malekfinance.InsufficientWalletFundsException()
+                                        }
+                                    }
                                     val debtId = db.debtDao().insert(com.malekfinance.FinanceDebt(
                                         personName = cleanName,
                                         description = description.trim(),
@@ -674,8 +683,10 @@ private fun DebtManagementSection(
                                 description = ""
                                 principal = ""
                                 status = "تم تسجيل أصل الدين وحركة المحفظة معاً."
+                            } catch (_: com.malekfinance.InsufficientWalletFundsException) {
+                                status = "رصيد المحفظة لا يكفي لإقراض هذا المبلغ."
                             } catch (_: Exception) {
-                                status = "تعذر تسجيل الدين؛ تحقق من البيانات."
+                                status = "تعذر تسجيل الدين؛ لم يتم حفظ أي جزء من العملية."
                             } finally {
                                 busy = false
                             }
@@ -732,8 +743,15 @@ private fun DebtManagementSection(
                                                     val current = db.debtDao().findById(debt.id) ?: error("Debt not found")
                                                     val currentPayments = db.debtPaymentDao().forDebt(debt.id)
                                                     check(com.malekfinance.FinanceDebtPolicy.canApplyPayment(current.principalMinor, currentPayments, amountMinor))
-                                                    val paymentWallet = wallets.firstOrNull { it.id == current.walletId } ?: error("Wallet not found")
+                                                    val paymentWallet = db.walletDao().findById(current.walletId) ?: error("Wallet not found")
                                                     check(paymentWallet.currencyCode == current.currencyCode)
+                                                    if (current.debtType == "OWED_BY_ME") {
+                                                        val latestTransactions = db.dao().forWallet(paymentWallet.id)
+                                                        val latestTransfers = db.transferDao().forWallet(paymentWallet.id)
+                                                        if (!com.malekfinance.FinanceLedger.hasSufficientFunds(paymentWallet, amountMinor, latestTransactions, latestTransfers)) {
+                                                            throw com.malekfinance.InsufficientWalletFundsException()
+                                                        }
+                                                    }
                                                     val transactionId = db.dao().insert(FinanceTransaction(
                                                         amountMinor = amountMinor,
                                                         kind = if (current.debtType == "OWED_BY_ME") "EXPENSE" else "INCOME",
@@ -751,6 +769,8 @@ private fun DebtManagementSection(
                                                 }
                                                 paymentInputs = paymentInputs - debt.id
                                                 status = "تم تسجيل الدفعة وربطها بالعملية المالية."
+                                            } catch (_: com.malekfinance.InsufficientWalletFundsException) {
+                                                status = "رصيد المحفظة لا يكفي لإتمام السداد."
                                             } catch (_: Exception) {
                                                 status = "تعذر تسجيل الدفعة؛ لم يُحفظ أي جزء منها. تحقق من المتبقي وحاول مجدداً."
                                             } finally {
