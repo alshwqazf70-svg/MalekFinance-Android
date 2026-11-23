@@ -82,6 +82,10 @@ class BillReminderWorker(
             if (!bill.isActive || bill.nextDueAt != scheduledDueAt ||
                 bill.lastReminderOccurrenceKey == occurrenceKey
             ) return Result.success()
+            val latestBill = db.billDao().findById(billId) ?: return Result.success()
+            if (!latestBill.isActive || latestBill.nextDueAt != scheduledDueAt ||
+                latestBill.lastReminderOccurrenceKey == occurrenceKey
+            ) return Result.success()
 
             if (Build.VERSION.SDK_INT >= 33 &&
                 ContextCompat.checkSelfPermission(
@@ -118,7 +122,7 @@ class BillReminderWorker(
                 .build()
 
             NotificationManagerCompat.from(applicationContext).notify(billId.hashCode(), notification)
-            db.billDao().update(bill.copy(lastReminderOccurrenceKey = occurrenceKey))
+            db.billDao().markReminderDelivered(billId, scheduledDueAt, occurrenceKey)
             return Result.success()
         } catch (_: SecurityException) {
             return Result.success()
