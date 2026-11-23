@@ -284,7 +284,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                             )
                             Text("التصنيف", color = FinanceColors.TextSecondary)
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                items(activeCategories, key = { it.id }) { item ->
+                                items(activeCategories.filter { com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, editKind) }, key = { it.id }) { item ->
                                     FilterChip(
                                         selected = editCategory == item.name,
                                         onClick = { editCategory = item.name },
@@ -301,7 +301,8 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                     when {
                                         amountMinor == null || amountMinor <= 0L -> status = "أدخل مبلغاً صحيحاً أكبر من صفر."
                                         editNote.isBlank() -> status = "لا يمكن حفظ وصف فارغ."
-                                        editCategory.isBlank() -> status = "أدخل تصنيفاً للعملية."
+                                        editCategory.isBlank() -> status = "اختر تصنيفاً للعملية."
+                                        activeCategories.none { it.name == editCategory && com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, editKind) } -> status = "اختر تصنيفاً يناسب نوع العملية."
                                         else -> scope.launch {
                                             runCatching {
                                                 db.dao().update(row.copy(
@@ -371,6 +372,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var hasDraft by remember { mutableStateOf(false) }
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
+    val compatibleCategories = activeCategories.filter {
+        kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, kind!!)
+    }
 
     LaunchedEffect(wallets) {
         if (selectedWalletId == null && wallets.isNotEmpty()) selectedWalletId = wallets.first().id
@@ -421,6 +425,12 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         }
         if (description.isBlank()) {
             status = "أدخل وصفاً للعملية قبل الحفظ."
+            return
+        }
+        if (activeCategories.none {
+                it.name == category && (selectedKind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, selectedKind))
+            }) {
+            status = "اختر تصنيفاً نشطاً يناسب نوع العملية."
             return
         }
         val wallet = selectedWallet
@@ -532,7 +542,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                     )
                     Text("التصنيف", color = FinanceColors.TextSecondary)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        items(activeCategories, key = { it.id }) { item ->
+                        items(compatibleCategories, key = { it.id }) { item ->
                             FilterChip(
                                 selected = category == item.name,
                                 onClick = { category = item.name },
@@ -663,10 +673,10 @@ private fun MoneyLandingScreen(
                     }
                     Button(
                         onClick = {
-                            val name = categoryName.trim()
+                            val name = com.malekfinance.FinanceCategoryPolicy.normalizedName(categoryName)
                             when {
-                                name.isBlank() -> status = "اكتب اسم التصنيف."
-                                name.length > 32 -> status = "اسم التصنيف طويل؛ الحد الأقصى 32 حرفاً."
+                                name == null && categoryName.isBlank() -> status = "اكتب اسم التصنيف."
+                                name == null -> status = "اسم التصنيف طويل؛ الحد الأقصى 32 حرفاً."
                                 categories.any { it.kind == categoryKind && it.name.equals(name, ignoreCase = true) } -> status = "هذا التصنيف موجود بالفعل؛ يمكنك إعادة تفعيله من القائمة."
                                 else -> scope.launch {
                                     if (isCreatingCategory) return@launch
