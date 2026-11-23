@@ -85,7 +85,14 @@ object FinanceBillPolicy {
 
     /** Parse a strict local date (yyyy-MM-dd) at 09:00 to avoid midnight/DST edge cases. */
     fun parseLocalDate(value: String): Long? {
-        val match = datePattern.matchEntire(value.trim()) ?: return null
+        val normalized = value.trim().map { ch ->
+            when (ch) {
+                in '٠'..'٩' -> ('0'.code + (ch.code - '٠'.code)).toChar()
+                in '۰'..'۹' -> ('0'.code + (ch.code - '۰'.code)).toChar()
+                else -> ch
+            }
+        }.joinToString("")
+        val match = datePattern.matchEntire(normalized) ?: return null
         val year = match.groupValues[1].toIntOrNull() ?: return null
         val month = match.groupValues[2].toIntOrNull() ?: return null
         val day = match.groupValues[3].toIntOrNull() ?: return null
