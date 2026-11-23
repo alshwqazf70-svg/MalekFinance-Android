@@ -1114,6 +1114,7 @@ private fun MoneyLandingScreen(
                                 FilterChip(
                                     selected = budgetCategoryName == category.name,
                                     onClick = { budgetCategoryName = category.name },
+                                    enabled = editingBudgetId == null,
                                     label = { Text(category.name) }
                                 )
                             }
@@ -1121,7 +1122,7 @@ private fun MoneyLandingScreen(
                         Text("العملة", color = FinanceColors.TextSecondary)
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             listOf("YER", "USD", "SAR", "AED").forEach { code ->
-                                FilterChip(selected = budgetCurrency == code, onClick = { budgetCurrency = code }, label = { Text(code) })
+                                FilterChip(selected = budgetCurrency == code, onClick = { budgetCurrency = code }, enabled = editingBudgetId == null, label = { Text(code) })
                             }
                         }
                         OutlinedTextField(
