@@ -1,46 +1,135 @@
 package com.malekfinance.voice
 
+enum class VoiceCommandType { TRANSACTION, BALANCE_QUERY, SPENDING_QUERY, INCOME_QUERY, SUMMARY_QUERY }
+
 data class ParsedTransaction(
     val amount: String?,
     val kind: String?,
     val category: String,
-    val description: String
+    val description: String,
+    val command: VoiceCommandType = VoiceCommandType.TRANSACTION,
+    val queryPeriod: String? = null
 )
 
+/**
+ * Pure text understanding layer. It deliberately does not access Android speech APIs,
+ * the database, or network services; callers must review every mutation before saving.
+ */
 object VoiceTransactionParser {
+    private val digitAmount = Regex("""\d+(?:[.,٫]\d{1,2})?""")
+    private val numberWords = mapOf(
+        "صفر" to 0L, "واحد" to 1L, "واحدة" to 1L, "واحده" to 1L,
+        "اثنين" to 2L, "اثنان" to 2L, "ثنين" to 2L, "إثنين" to 2L, "اثنتين" to 2L,
+        "ثلاثة" to 3L, "ثلاث" to 3L, "اربعة" to 4L, "أربعة" to 4L, "اربع" to 4L,
+        "خمسة" to 5L, "خمس" to 5L, "ستة" to 6L, "ست" to 6L,
+        "سبعة" to 7L, "سبع" to 7L, "ثمانية" to 8L, "ثمان" to 8L, "ثمانيه" to 8L,
+        "تسعة" to 9L, "تسع" to 9L, "عشرة" to 10L, "عشر" to 10L,
+        "احدعشر" to 11L, "أحدعشر" to 11L, "اثناعشر" to 12L, "اثني عشر" to 12L,
+        "عشرين" to 20L, "عشرون" to 20L, "ثلاثين" to 30L, "ثلاثون" to 30L,
+        "اربعين" to 40L, "أربعين" to 40L, "خمسين" to 50L, "ستين" to 60L,
+        "سبعين" to 70L, "ثمانين" to 80L, "تسعين" to 90L,
+        "مئة" to 100L, "مائة" to 100L, "ميه" to 100L, "مية" to 100L,
+        "مئتين" to 200L, "مائتين" to 200L, "ثلاثمئة" to 300L, "اربعمئة" to 400L,
+        "خمسمئة" to 500L, "ستمئة" to 600L, "سبعمئة" to 700L, "ثمانمئة" to 800L, "تسعمئة" to 900L,
+        "الفين" to 2_000L, "ألفين" to 2_000L, "مليون" to 1_000_000L, "مليونين" to 2_000_000L
+    )
+
     fun parse(raw: String): ParsedTransaction {
-        val normalized = normalizeDigits(raw).replace('٫', '.').replace('،', ' ')
-        val match = Regex("""\d+(?:[.,]\d{1,2})?""").find(normalized)
-        val amount = match?.value?.replace(',', '.')
+        val normalized = normalizeDigits(raw)
+            .replace('٫', '.')
+            .replace('،', ' ')
+            .replace(Regex("""\s+"""), " ")
+            .trim()
         val lower = normalized.lowercase()
-        val incomeIntent = listOf("دخل", "استلمت", "قبضت", "إيراد", "ايراد", "حوّل لي", "حول لي", "حصلت", "راتب").any(lower::contains)
-        val expenseIntent = listOf("صرف", "صرفت", "دفعت", "اشتريت", "شراء", "مصروف", "كلفني").any(lower::contains)
+        val command = detectCommand(lower)
+        val amount = extractAmount(normalized)
+        val incomeIntent = containsAny(lower, listOf(
+            "دخل", "استلمت", "قبضت", "إيراد", "ايراد", "حول لي", "حوّل لي",
+            "حصلت", "راتب", "رجع لي", "رجّع لي", "رجعلي", "وصلني"
+        ))
+        val expenseIntent = containsAny(lower, listOf(
+            "صرف", "صرفت", "دفعت", "اشتريت", "شراء", "مصروف", "كلفني", "دفعت حق"
+        ))
+        val negatedExpense = containsAny(lower, listOf("ما صرفت", "لم اصرف", "لم أصرف", "ما دفعت", "لم ادفع", "لم أدفع"))
+        val negatedIncome = containsAny(lower, listOf("ما استلمت", "لم استلم", "لم أستلم", "ما قبضت"))
         val kind = when {
+            command != VoiceCommandType.TRANSACTION -> null
+            negatedExpense || negatedIncome -> null
             incomeIntent && !expenseIntent -> "INCOME"
             expenseIntent && !incomeIntent -> "EXPENSE"
             else -> null
         }
 
         val category = when {
-            listOf("بقالة", "سوبر", "مواد غذائية", "تموين").any(lower::contains) -> "بقالة"
-            listOf("مطعم", "مطاعم", "وجبة", "غداء", "عشاء", "فطور").any(lower::contains) -> "مطاعم"
-            listOf("بنزين", "وقود", "ديزل", "بترول").any(lower::contains) -> "بنزين"
-            listOf("مواصلات", "باص", "تاكسي", "أجرة").any(lower::contains) -> "مواصلات"
-            listOf("كهرباء", "ماء", "إنترنت", "انترنت", "فاتورة").any(lower::contains) -> "فواتير"
-            listOf("راتب", "أجر", "دخل").any(lower::contains) -> "راتب"
+            containsAny(lower, listOf("بقالة", "سوبر", "مواد غذائية", "تموين", "مقاضي")) -> "بقالة"
+            containsAny(lower, listOf("مطعم", "مطاعم", "وجبة", "غداء", "عشاء", "فطور")) -> "مطاعم"
+            containsAny(lower, listOf("بنزين", "وقود", "ديزل", "بترول")) -> "بنزين"
+            containsAny(lower, listOf("مواصلات", "باص", "تاكسي", "أجرة")) -> "مواصلات"
+            containsAny(lower, listOf("كهرباء", "ماء", "إنترنت", "انترنت", "فاتورة")) -> "فواتير"
+            containsAny(lower, listOf("راتب", "أجر", "دخل")) -> "راتب"
             else -> "عام"
         }
 
         val description = normalized
-            .replace(Regex("""\d+(?:[.,]\d{1,2})?"""), " ")
-            .replace(Regex("""(ريال|ريالات|ر\.ي)"""), " ")
-            .replace(Regex("""(صرف|دفعت|دفعتُ|اشتريت|اشتريتُ|دفعت مبلغ|استلمت|قبضت|سجل|سجّل)"""), " ")
+            .replace(digitAmount, " ")
+            .replace(Regex("""\b(صفر|واحد|واحدة|واحده|اثنين|اثنان|ثنين|ثلاثة|ثلاث|اربعة|أربعة|اربع|خمسة|خمس|ستة|ست|سبعة|سبع|ثمانية|ثمان|تسعة|تسع|عشرة|عشر|عشرين|ثلاثين|اربعين|أربعين|خمسين|ستين|سبعين|ثمانين|تسعين|مئة|مائة|ميه|مية|الفين|ألفين|مليون|مليونين)\b"""), " ")
+            .replace(Regex("""(ريال|ريالات|ر\.ي|صرف|صرفت|دفعت|اشتريت|استلمت|قبضت|سجل|سجّل)"""), " ")
             .replace(Regex("""\s+"""), " ")
             .trim()
             .ifBlank { raw.trim() }
 
-        return ParsedTransaction(amount, kind, category, description)
+        return ParsedTransaction(
+            amount = amount,
+            kind = kind,
+            category = category,
+            description = description,
+            command = command,
+            queryPeriod = detectPeriod(lower)
+        )
     }
+
+    private fun detectCommand(text: String): VoiceCommandType = when {
+        containsAny(text, listOf("كم رصيدي", "كم معي", "رصيد محفظتي", "كم باقي", "كم تبقى")) -> VoiceCommandType.BALANCE_QUERY
+        containsAny(text, listOf("كم صرفت", "كم انفقت", "كم أنفقت", "إجمالي المصروف", "مجموع المصروف")) -> VoiceCommandType.SPENDING_QUERY
+        containsAny(text, listOf("كم دخل", "كم استلمت", "إجمالي الدخل", "مجموع الدخل")) -> VoiceCommandType.INCOME_QUERY
+        containsAny(text, listOf("ملخص مالي", "ملخص حسابي", "اعطني ملخص", "أعطني ملخص", "التقرير المالي")) -> VoiceCommandType.SUMMARY_QUERY
+        else -> VoiceCommandType.TRANSACTION
+    }
+
+    private fun detectPeriod(text: String): String? = when {
+        containsAny(text, listOf("اليوم", "هذا اليوم")) -> "TODAY"
+        containsAny(text, listOf("امس", "أمس")) -> "YESTERDAY"
+        containsAny(text, listOf("هذا الاسبوع", "هذا الأسبوع", "الاسبوع الحالي", "الأسبوع الحالي")) -> "WEEK"
+        containsAny(text, listOf("هذا الشهر", "الشهر الحالي")) -> "MONTH"
+        containsAny(text, listOf("هذه السنة", "هذا العام", "السنة الحالية")) -> "YEAR"
+        else -> null
+    }
+
+    private fun extractAmount(text: String): String? {
+        digitAmount.find(text)?.value?.replace('٫', '.')?.replace(',', '.')?.let { return it }
+        val tokens = text.lowercase().replace(Regex("""[،,؟?.!]"""), " ").split(Regex("""\s+"""))
+        var total = 0L
+        var group = 0L
+        var found = false
+        for (token in tokens) {
+            val value = numberWords[token] ?: continue
+            found = true
+            when (value) {
+                1_000_000L -> { total = Math.addExact(total, Math.multiplyExact(if (group == 0L) 1L else group, value)); group = 0L }
+                2_000_000L -> { total = Math.addExact(total, value); group = 0L }
+                2_000L -> { total = Math.addExact(total, value); group = 0L }
+                else -> group = Math.addExact(group, value)
+            }
+            if (token == "ألف" || token == "الف") {
+                total = Math.addExact(total, Math.multiplyExact(if (group == 0L) 1L else group, 1_000L))
+                group = 0L
+            }
+        }
+        if (!found) return null
+        return runCatching { Math.addExact(total, group).toString() }.getOrNull()
+    }
+
+    private fun containsAny(text: String, phrases: List<String>) = phrases.any(text::contains)
 
     private fun normalizeDigits(value: String): String {
         val arabic = "٠١٢٣٤٥٦٧٨٩"
