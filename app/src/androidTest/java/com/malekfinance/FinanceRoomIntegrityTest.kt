@@ -480,6 +480,65 @@ class FinanceRoomIntegrityTest {
         assertEquals("1000", FinanceDebtPolicy.outstanding(1_000, db.debtPaymentDao().forDebt(debtId)).toString())
     }
 
+
+    @Test
+    fun billPaymentIsAtomicAndCannotBeRepeatedForTheSameOccurrence() = runBlocking {
+        val walletId = db.walletDao().insert(
+            FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 1_000)
+        )
+        val dueAt = System.currentTimeMillis() - 86_400_000L
+        val billId = db.billDao().insert(
+            FinanceBill(
+                title = "فاتورة كهرباء",
+                categoryName = "فواتير",
+                amountMinor = 800,
+                currencyCode = "YER",
+                walletId = walletId,
+                frequency = "ONCE",
+                anchorDay = 1,
+                anchorMonth = 0,
+                nextDueAt = dueAt
+            )
+        )
+
+        FinanceBillOperations.pay(db, billId)
+        assertEquals(1, rowCount("bill_payments"))
+        assertEquals(1, rowCount("transactions"))
+        assertEquals(false, db.billDao().findById(billId)!!.isActive)
+        expectFailure { FinanceBillOperations.pay(db, billId) }
+        assertEquals(1, rowCount("bill_payments"))
+        assertEquals(1, rowCount("transactions"))
+    }
+
+    @Test
+    fun billPaymentRollsBackExpenseWhenPaymentRecordInsertFails() = runBlocking {
+        val walletId = db.walletDao().insert(
+            FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 2_000)
+        )
+        val billId = db.billDao().insert(
+            FinanceBill(
+                title = "فاتورة ماء",
+                categoryName = "فواتير",
+                amountMinor = 500,
+                currencyCode = "YER",
+                walletId = walletId,
+                frequency = "ONCE",
+                anchorDay = 1,
+                anchorMonth = 0,
+                nextDueAt = System.currentTimeMillis() - 86_400_000L
+            )
+        )
+        db.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER reject_bill_payment BEFORE INSERT ON bill_payments " +
+                "BEGIN SELECT RAISE(ABORT, 'injected bill payment failure'); END"
+        )
+
+        expectFailure { FinanceBillOperations.pay(db, billId) }
+        assertEquals(0, rowCount("bill_payments"))
+        assertEquals(0, rowCount("transactions"))
+        assertEquals(true, db.billDao().findById(billId)!!.isActive)
+    }
+
     private suspend fun expectFailure(block: suspend () -> Unit) {
         var failed = false
         try {
