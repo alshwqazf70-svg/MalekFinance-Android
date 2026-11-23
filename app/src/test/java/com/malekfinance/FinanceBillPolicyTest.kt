@@ -21,6 +21,8 @@ class FinanceBillPolicyTest {
     @Test
     fun parsesOnlyValidIsoLocalDates() {
         assertNotNull(FinanceBillPolicy.parseLocalDate("2024-02-29"))
+        assertNotNull(FinanceBillPolicy.parseLocalDate("٢٠٢٤-٠٢-٢٩"))
+        assertNotNull(FinanceBillPolicy.parseLocalDate("۲۰۲۴-۰۲-۲۹"))
         assertNull(FinanceBillPolicy.parseLocalDate("2025-02-29"))
         assertNull(FinanceBillPolicy.parseLocalDate("2026-13-01"))
         assertNull(FinanceBillPolicy.parseLocalDate("01-12-2026"))
