@@ -424,6 +424,36 @@ class FinanceRoomIntegrityTest {
     }
 
     @Test
+    fun concurrentDebtPaymentsCannotSettleTheSameOutstandingAmountTwice() = runBlocking {
+        val walletId = db.walletDao().insert(
+            FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 2_000)
+        )
+        val debtId = db.debtDao().insert(
+            FinanceDebt(
+                personName = "أحمد",
+                description = "اختبار تزامن",
+                debtType = "OWED_BY_ME",
+                principalMinor = 500,
+                currencyCode = "YER",
+                walletId = walletId,
+                cashMovementRecorded = false
+            )
+        )
+
+        val outcomes = coroutineScope {
+            listOf(
+                async { runCatching { FinanceDebtPaymentOperations.applyPayment(db, debtId, 400) } },
+                async { runCatching { FinanceDebtPaymentOperations.applyPayment(db, debtId, 400) } }
+            ).awaitAll()
+        }
+
+        assertEquals(1, outcomes.count { it.isSuccess })
+        assertEquals(1, rowCount("debt_payments"))
+        assertEquals(1, rowCount("transactions"))
+        assertEquals("100", FinanceDebtPolicy.outstanding(500, db.debtPaymentDao().forDebt(debtId)).toString())
+    }
+
+    @Test
     fun debtPaymentServiceRollsBackTransactionWhenPaymentLinkInsertFails() = runBlocking {
         val walletId = db.walletDao().insert(
             FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 2_000)
