@@ -488,6 +488,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 hasDraft = false
                 hasTransferDraft = false
                 hasDebtDraft = false
+                hasDebtPaymentDraft = false
+                debtPaymentAmountDraft = ""
+                debtPaymentDebtId = null
                 hasSavingsDraft = false
                 savingsAmountDraft = ""
                 savingsGoalDraftId = null
@@ -775,6 +778,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 // A newly parsed transaction replaces any older, unconfirmed special draft.
                 hasTransferDraft = false
                 hasDebtDraft = false
+                hasDebtPaymentDraft = false
+                debtPaymentAmountDraft = ""
+                debtPaymentDebtId = null
                 hasSavingsDraft = false
                 savingsAmountDraft = ""
                 savingsGoalDraftId = null
