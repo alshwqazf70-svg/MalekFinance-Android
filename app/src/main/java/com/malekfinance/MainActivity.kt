@@ -40,7 +40,7 @@ import com.malekfinance.ui.FinanceColors
 import java.text.NumberFormat
 import java.util.Locale
 
-@Entity(tableName = "transactions", indices = [Index(value = ["walletId"]), Index(value = ["debtId"]), Index(value = ["savingsGoalId"]), Index(value = ["recurringIncomeRuleId"]), Index(value = ["recurringExpenseRuleId"])])
+@Entity(tableName = "transactions", indices = [Index(value = ["walletId"]), Index(value = ["debtId"]), Index(value = ["savingsGoalId"]), Index(value = ["recurringIncomeRuleId"]), Index(value = ["recurringExpenseRuleId"]), Index(value = ["billId"])])
 data class FinanceTransaction(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val amountMinor: Long,
@@ -53,7 +53,8 @@ data class FinanceTransaction(
     @ColumnInfo(defaultValue = "NULL") val debtId: Long? = null,
     @ColumnInfo(defaultValue = "NULL") val savingsGoalId: Long? = null,
     @ColumnInfo(defaultValue = "NULL") val recurringIncomeRuleId: Long? = null,
-    @ColumnInfo(defaultValue = "NULL") val recurringExpenseRuleId: Long? = null
+    @ColumnInfo(defaultValue = "NULL") val recurringExpenseRuleId: Long? = null,
+    @ColumnInfo(defaultValue = "NULL") val billId: Long? = null
 )
 
 @Entity(tableName = "wallets")
@@ -120,8 +121,8 @@ interface FinanceTransferDao {
 }
 
 @Database(
-    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class, FinanceBudget::class, FinanceDebt::class, FinanceDebtPayment::class, FinanceSavingsGoal::class, FinanceSavingsEntry::class, FinanceRecurringIncomeRule::class, FinanceRecurringIncomeEntry::class, FinanceRecurringExpenseRule::class, FinanceRecurringExpenseEntry::class],
-    version = 10,
+    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class, FinanceBudget::class, FinanceDebt::class, FinanceDebtPayment::class, FinanceSavingsGoal::class, FinanceSavingsEntry::class, FinanceRecurringIncomeRule::class, FinanceRecurringIncomeEntry::class, FinanceRecurringExpenseRule::class, FinanceRecurringExpenseEntry::class, FinanceBill::class, FinanceBillPayment::class],
+    version = 11,
     exportSchema = false
 )
 abstract class FinanceDb : RoomDatabase() {
@@ -138,6 +139,8 @@ abstract class FinanceDb : RoomDatabase() {
     abstract fun recurringIncomeEntryDao(): FinanceRecurringIncomeEntryDao
     abstract fun recurringExpenseRuleDao(): FinanceRecurringExpenseRuleDao
     abstract fun recurringExpenseEntryDao(): FinanceRecurringExpenseEntryDao
+    abstract fun billDao(): FinanceBillDao
+    abstract fun billPaymentDao(): FinanceBillPaymentDao
 
     companion object {
         private const val DEFAULT_WALLET_SQL =
@@ -270,6 +273,20 @@ abstract class FinanceDb : RoomDatabase() {
             }
         }
 
+        val MIGRATION_10_11 = object : Migration(10, 11) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN billId INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_billId ON transactions(billId)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS bills (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, title TEXT NOT NULL, categoryName TEXT NOT NULL, amountMinor INTEGER NOT NULL, currencyCode TEXT NOT NULL, walletId INTEGER NOT NULL, frequency TEXT NOT NULL, anchorDay INTEGER NOT NULL, anchorMonth INTEGER NOT NULL, nextDueAt INTEGER NOT NULL, isActive INTEGER NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_bills_walletId ON bills(walletId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_bills_nextDueAt ON bills(nextDueAt)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS bill_payments (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, billId INTEGER NOT NULL, occurrenceKey TEXT NOT NULL, transactionId INTEGER NOT NULL, amountMinor INTEGER NOT NULL, paidAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_bill_payments_billId ON bill_payments(billId)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_bill_payments_billId_occurrenceKey ON bill_payments(billId, occurrenceKey)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_bill_payments_transactionId ON bill_payments(transactionId)")
+            }
+        }
+
         fun seedDefaultWallet(db: SupportSQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS wallets (" +
@@ -316,7 +333,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val db = Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
-            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5, FinanceDb.MIGRATION_5_6, FinanceDb.MIGRATION_6_7, FinanceDb.MIGRATION_7_8, FinanceDb.MIGRATION_8_9, FinanceDb.MIGRATION_9_10)
+            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5, FinanceDb.MIGRATION_5_6, FinanceDb.MIGRATION_6_7, FinanceDb.MIGRATION_7_8, FinanceDb.MIGRATION_8_9, FinanceDb.MIGRATION_9_10, FinanceDb.MIGRATION_10_11)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
