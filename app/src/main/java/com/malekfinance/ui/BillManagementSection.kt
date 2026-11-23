@@ -1,5 +1,11 @@
 package com.malekfinance.ui
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
@@ -40,6 +47,7 @@ import com.malekfinance.FinanceDb
 import com.malekfinance.FinanceLedger
 import com.malekfinance.FinanceTransaction
 import com.malekfinance.FinanceWallet
+import com.malekfinance.notifications.BillReminderScheduler
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.math.BigDecimal
@@ -57,6 +65,8 @@ internal fun BillManagementSection(
     payments: List<FinanceBillPayment>
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var dueDate by remember { mutableStateOf(FinanceBillPolicy.formatLocalDate(System.currentTimeMillis())) }
@@ -161,12 +171,16 @@ internal fun BillManagementSection(
                         dueAt == null -> status = "تاريخ الاستحقاق غير صحيح؛ استخدم YYYY-MM-DD."
                         selectedWallet == null -> status = "اختر محفظة الدفع."
                         expenseCategories.none { it.name == categoryName } -> status = "اختر تصنيف مصروف نشطاً."
-                        else -> scope.launch {
+                        else -> {
+                            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                            scope.launch {
                             if (creating) return@launch
                             creating = true
                             try {
                                 val calendar = Calendar.getInstance().apply { timeInMillis = dueAt }
-                                db.billDao().insert(
+                                val newBillId = db.billDao().insert(
                                     FinanceBill(
                                         title = title.trim(),
                                         categoryName = categoryName,
@@ -179,6 +193,7 @@ internal fun BillManagementSection(
                                         nextDueAt = dueAt
                                     )
                                 )
+                                BillReminderScheduler.schedule(context, newBillId, dueAt)
                                 title = ""
                                 amount = ""
                                 status = "تمت إضافة الفاتورة. موعدها القادم: " + FinanceBillPolicy.formatLocalDate(dueAt)
@@ -186,6 +201,7 @@ internal fun BillManagementSection(
                                 status = "تعذرت إضافة الفاتورة؛ تحقق من البيانات وحاول مجدداً."
                             } finally {
                                 creating = false
+                            }
                             }
                         }
                     }
@@ -304,6 +320,9 @@ internal fun BillManagementSection(
                                                         db.billDao().update(current.copy(nextDueAt = next))
                                                     }
                                                 }
+                                                val updatedBill = db.billDao().findById(bill.id)
+                                                if (updatedBill?.isActive == true) BillReminderScheduler.schedule(context, bill.id, updatedBill.nextDueAt)
+                                                else BillReminderScheduler.cancel(context, bill.id)
                                                 status = "تم تأكيد دفع الفاتورة وتسجيل المصروف."
                                             } catch (_: Exception) {
                                                 status = "لم يتم تسجيل الدفع. تحقق من الرصيد أو الموعد وحاول مجدداً."
@@ -322,8 +341,12 @@ internal fun BillManagementSection(
                                         scope.launch {
                                             runCatching {
                                                 val current = db.billDao().findById(bill.id) ?: error("Bill not found")
-                                                db.billDao().update(current.copy(isActive = !current.isActive))
-                                            }.onSuccess {
+                                                val updated = current.copy(isActive = !current.isActive)
+                                                db.billDao().update(updated)
+                                                updated
+                                            }.onSuccess { updated ->
+                                                if (updated.isActive) BillReminderScheduler.schedule(context, bill.id, updated.nextDueAt)
+                                                else BillReminderScheduler.cancel(context, bill.id)
                                                 status = if (bill.isActive) "تم إيقاف الفاتورة." else "تمت إعادة تفعيل الفاتورة."
                                             }.onFailure { status = "تعذر تغيير حالة الفاتورة." }
                                         }
