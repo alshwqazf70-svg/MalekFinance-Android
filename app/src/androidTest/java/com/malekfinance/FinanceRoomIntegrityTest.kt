@@ -391,6 +391,65 @@ class FinanceRoomIntegrityTest {
         assertEquals(0, rowCount("transactions"))
     }
 
+    @Test
+    fun debtPaymentServiceRejectsOverpaymentAndRecordsCashMovementAtomically() = runBlocking {
+        val walletId = db.walletDao().insert(
+            FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 1_000)
+        )
+        val debtId = db.debtDao().insert(
+            FinanceDebt(
+                personName = "أحمد",
+                description = "دين سابق",
+                debtType = "OWED_BY_ME",
+                principalMinor = 500,
+                currencyCode = "YER",
+                walletId = walletId,
+                cashMovementRecorded = false
+            )
+        )
+
+        FinanceDebtPaymentOperations.applyPayment(db, debtId, 300)
+        expectFailure { FinanceDebtPaymentOperations.applyPayment(db, debtId, 201) }
+
+        assertEquals(1, rowCount("debt_payments"))
+        assertEquals(1, rowCount("transactions"))
+        assertEquals("200", FinanceDebtPolicy.outstanding(500, db.debtPaymentDao().forDebt(debtId)).toString())
+        val paymentTransaction = db.dao().forWallet(walletId).single()
+        assertEquals("EXPENSE", paymentTransaction.kind)
+        assertEquals(700L, FinanceLedger.calculateBalance(
+            db.walletDao().findById(walletId)!!,
+            db.dao().forWallet(walletId),
+            emptyList()
+        ).toLong())
+    }
+
+    @Test
+    fun debtPaymentServiceRollsBackTransactionWhenPaymentLinkInsertFails() = runBlocking {
+        val walletId = db.walletDao().insert(
+            FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 2_000)
+        )
+        val debtId = db.debtDao().insert(
+            FinanceDebt(
+                personName = "خالد",
+                description = "دين",
+                debtType = "OWED_BY_ME",
+                principalMinor = 1_000,
+                currencyCode = "YER",
+                walletId = walletId,
+                cashMovementRecorded = false
+            )
+        )
+        db.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER reject_debt_payment_link BEFORE INSERT ON debt_payments " +
+                "BEGIN SELECT RAISE(ABORT, 'injected payment link failure'); END"
+        )
+
+        expectFailure { FinanceDebtPaymentOperations.applyPayment(db, debtId, 250) }
+        assertEquals(0, rowCount("transactions"))
+        assertEquals(0, rowCount("debt_payments"))
+        assertEquals("1000", FinanceDebtPolicy.outstanding(1_000, db.debtPaymentDao().forDebt(debtId)).toString())
+    }
+
     private suspend fun expectFailure(block: suspend () -> Unit) {
         var failed = false
         try {
@@ -402,7 +461,7 @@ class FinanceRoomIntegrityTest {
     }
 
     private fun rowCount(table: String): Int {
-        require(table in setOf("transactions", "transfers", "debts", "savings_entries"))
+        require(table in setOf("transactions", "transfers", "debts", "savings_entries", "debt_payments"))
         return db.openHelper.writableDatabase.query("SELECT COUNT(*) FROM $table").use { cursor ->
             check(cursor.moveToFirst())
             cursor.getInt(0)
