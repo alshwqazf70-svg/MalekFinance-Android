@@ -68,7 +68,9 @@ object FinanceSavingsPolicy {
             }
         }
 
-    fun canContribute(amountMinor: Long): Boolean = amountMinor > 0L
+    fun canContribute(targetMinor: Long, entries: List<FinanceSavingsEntry>, amountMinor: Long): Boolean =
+        targetMinor > 0L && amountMinor > 0L &&
+            BigInteger.valueOf(amountMinor) <= BigInteger.valueOf(targetMinor).subtract(balance(entries)).max(BigInteger.ZERO)
 
     fun canWithdraw(entries: List<FinanceSavingsEntry>, amountMinor: Long): Boolean =
         amountMinor > 0L && BigInteger.valueOf(amountMinor) <= balance(entries).max(BigInteger.ZERO)
