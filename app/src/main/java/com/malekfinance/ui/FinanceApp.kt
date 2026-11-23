@@ -589,6 +589,176 @@ private fun normalizeFinanceAmount(value: String): String {
 }
 
 @Composable
+private fun DebtManagementSection(
+    db: FinanceDb,
+    wallets: List<FinanceWallet>,
+    debts: List<com.malekfinance.FinanceDebt>,
+    debtPayments: List<com.malekfinance.FinanceDebtPayment>
+) {
+    val scope = rememberCoroutineScope()
+    var person by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var principal by remember { mutableStateOf("") }
+    var debtType by remember { mutableStateOf("OWED_BY_ME") }
+    var walletId by remember { mutableStateOf<Long?>(null) }
+    var paymentInputs by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
+    var busy by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(wallets) {
+        if (walletId == null || wallets.none { it.id == walletId }) walletId = wallets.firstOrNull()?.id
+    }
+
+    Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
+        Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text("الديون والسلف", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("سجّل الدين أولاً، ثم أضف السداد أو التحصيل على دفعات. كل دفعة تُسجّل كعملية دخل أو مصروف مرتبطة بالدين، حتى يبقى رصيد المحفظة صحيحاً.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+            OutlinedTextField(value = person, onValueChange = { person = it }, modifier = Modifier.fillMaxWidth(), label = { Text("اسم الشخص أو الجهة") }, singleLine = true)
+            OutlinedTextField(value = description, onValueChange = { description = it }, modifier = Modifier.fillMaxWidth(), label = { Text("وصف الدين أو السلفة (اختياري)") }, singleLine = true)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                FilterChip(selected = debtType == "OWED_BY_ME", onClick = { debtType = "OWED_BY_ME" }, label = { Text("أنا مدين") })
+                FilterChip(selected = debtType == "OWED_TO_ME", onClick = { debtType = "OWED_TO_ME" }, label = { Text("لي عنده") })
+            }
+            Text("محفظة وعملة الدين", color = FinanceColors.TextSecondary)
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                items(wallets, key = { it.id }) { wallet ->
+                    FilterChip(selected = walletId == wallet.id, onClick = { walletId = wallet.id }, label = { Text(wallet.name + " (" + wallet.currencyCode + ")") })
+                }
+            }
+            OutlinedTextField(
+                value = principal,
+                onValueChange = { principal = it },
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("المبلغ الأصلي (" + (wallets.firstOrNull { it.id == walletId }?.currencyCode ?: "YER") + ")") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                singleLine = true
+            )
+            Button(
+                onClick = {
+                    val cleanName = person.trim()
+                    val normalized = normalizeFinanceAmount(principal).replace('٫', '.').replace(',', '.').trim()
+                    val amountMinor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
+                    val wallet = wallets.firstOrNull { it.id == walletId }
+                    when {
+                        cleanName.isBlank() -> status = "اكتب اسم الشخص أو الجهة."
+                        amountMinor == null || amountMinor <= 0L -> status = "أدخل مبلغاً أصلياً صحيحاً أكبر من صفر."
+                        wallet == null -> status = "أنشئ محفظة أولاً لتحديد عملة الدين."
+                        else -> scope.launch {
+                            if (busy) return@launch
+                            busy = true
+                            try {
+                                db.debtDao().insert(com.malekfinance.FinanceDebt(
+                                    personName = cleanName,
+                                    description = description.trim(),
+                                    debtType = debtType,
+                                    principalMinor = amountMinor,
+                                    currencyCode = wallet.currencyCode,
+                                    walletId = wallet.id
+                                ))
+                                person = ""
+                                description = ""
+                                principal = ""
+                                status = "تم تسجيل الدين. لم يتغير رصيد المحفظة؛ يتغير عند تسجيل الدفعات."
+                            } catch (_: Exception) {
+                                status = "تعذر تسجيل الدين؛ تحقق من البيانات."
+                            } finally {
+                                busy = false
+                            }
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !busy && wallets.isNotEmpty(),
+                colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+            ) { Text("تسجيل الدين أو السلفة") }
+
+            HorizontalDivider(color = FinanceColors.Divider)
+            if (debts.isEmpty()) {
+                Text("لا توجد ديون مسجلة حالياً.", color = FinanceColors.TextSecondary)
+            } else {
+                debts.forEach { debt ->
+                    val rows = debtPayments.filter { it.debtId == debt.id }
+                    val outstanding = com.malekfinance.FinanceDebtPolicy.outstanding(debt.principalMinor, rows)
+                    val paid = com.malekfinance.FinanceDebtPolicy.paidAmount(rows)
+                    val iOwe = debt.debtType == "OWED_BY_ME"
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Text(debt.personName, fontWeight = FontWeight.Bold)
+                            Text(if (iOwe) "أنا مدين" else "لي عنده", color = FinanceColors.PrimaryLight, style = MaterialTheme.typography.labelMedium)
+                        }
+                        if (debt.description.isNotBlank()) Text(debt.description, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Text("الأصل: " + formatCurrencyMoney(debt.principalMinor, debt.currencyCode) + " • المدفوع: " + formatCurrencyMoney(paid, debt.currencyCode), color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Text(
+                            if (outstanding.signum() == 0) "تمت التسوية بالكامل" else "المتبقي: " + formatCurrencyMoney(outstanding, debt.currencyCode),
+                            color = if (outstanding.signum() == 0) FinanceColors.Income else FinanceColors.PrimaryLight,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        if (outstanding.signum() > 0) {
+                            OutlinedTextField(
+                                value = paymentInputs[debt.id].orEmpty(),
+                                onValueChange = { value -> paymentInputs = paymentInputs + (debt.id to value) },
+                                modifier = Modifier.fillMaxWidth(),
+                                label = { Text(if (iOwe) "مبلغ السداد الجزئي" else "مبلغ التحصيل الجزئي") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                singleLine = true
+                            )
+                            Button(
+                                onClick = {
+                                    val normalized = normalizeFinanceAmount(paymentInputs[debt.id].orEmpty()).replace('٫', '.').replace(',', '.').trim()
+                                    val amountMinor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
+                                    when {
+                                        amountMinor == null || amountMinor <= 0L -> status = "أدخل مبلغ دفعة صحيحاً أكبر من صفر."
+                                        java.math.BigInteger.valueOf(amountMinor) > outstanding -> status = "مبلغ الدفعة أكبر من المتبقي."
+                                        else -> scope.launch {
+                                            if (busy) return@launch
+                                            busy = true
+                                            try {
+                                                db.withTransaction {
+                                                    val current = db.debtDao().findById(debt.id) ?: error("Debt not found")
+                                                    val currentPayments = db.debtPaymentDao().forDebt(debt.id)
+                                                    check(com.malekfinance.FinanceDebtPolicy.canApplyPayment(current.principalMinor, currentPayments, amountMinor))
+                                                    val paymentWallet = wallets.firstOrNull { it.id == current.walletId } ?: error("Wallet not found")
+                                                    check(paymentWallet.currencyCode == current.currencyCode)
+                                                    val transactionId = db.dao().insert(FinanceTransaction(
+                                                        amountMinor = amountMinor,
+                                                        kind = if (current.debtType == "OWED_BY_ME") "EXPENSE" else "INCOME",
+                                                        note = (if (current.debtType == "OWED_BY_ME") "سداد دين: " else "تحصيل دين: ") + current.personName,
+                                                        category = if (current.debtType == "OWED_BY_ME") "سداد دين" else "تحصيل دين",
+                                                        walletId = paymentWallet.id,
+                                                        currencyCode = paymentWallet.currencyCode,
+                                                        debtId = current.id
+                                                    ))
+                                                    db.debtPaymentDao().insert(com.malekfinance.FinanceDebtPayment(
+                                                        debtId = current.id,
+                                                        transactionId = transactionId,
+                                                        amountMinor = amountMinor
+                                                    ))
+                                                }
+                                                paymentInputs = paymentInputs - debt.id
+                                                status = "تم تسجيل الدفعة وربطها بالعملية المالية."
+                                            } catch (_: Exception) {
+                                                status = "تعذر تسجيل الدفعة؛ لم يُحفظ أي جزء منها. تحقق من المتبقي وحاول مجدداً."
+                                            } finally {
+                                                busy = false
+                                            }
+                                        }
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = !busy,
+                                colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                            ) { Text(if (iOwe) "تسجيل السداد" else "تسجيل التحصيل") }
+                        }
+                        HorizontalDivider(color = FinanceColors.Divider)
+                    }
+                }
+            }
+            status?.let { Text(it, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall) }
+        }
+    }
+}
+
+@Composable
 private fun ReportsLandingScreen(income: java.math.BigInteger, expenses: java.math.BigInteger, count: Int, modifier: Modifier = Modifier) {
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { SectionCard("إجمالي الدخل بالريال اليمني", formatMoney(income)) }
