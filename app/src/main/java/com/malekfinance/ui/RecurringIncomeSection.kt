@@ -39,6 +39,7 @@ import com.malekfinance.FinanceRecurringIncomeRule
 import com.malekfinance.FinanceTransaction
 import com.malekfinance.FinanceWallet
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import java.math.BigDecimal
 import java.math.BigInteger
 import java.text.SimpleDateFormat
@@ -58,11 +59,19 @@ internal fun RecurringIncomeSection(
     var amount by remember { mutableStateOf("") }
     var incomeType by remember { mutableStateOf("SALARY") }
     var frequency by remember { mutableStateOf("MONTHLY") }
+    var monthlyDay by remember { mutableStateOf(Calendar.getInstance().get(Calendar.DAY_OF_MONTH).toString()) }
+    var now by remember { mutableStateOf(System.currentTimeMillis()) }
     var walletId by remember { mutableStateOf<Long?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var creating by remember { mutableStateOf(false) }
     val busyRules = remember { mutableStateMapOf<Long, Boolean>() }
 
+    LaunchedEffect(rules) {
+        while (true) {
+            now = System.currentTimeMillis()
+            delay(30_000)
+        }
+    }
     LaunchedEffect(wallets) {
         if (walletId == null || wallets.none { it.id == walletId }) walletId = wallets.firstOrNull()?.id
     }
@@ -95,6 +104,15 @@ internal fun RecurringIncomeSection(
                 FilterChip(selected = frequency == "MONTHLY", onClick = { frequency = "MONTHLY" }, label = { Text("شهري") })
                 FilterChip(selected = frequency == "WEEKLY", onClick = { frequency = "WEEKLY" }, label = { Text("أسبوعي") })
             }
+            if (frequency == "MONTHLY") {
+                OutlinedTextField(
+                    value = monthlyDay, onValueChange = { monthlyDay = it.filter(Char::isDigit) },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("يوم الاستحقاق من الشهر (1 إلى 31)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true
+                )
+            }
             Text("إيداع الدخل في المحفظة", color = FinanceColors.TextSecondary)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 items(wallets, key = { it.id }) { wallet ->
@@ -108,17 +126,20 @@ internal fun RecurringIncomeSection(
             Button(
                 onClick = {
                     val amountMinor = parseRecurringIncomeAmount(amount)
+                    val requestedDay = parseRecurringDay(monthlyDay)
                     when {
                         title.isBlank() -> status = "اكتب اسم الراتب أو مصدر الدخل."
                         title.trim().length > 60 -> status = "الاسم طويل؛ الحد الأقصى 60 حرفاً."
                         amountMinor == null || amountMinor <= 0L -> status = "أدخل مبلغاً صحيحاً أكبر من صفر."
                         selectedWallet == null -> status = "اختر محفظة لاستلام الدخل."
+                        frequency == "MONTHLY" && (requestedDay == null || requestedDay !in 1..31) -> status = "حدد يوم الاستحقاق بين 1 و31."
                         else -> scope.launch {
                             if (creating) return@launch
                             creating = true
                             try {
                                 val now = System.currentTimeMillis()
-                                val anchorDay = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.DAY_OF_MONTH)
+                                val anchorDay = if (frequency == "MONTHLY") requestedDay!! else Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.DAY_OF_MONTH)
+                                val firstDue = FinanceRecurringIncomePolicy.firstDueAt(now, frequency, anchorDay) ?: error("Unsupported recurrence")
                                 db.recurringIncomeRuleDao().insert(
                                     FinanceRecurringIncomeRule(
                                         title = title.trim(),
@@ -128,12 +149,12 @@ internal fun RecurringIncomeSection(
                                         walletId = selectedWallet.id,
                                         frequency = frequency,
                                         anchorDay = anchorDay,
-                                        nextDueAt = now
+                                        nextDueAt = firstDue
                                     )
                                 )
                                 title = ""
                                 amount = ""
-                                status = "تم إنشاء الاستحقاق. أول موعد له اليوم، ولن يسجل إلا بعد تأكيدك."
+                                status = "تم إنشاء الاستحقاق. أول موعد: " + formatRecurringDueDate(firstDue) + "، ولن يسجل إلا بعد تأكيدك."
                             } catch (_: Exception) {
                                 status = "تعذر إنشاء الاستحقاق؛ لم يتم تسجيل أي دخل."
                             } finally { creating = false }
@@ -151,7 +172,7 @@ internal fun RecurringIncomeSection(
             Text("لا توجد رواتب أو مصادر دخل متكررة مسجلة بعد.", color = FinanceColors.TextSecondary)
         } else {
             rules.forEach { rule ->
-                val due = FinanceRecurringIncomePolicy.isDue(rule.nextDueAt, System.currentTimeMillis())
+                val due = FinanceRecurringIncomePolicy.isDue(rule.nextDueAt, now)
                 val wallet = wallets.firstOrNull { it.id == rule.walletId }
                 val ruleEntries = entries.filter { it.ruleId == rule.id }
                 Card(
@@ -271,6 +292,19 @@ private fun parseRecurringIncomeAmount(raw: String): Long? {
         }
     }.replace('٫', '.').replace(',', '.').trim()
     return runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
+}
+
+private fun parseRecurringDay(raw: String): Int? {
+    val arabic = "٠١٢٣٤٥٦٧٨٩"
+    val persian = "۰۱۲۳۴۵۶۷۸۹"
+    val normalized = buildString {
+        raw.forEach { ch ->
+            val a = arabic.indexOf(ch)
+            val p = persian.indexOf(ch)
+            append(if (a >= 0) a else if (p >= 0) p else ch)
+        }
+    }
+    return normalized.toIntOrNull()
 }
 
 private fun formatRecurringDueDate(timestamp: Long): String =
