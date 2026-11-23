@@ -455,16 +455,6 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         } else {
             val parsed = VoiceTransactionParser.parse(spoken)
             transcript = spoken
-            hasTransferDraft = false
-            hasDebtDraft = false
-            hasSavingsDraft = false
-            savingsAmountDraft = ""
-            savingsGoalDraftId = null
-            transferAmountText = ""
-            transferNote = ""
-            debtPersonDraft = ""
-            debtDescriptionDraft = ""
-            debtAmountDraft = ""
             if (parsed.command == VoiceCommandType.CANCEL_DRAFT) {
                 transcript = ""
                 amount = ""
@@ -488,6 +478,14 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 hasDraft = false
                 hasTransferDraft = false
                 hasDebtDraft = false
+                transferAmountText = ""
+                transferNote = ""
+                transferFromWalletId = null
+                transferToWalletId = null
+                debtPersonDraft = ""
+                debtDescriptionDraft = ""
+                debtAmountDraft = ""
+                debtWalletDraftId = null
                 amount = ""
                 description = ""
                 kind = null
@@ -499,6 +497,13 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             } else if (parsed.command == VoiceCommandType.DEBT_CREATE_DRAFT) {
                 hasDraft = false
                 hasTransferDraft = false
+                hasSavingsDraft = false
+                savingsAmountDraft = ""
+                savingsGoalDraftId = null
+                transferAmountText = ""
+                transferNote = ""
+                transferFromWalletId = null
+                transferToWalletId = null
                 amount = ""
                 description = ""
                 kind = null
@@ -658,6 +663,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 // A newly parsed transaction replaces any older, unconfirmed special draft.
                 hasTransferDraft = false
                 hasDebtDraft = false
+                hasSavingsDraft = false
+                savingsAmountDraft = ""
+                savingsGoalDraftId = null
                 transferAmountText = ""
                 transferNote = ""
                 transferFromWalletId = null
