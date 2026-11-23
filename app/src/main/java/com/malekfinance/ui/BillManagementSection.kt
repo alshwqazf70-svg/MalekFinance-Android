@@ -320,8 +320,8 @@ internal fun BillManagementSection(
                                                         db.billDao().update(current.copy(nextDueAt = next))
                                                     }
                                                 }
-                                                val updatedBill = db.billDao().findById(bill.id)
                                                 val reminderUpdated = runCatching {
+                                                    val updatedBill = db.billDao().findById(bill.id)
                                                     if (updatedBill?.isActive == true) BillReminderScheduler.schedule(context, bill.id, updatedBill.nextDueAt)
                                                     else BillReminderScheduler.cancel(context, bill.id)
                                                 }.isSuccess
