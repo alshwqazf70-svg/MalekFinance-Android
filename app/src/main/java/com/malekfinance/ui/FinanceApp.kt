@@ -596,11 +596,16 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         category = "عام"
         draftCreatedAt = System.currentTimeMillis()
         hasDraft = false
+        hasTransferDraft = false
+        transferAmountText = ""
+        transferNote = ""
+        transferFromWalletId = null
+        transferToWalletId = null
         status = "تم إلغاء المسودة دون حفظ أي عملية."
     }
 
     fun saveReviewedDraft() {
-        if (isSavingDraft) return
+        if (isSavingDraft || hasTransferDraft) return
         val normalized = normalizeFinanceAmount(amount).replace('٫', '.').replace(',', '.').trim()
         val minor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
         val selectedKind = kind
@@ -655,6 +660,51 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 status = "تعذر حفظ العملية. بيانات المسودة ما زالت موجودة؛ حاول مجدداً."
             }
             isSavingDraft = false
+        }
+    }
+
+    fun confirmVoiceTransfer() {
+        if (isTransferSaving) return
+        val source = wallets.firstOrNull { it.id == transferFromWalletId }
+        val destination = wallets.firstOrNull { it.id == transferToWalletId }
+        val minor = runCatching {
+            normalizeFinanceAmount(transferAmountText).replace('٫', '.').replace(',', '.').toBigDecimalOrNull()
+                ?.movePointRight(2)?.longValueExact()
+        }.getOrNull()
+        if (source == null || destination == null) {
+            status = "اختر محفظة مصدر ومحفظة وجهة قبل التأكيد."
+            return
+        }
+        if (source.id == destination.id) {
+            status = "يجب أن تكون محفظة الوجهة مختلفة عن محفظة المصدر."
+            return
+        }
+        if (minor == null || minor <= 0L) {
+            status = "أدخل مبلغ تحويل صحيحاً أكبر من صفر."
+            return
+        }
+        isTransferSaving = true
+        scope.launch {
+            runCatching {
+                com.malekfinance.FinanceTransferOperations.transfer(
+                    db, source.id, destination.id, minor, transferNote
+                )
+            }.onSuccess {
+                hasTransferDraft = false
+                transferAmountText = ""
+                transferNote = ""
+                transferFromWalletId = null
+                transferToWalletId = null
+                transcript = ""
+                status = "تم التحويل بنجاح من " + source.name + " إلى " + destination.name + "."
+            }.onFailure {
+                status = if (it is com.malekfinance.InsufficientWalletFundsException) {
+                    "الرصيد المتاح في محفظة المصدر غير كافٍ لهذا التحويل."
+                } else {
+                    "تعذر تنفيذ التحويل: تحقق من العملة والمبلغ والمحفظتين."
+                }
+            }
+            isTransferSaving = false
         }
     }
 
