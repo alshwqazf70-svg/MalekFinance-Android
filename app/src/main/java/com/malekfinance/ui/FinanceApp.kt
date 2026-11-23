@@ -464,6 +464,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 hasDraft = false
                 hasTransferDraft = false
                 hasDebtDraft = false
+                hasSavingsDraft = false
+                savingsAmountDraft = ""
+                savingsGoalDraftId = null
                 transferFromWalletId = null
                 transferToWalletId = null
                 debtWalletDraftId = null
@@ -720,6 +723,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         hasDraft = false
         hasTransferDraft = false
         hasDebtDraft = false
+        hasSavingsDraft = false
+        savingsAmountDraft = ""
+        savingsGoalDraftId = null
         transferAmountText = ""
         transferNote = ""
         debtPersonDraft = ""
