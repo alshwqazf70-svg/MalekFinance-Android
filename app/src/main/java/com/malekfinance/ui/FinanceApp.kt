@@ -751,7 +751,67 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 SectionCard("العبارة التي سمعتها", transcript, "مسودة للمراجعة فقط")
             }
         }
-        item {
+        if (hasTransferDraft) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("مراجعة التحويل الصوتي", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("من المحفظة", color = FinanceColors.TextSecondary)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(wallets, key = { it.id }) { item ->
+                                FilterChip(
+                                    selected = transferFromWalletId == item.id,
+                                    onClick = { transferFromWalletId = item.id },
+                                    enabled = !isTransferSaving,
+                                    label = { Text(item.name + " · " + item.currencyCode) }
+                                )
+                            }
+                        }
+                        Text("إلى المحفظة", color = FinanceColors.TextSecondary)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(wallets, key = { it.id }) { item ->
+                                FilterChip(
+                                    selected = transferToWalletId == item.id,
+                                    onClick = { transferToWalletId = item.id },
+                                    enabled = !isTransferSaving,
+                                    label = { Text(item.name + " · " + item.currencyCode) }
+                                )
+                            }
+                        }
+                        OutlinedTextField(
+                            value = transferAmountText,
+                            onValueChange = { transferAmountText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("مبلغ التحويل") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            singleLine = true,
+                            enabled = !isTransferSaving
+                        )
+                        OutlinedTextField(
+                            value = transferNote,
+                            onValueChange = { transferNote = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("ملاحظة التحويل") },
+                            singleLine = true,
+                            enabled = !isTransferSaving
+                        )
+                        Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Button(
+                            onClick = ::confirmVoiceTransfer,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isTransferSaving,
+                            colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                        ) { Text(if (isTransferSaving) "جارٍ تنفيذ التحويل..." else "مراجعة وتأكيد التحويل") }
+                        TextButton(
+                            onClick = ::cancelVoiceDraft,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isTransferSaving
+                        ) { Text("إلغاء التحويل") }
+                    }
+                }
+            }
+        }
+        if (!hasTransferDraft) item {
             Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(if (hasDraft) "راجع وعدّل قبل الحفظ" else "إدخال يدوي بديل", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
