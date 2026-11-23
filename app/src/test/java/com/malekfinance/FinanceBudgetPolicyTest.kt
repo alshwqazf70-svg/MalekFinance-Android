@@ -39,7 +39,9 @@ class FinanceBudgetPolicyTest {
             FinanceTransaction(amountMinor = 1_000, kind = "INCOME", note = "دخل", category = "مطاعم", createdAt = 3_000, currencyCode = "YER"),
             FinanceTransaction(amountMinor = 9_000, kind = "EXPENSE", note = "غداء", category = "مطاعم", createdAt = 4_000, currencyCode = "USD"),
             FinanceTransaction(amountMinor = 7_000, kind = "EXPENSE", note = "وقود", category = "بنزين", createdAt = 5_000, currencyCode = "YER"),
-            FinanceTransaction(amountMinor = 4_000, kind = "EXPENSE", note = "غداء", category = "مطاعم", createdAt = 10_000, currencyCode = "YER")
+            FinanceTransaction(amountMinor = 4_000, kind = "EXPENSE", note = "غداء", category = "مطاعم", createdAt = 10_000, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = -8_000, kind = "EXPENSE", note = "بيانات غير صالحة", category = "مطاعم", createdAt = 6_000, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = 0, kind = "EXPENSE", note = "صفر", category = "مطاعم", createdAt = 7_000, currencyCode = "YER")
         )
         assertEquals(BigInteger.valueOf(2_500), FinanceBudgetPolicy.calculateSpent(budget, rows, 1_000, 10_000))
     }
