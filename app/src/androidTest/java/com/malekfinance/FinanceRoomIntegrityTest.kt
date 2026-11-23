@@ -347,6 +347,50 @@ class FinanceRoomIntegrityTest {
         assertEquals(0, rowCount("transactions"))
     }
 
+
+    @Test
+    fun savingsOperationsKeepGoalEntriesAndWalletLedgerAtomic() = runBlocking {
+        val walletId = db.walletDao().insert(
+            FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 1_000)
+        )
+        val goalId = db.savingsGoalDao().insert(
+            FinanceSavingsGoal(name = "طوارئ", targetMinor = 1_000, currencyCode = "YER", walletId = walletId)
+        )
+
+        expectFailure { FinanceSavingsOperations.contribute(db, goalId, 1_001) }
+        assertEquals(0, rowCount("savings_entries"))
+        assertEquals(0, rowCount("transactions"))
+
+        FinanceSavingsOperations.contribute(db, goalId, 500)
+        assertEquals("500", FinanceSavingsPolicy.balance(db.savingsEntryDao().forGoal(goalId)).toString())
+
+        expectFailure { FinanceSavingsOperations.withdraw(db, goalId, 600) }
+        assertEquals(1, rowCount("savings_entries"))
+
+        FinanceSavingsOperations.withdraw(db, goalId, 200)
+        assertEquals("300", FinanceSavingsPolicy.balance(db.savingsEntryDao().forGoal(goalId)).toString())
+        assertEquals(2, rowCount("savings_entries"))
+        assertEquals(2, rowCount("transactions"))
+    }
+
+    @Test
+    fun savingsContributionRollsBackLedgerWhenEntryInsertFails() = runBlocking {
+        val walletId = db.walletDao().insert(
+            FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 2_000)
+        )
+        val goalId = db.savingsGoalDao().insert(
+            FinanceSavingsGoal(name = "هدف", targetMinor = 1_000, currencyCode = "YER", walletId = walletId)
+        )
+        db.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER reject_savings_entry BEFORE INSERT ON savings_entries " +
+                "BEGIN SELECT RAISE(ABORT, 'injected savings entry failure'); END"
+        )
+
+        expectFailure { FinanceSavingsOperations.contribute(db, goalId, 300) }
+        assertEquals(0, rowCount("savings_entries"))
+        assertEquals(0, rowCount("transactions"))
+    }
+
     private suspend fun expectFailure(block: suspend () -> Unit) {
         var failed = false
         try {
@@ -358,7 +402,7 @@ class FinanceRoomIntegrityTest {
     }
 
     private fun rowCount(table: String): Int {
-        require(table in setOf("transactions", "transfers", "debts"))
+        require(table in setOf("transactions", "transfers", "debts", "savings_entries"))
         return db.openHelper.writableDatabase.query("SELECT COUNT(*) FROM $table").use { cursor ->
             check(cursor.moveToFirst())
             cursor.getInt(0)
