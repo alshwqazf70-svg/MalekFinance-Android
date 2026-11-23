@@ -47,6 +47,8 @@ fun FinanceApp(db: FinanceDb) {
     val transfers by db.transferDao().observe().collectAsState(initial = emptyList())
     val categories by db.categoryDao().observeAll().collectAsState(initial = emptyList())
     val budgets by db.budgetDao().observeAll().collectAsState(initial = emptyList())
+    val debts by db.debtDao().observeAll().collectAsState(initial = emptyList())
+    val debtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
     // Never combine different currencies into one misleading total.
     val yerTransactions = transactions.filter { it.currencyCode == "YER" }
     val income = yerTransactions.filter { it.kind == "INCOME" }
@@ -101,7 +103,7 @@ fun FinanceApp(db: FinanceDb) {
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
-                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, Modifier.padding(padding))
+                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, debts, debtPayments, Modifier.padding(padding))
             }
         }
         }
@@ -604,6 +606,8 @@ private fun MoneyLandingScreen(
     transfers: List<FinanceTransfer>,
     categories: List<com.malekfinance.FinanceCategory>,
     budgets: List<com.malekfinance.FinanceBudget>,
+    debts: List<com.malekfinance.FinanceDebt>,
+    debtPayments: List<com.malekfinance.FinanceDebtPayment>,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -868,6 +872,7 @@ private fun MoneyLandingScreen(
             }
         }
         if (status != null) item { Text(status!!, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall) }
+        item { DebtManagementSection(db, wallets, debts, debtPayments) }
         item {
             Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
