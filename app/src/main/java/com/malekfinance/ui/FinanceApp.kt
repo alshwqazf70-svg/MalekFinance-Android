@@ -409,6 +409,14 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var transferFromWalletId by remember { mutableStateOf<Long?>(null) }
     var transferToWalletId by remember { mutableStateOf<Long?>(null) }
     var isTransferSaving by remember { mutableStateOf(false) }
+    var hasDebtDraft by remember { mutableStateOf(false) }
+    var debtPersonDraft by remember { mutableStateOf("") }
+    var debtDescriptionDraft by remember { mutableStateOf("") }
+    var debtAmountDraft by remember { mutableStateOf("") }
+    var debtTypeDraft by remember { mutableStateOf("OWED_BY_ME") }
+    var debtWalletDraftId by remember { mutableStateOf<Long?>(null) }
+    var debtRecordCashMovement by remember { mutableStateOf(true) }
+    var isDebtSaving by remember { mutableStateOf(false) }
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
     val compatibleCategories = activeCategories.filter {
@@ -449,14 +457,33 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 category = "عام"
                 hasDraft = false
                 hasTransferDraft = false
+                hasDebtDraft = false
+                debtPersonDraft = ""
+                debtDescriptionDraft = ""
+                debtAmountDraft = ""
                 transferAmountText = ""
                 transferNote = ""
                 status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
+            } else if (parsed.command == VoiceCommandType.DEBT_CREATE_DRAFT) {
+                hasDraft = false
+                hasTransferDraft = false
+                amount = ""
+                description = ""
+                kind = null
+                hasDebtDraft = true
+                debtPersonDraft = parsed.debtPersonName.orEmpty()
+                debtDescriptionDraft = parsed.description
+                debtAmountDraft = parsed.amount.orEmpty()
+                debtTypeDraft = parsed.debtType ?: "OWED_BY_ME"
+                debtWalletDraftId = selectedWallet?.id
+                debtRecordCashMovement = true
+                status = "راجع اسم الشخص واتجاه الدين والمبلغ والمحفظة. لن يُسجّل الدين إلا بعد التأكيد."
             } else if (parsed.command == VoiceCommandType.TRANSFER_DRAFT) {
                 hasDraft = false
                 amount = ""
                 description = ""
                 kind = null
+                hasDebtDraft = false
                 hasTransferDraft = true
                 transferAmountText = parsed.amount.orEmpty()
                 transferNote = spoken
@@ -564,7 +591,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                             "، المتبقي " + java.math.BigDecimal(remaining, 2).toPlainString() + " " + wallet.currencyCode
                                     }
                                 }
-                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT -> ""
+                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
                             .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
