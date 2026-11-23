@@ -74,6 +74,7 @@ object FinanceBudgetPolicy {
     ): BigInteger = transactions.asSequence()
         .filter {
             it.kind == "EXPENSE" &&
+                it.amountMinor > 0L &&
                 it.category == budget.categoryName &&
                 it.currencyCode == budget.currencyCode &&
                 it.createdAt >= monthStartMillis &&
