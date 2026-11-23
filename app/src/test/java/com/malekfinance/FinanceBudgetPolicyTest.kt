@@ -20,6 +20,7 @@ class FinanceBudgetPolicyTest {
         val end = Calendar.getInstance(utc).apply { timeInMillis = window.endExclusiveMillis }
         assertEquals(1, start.get(Calendar.DAY_OF_MONTH))
         assertEquals(Calendar.FEBRUARY, start.get(Calendar.MONTH))
+        assertEquals("2024-02", window.periodKey)
         assertEquals(1, end.get(Calendar.DAY_OF_MONTH))
         assertEquals(Calendar.MARCH, end.get(Calendar.MONTH))
     }
