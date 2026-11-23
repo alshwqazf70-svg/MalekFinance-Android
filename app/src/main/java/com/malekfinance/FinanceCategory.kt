@@ -11,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Entity(
     tableName = "categories",
-    indices = [Index(value = ["name", "kind"], unique = true)]
+    indices = [Index(value = ["name"], unique = true)]
 )
 data class FinanceCategory(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
@@ -45,4 +45,7 @@ object FinanceCategoryPolicy {
 
     fun isCompatible(categoryKind: String, transactionKind: String): Boolean =
         categoryKind == "BOTH" || categoryKind == transactionKind
+
+    fun nameAlreadyExists(existingNames: Iterable<String>, candidate: String): Boolean =
+        existingNames.any { it.trim().equals(candidate.trim(), ignoreCase = true) }
 }
