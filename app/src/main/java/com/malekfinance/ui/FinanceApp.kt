@@ -1077,7 +1077,7 @@ private fun MoneyLandingScreen(
                                             db = db,
                                             fromWalletId = fromWallet.id,
                                             toWalletId = toWallet.id,
-                                            amountMinor = amountMinor,
+                                            amountMinor = amountMinor ?: 0L,
                                             note = transferNote
                                         )
                                         transferAmount = ""
