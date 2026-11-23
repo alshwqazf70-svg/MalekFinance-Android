@@ -1145,6 +1145,7 @@ private fun ReportsLandingScreen(
     val scope = rememberCoroutineScope()
     var exportStatus by remember { mutableStateOf("") }
     var backupPassword by remember { mutableStateOf("") }
+    var backupPasswordConfirm by remember { mutableStateOf("") }
     var backupBusy by remember { mutableStateOf(false) }
     var showRestoreConfirmation by remember { mutableStateOf(false) }
     var customStartText by remember { mutableStateOf("") }
@@ -1174,7 +1175,7 @@ private fun ReportsLandingScreen(
         }.onSuccess { exportStatus = "تم تصدير ملف PDF." }.onFailure { exportStatus = "تعذر تصدير PDF." }
     }
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
-        if (uri != null && backupPassword.length >= 8 && !backupBusy) {
+        if (uri != null && backupPassword.length >= 8 && backupPassword == backupPasswordConfirm && !backupBusy) {
             backupBusy = true
             val password = backupPassword.toCharArray()
             scope.launch {
@@ -1186,9 +1187,11 @@ private fun ReportsLandingScreen(
                 }.onSuccess { exportStatus = "تم إنشاء نسخة احتياطية مشفرة." }
                     .onFailure { exportStatus = "تعذر إنشاء النسخة الاحتياطية: " + (it.message ?: "خطأ غير معروف") }
                 backupPassword = ""
+                backupPasswordConfirm = ""
                 backupBusy = false
             }
-        } else if (backupPassword.length < 8) exportStatus = "اجعل كلمة مرور النسخة الاحتياطية 8 أحرف على الأقل."
+        } else if (backupPassword.length < 8) exportStatus = "اجعل كلمة المرور 8 أحرف على الأقل."
+        else if (backupPassword != backupPasswordConfirm) exportStatus = "كلمتا المرور غير متطابقتين."
     }
     val restoreLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && backupPassword.length >= 8 && !backupBusy) {
@@ -1234,8 +1237,16 @@ private fun ReportsLandingScreen(
                 visualTransformation = PasswordVisualTransformation(),
                 label = { Text("كلمة مرور النسخة (8 أحرف على الأقل)") }
             )
+            OutlinedTextField(
+                value = backupPasswordConfirm,
+                onValueChange = { backupPasswordConfirm = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                visualTransformation = PasswordVisualTransformation(),
+                label = { Text("تأكيد كلمة المرور عند إنشاء نسخة") }
+            )
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Button(onClick = { backupLauncher.launch("malek-finance-backup.mfb") }, enabled = !backupBusy && backupPassword.length >= 8) {
+                Button(onClick = { backupLauncher.launch("malek-finance-backup.mfb") }, enabled = !backupBusy && backupPassword.length >= 8 && backupPassword == backupPasswordConfirm) {
                     Text(if (backupBusy) "جارٍ العمل..." else "إنشاء نسخة")
                 }
                 OutlinedButton(onClick = { showRestoreConfirmation = true }, enabled = !backupBusy && backupPassword.length >= 8) {
