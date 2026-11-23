@@ -193,10 +193,10 @@ internal fun BillManagementSection(
                                         nextDueAt = dueAt
                                     )
                                 )
-                                BillReminderScheduler.schedule(context, newBillId, dueAt)
+                                val reminderScheduled = runCatching { BillReminderScheduler.schedule(context, newBillId, dueAt) }.isSuccess
                                 title = ""
                                 amount = ""
-                                status = "تمت إضافة الفاتورة. موعدها القادم: " + FinanceBillPolicy.formatLocalDate(dueAt)
+                                status = if (reminderScheduled) "تمت إضافة الفاتورة وجدولة تذكيرها. موعدها القادم: " + FinanceBillPolicy.formatLocalDate(dueAt) else "تمت إضافة الفاتورة، لكن تعذرت جدولة الإشعار؛ سيظل موعدها ظاهراً داخل التطبيق.",
                             } catch (_: Exception) {
                                 status = "تعذرت إضافة الفاتورة؛ تحقق من البيانات وحاول مجدداً."
                             } finally {
@@ -321,9 +321,11 @@ internal fun BillManagementSection(
                                                     }
                                                 }
                                                 val updatedBill = db.billDao().findById(bill.id)
-                                                if (updatedBill?.isActive == true) BillReminderScheduler.schedule(context, bill.id, updatedBill.nextDueAt)
-                                                else BillReminderScheduler.cancel(context, bill.id)
-                                                status = "تم تأكيد دفع الفاتورة وتسجيل المصروف."
+                                                val reminderUpdated = runCatching {
+                                                    if (updatedBill?.isActive == true) BillReminderScheduler.schedule(context, bill.id, updatedBill.nextDueAt)
+                                                    else BillReminderScheduler.cancel(context, bill.id)
+                                                }.isSuccess
+                                                status = if (reminderUpdated) "تم تأكيد دفع الفاتورة وتسجيل المصروف." else "تم تسجيل الدفع، لكن تعذر تحديث التذكير المحلي."
                                             } catch (_: Exception) {
                                                 status = "لم يتم تسجيل الدفع. تحقق من الرصيد أو الموعد وحاول مجدداً."
                                             } finally {
@@ -345,9 +347,15 @@ internal fun BillManagementSection(
                                                 db.billDao().update(updated)
                                                 updated
                                             }.onSuccess { updated ->
-                                                if (updated.isActive) BillReminderScheduler.schedule(context, bill.id, updated.nextDueAt)
-                                                else BillReminderScheduler.cancel(context, bill.id)
-                                                status = if (bill.isActive) "تم إيقاف الفاتورة." else "تمت إعادة تفعيل الفاتورة."
+                                                val reminderUpdated = runCatching {
+                                                    if (updated.isActive) BillReminderScheduler.schedule(context, bill.id, updated.nextDueAt)
+                                                    else BillReminderScheduler.cancel(context, bill.id)
+                                                }.isSuccess
+                                                status = when {
+                                                    !reminderUpdated -> "تم تغيير حالة الفاتورة، لكن تعذر تحديث التذكير المحلي."
+                                                    bill.isActive -> "تم إيقاف الفاتورة."
+                                                    else -> "تمت إعادة تفعيل الفاتورة."
+                                                }
                                             }.onFailure { status = "تعذر تغيير حالة الفاتورة." }
                                         }
                                     }
