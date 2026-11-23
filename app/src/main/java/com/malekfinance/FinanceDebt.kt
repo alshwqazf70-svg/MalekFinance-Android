@@ -67,11 +67,12 @@ interface FinanceDebtPaymentDao {
 object FinanceDebtPolicy {
     fun paidAmount(payments: List<FinanceDebtPayment>): BigInteger =
         payments.fold(BigInteger.ZERO) { total, payment ->
-            total.add(BigInteger.valueOf(payment.amountMinor))
+            if (payment.amountMinor <= 0L) total
+            else total.add(BigInteger.valueOf(payment.amountMinor))
         }
 
     fun outstanding(principalMinor: Long, payments: List<FinanceDebtPayment>): BigInteger =
-        BigInteger.valueOf(principalMinor).subtract(paidAmount(payments)).max(BigInteger.ZERO)
+        BigInteger.valueOf(principalMinor.coerceAtLeast(0L)).subtract(paidAmount(payments)).max(BigInteger.ZERO)
 
     fun canApplyPayment(principalMinor: Long, payments: List<FinanceDebtPayment>, amountMinor: Long): Boolean =
         amountMinor > 0L &&
