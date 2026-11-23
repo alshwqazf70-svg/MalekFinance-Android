@@ -49,7 +49,8 @@ data class FinanceTransaction(
     @ColumnInfo(defaultValue = "'عام'") val category: String = "عام",
     val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(defaultValue = "1") val walletId: Long = 1,
-    @ColumnInfo(defaultValue = "'YER'") val currencyCode: String = "YER"
+    @ColumnInfo(defaultValue = "'YER'") val currencyCode: String = "YER",
+    @ColumnInfo(defaultValue = "NULL") val debtId: Long? = null
 )
 
 @Entity(tableName = "wallets")
@@ -83,7 +84,7 @@ interface FinanceDao {
 
     @Query("SELECT * FROM transactions WHERE walletId = :walletId")
     suspend fun forWallet(walletId: Long): List<FinanceTransaction>
-    @Insert suspend fun insert(item: FinanceTransaction)
+    @Insert suspend fun insert(item: FinanceTransaction): Long
     @Update suspend fun update(item: FinanceTransaction)
     @Delete suspend fun delete(item: FinanceTransaction)
 }
@@ -113,8 +114,8 @@ interface FinanceTransferDao {
 }
 
 @Database(
-    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class, FinanceBudget::class],
-    version = 6,
+    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class, FinanceBudget::class, FinanceDebt::class, FinanceDebtPayment::class],
+    version = 7,
     exportSchema = false
 )
 abstract class FinanceDb : RoomDatabase() {
@@ -123,6 +124,8 @@ abstract class FinanceDb : RoomDatabase() {
     abstract fun transferDao(): FinanceTransferDao
     abstract fun categoryDao(): FinanceCategoryDao
     abstract fun budgetDao(): FinanceBudgetDao
+    abstract fun debtDao(): FinanceDebtDao
+    abstract fun debtPaymentDao(): FinanceDebtPaymentDao
 
     companion object {
         private const val DEFAULT_WALLET_SQL =
@@ -196,6 +199,26 @@ abstract class FinanceDb : RoomDatabase() {
             }
         }
 
+        val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN debtId INTEGER DEFAULT NULL")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS debts (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, personName TEXT NOT NULL, " +
+                        "description TEXT NOT NULL, debtType TEXT NOT NULL, principalMinor INTEGER NOT NULL, " +
+                        "currencyCode TEXT NOT NULL, walletId INTEGER NOT NULL, createdAt INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_debts_walletId ON debts(walletId)")
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS debt_payments (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, debtId INTEGER NOT NULL, " +
+                        "transactionId INTEGER NOT NULL, amountMinor INTEGER NOT NULL, createdAt INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_debt_payments_debtId ON debt_payments(debtId)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_debt_payments_transactionId ON debt_payments(transactionId)")
+            }
+        }
+
         fun seedDefaultWallet(db: SupportSQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS wallets (" +
@@ -242,7 +265,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val db = Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
-            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5, FinanceDb.MIGRATION_5_6)
+            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5, FinanceDb.MIGRATION_5_6, FinanceDb.MIGRATION_6_7)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
