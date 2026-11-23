@@ -50,7 +50,8 @@ data class FinanceTransaction(
     val createdAt: Long = System.currentTimeMillis(),
     @ColumnInfo(defaultValue = "1") val walletId: Long = 1,
     @ColumnInfo(defaultValue = "'YER'") val currencyCode: String = "YER",
-    @ColumnInfo(defaultValue = "NULL") val debtId: Long? = null
+    @ColumnInfo(defaultValue = "NULL") val debtId: Long? = null,
+    @ColumnInfo(defaultValue = "NULL") val savingsGoalId: Long? = null
 )
 
 @Entity(tableName = "wallets")
@@ -117,8 +118,8 @@ interface FinanceTransferDao {
 }
 
 @Database(
-    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class, FinanceBudget::class, FinanceDebt::class, FinanceDebtPayment::class],
-    version = 7,
+    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class, FinanceBudget::class, FinanceDebt::class, FinanceDebtPayment::class, FinanceSavingsGoal::class, FinanceSavingsEntry::class],
+    version = 8,
     exportSchema = false
 )
 abstract class FinanceDb : RoomDatabase() {
@@ -129,6 +130,8 @@ abstract class FinanceDb : RoomDatabase() {
     abstract fun budgetDao(): FinanceBudgetDao
     abstract fun debtDao(): FinanceDebtDao
     abstract fun debtPaymentDao(): FinanceDebtPaymentDao
+    abstract fun savingsGoalDao(): FinanceSavingsGoalDao
+    abstract fun savingsEntryDao(): FinanceSavingsEntryDao
 
     companion object {
         private const val DEFAULT_WALLET_SQL =
@@ -223,6 +226,18 @@ abstract class FinanceDb : RoomDatabase() {
             }
         }
 
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN savingsGoalId INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_savingsGoalId ON transactions(savingsGoalId)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS savings_goals (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, name TEXT NOT NULL, targetMinor INTEGER NOT NULL, currencyCode TEXT NOT NULL, walletId INTEGER NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_savings_goals_walletId ON savings_goals(walletId)")
+                db.execSQL("CREATE TABLE IF NOT EXISTS savings_entries (id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, goalId INTEGER NOT NULL, transactionId INTEGER NOT NULL, entryType TEXT NOT NULL, amountMinor INTEGER NOT NULL, createdAt INTEGER NOT NULL)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_savings_entries_goalId ON savings_entries(goalId)")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_savings_entries_transactionId ON savings_entries(transactionId)")
+            }
+        }
+
         fun seedDefaultWallet(db: SupportSQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS wallets (" +
@@ -269,7 +284,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val db = Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
-            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5, FinanceDb.MIGRATION_5_6, FinanceDb.MIGRATION_6_7)
+            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5, FinanceDb.MIGRATION_5_6, FinanceDb.MIGRATION_6_7, FinanceDb.MIGRATION_7_8)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
