@@ -66,7 +66,15 @@ internal fun BillManagementSection(
 ) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    var hasNotificationPermission by remember {
+        mutableStateOf(
+            Build.VERSION.SDK_INT < 33 ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        hasNotificationPermission = granted
+    }
     var title by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var dueDate by remember { mutableStateOf(FinanceBillPolicy.formatLocalDate(System.currentTimeMillis())) }
@@ -82,6 +90,19 @@ internal fun BillManagementSection(
         while (true) {
             now = System.currentTimeMillis()
             delay(30_000)
+        }
+    }
+    LaunchedEffect(bills, hasNotificationPermission) {
+        bills.forEach { bill ->
+            runCatching {
+                if (bill.isActive && hasNotificationPermission) {
+                    BillReminderScheduler.schedule(context, bill.id, bill.nextDueAt)
+                } else {
+                    BillReminderScheduler.cancel(context, bill.id)
+                }
+            }.onFailure {
+                status = "تعذر تحديث أحد تذكيرات الفواتير؛ ستبقى مواعيدها ظاهرة داخل التطبيق."
+            }
         }
     }
     val expenseCategories = categories.filter { it.isActive && (it.kind == "EXPENSE" || it.kind == "BOTH") }
@@ -193,10 +214,13 @@ internal fun BillManagementSection(
                                         nextDueAt = dueAt
                                     )
                                 )
-                                val reminderScheduled = runCatching { BillReminderScheduler.schedule(context, newBillId, dueAt) }.isSuccess
                                 title = ""
                                 amount = ""
-                                status = if (reminderScheduled) "تمت إضافة الفاتورة وجدولة تذكيرها. موعدها القادم: " + FinanceBillPolicy.formatLocalDate(dueAt) else "تمت إضافة الفاتورة، لكن تعذرت جدولة الإشعار؛ سيظل موعدها ظاهراً داخل التطبيق."
+                                status = if (hasNotificationPermission) {
+                                    "تمت إضافة الفاتورة. موعدها القادم: " + FinanceBillPolicy.formatLocalDate(dueAt) + "، وسيُجدول تذكيرها."
+                                } else {
+                                    "تمت إضافة الفاتورة. فعّل إذن الإشعارات لتلقي تذكير قبل الاستحقاق؛ الموعد سيظل ظاهراً داخل التطبيق."
+                                }
                             } catch (_: Exception) {
                                 status = "تعذرت إضافة الفاتورة؛ تحقق من البيانات وحاول مجدداً."
                             } finally {
@@ -320,12 +344,7 @@ internal fun BillManagementSection(
                                                         db.billDao().update(current.copy(nextDueAt = next))
                                                     }
                                                 }
-                                                val reminderUpdated = runCatching {
-                                                    val updatedBill = db.billDao().findById(bill.id)
-                                                    if (updatedBill?.isActive == true) BillReminderScheduler.schedule(context, bill.id, updatedBill.nextDueAt)
-                                                    else BillReminderScheduler.cancel(context, bill.id)
-                                                }.isSuccess
-                                                status = if (reminderUpdated) "تم تأكيد دفع الفاتورة وتسجيل المصروف." else "تم تسجيل الدفع، لكن تعذر تحديث التذكير المحلي."
+                                                status = "تم تأكيد دفع الفاتورة وتسجيل المصروف."
                                             } catch (_: Exception) {
                                                 status = "لم يتم تسجيل الدفع. تحقق من الرصيد أو الموعد وحاول مجدداً."
                                             } finally {
@@ -347,15 +366,7 @@ internal fun BillManagementSection(
                                                 db.billDao().update(updated)
                                                 updated
                                             }.onSuccess { updated ->
-                                                val reminderUpdated = runCatching {
-                                                    if (updated.isActive) BillReminderScheduler.schedule(context, bill.id, updated.nextDueAt)
-                                                    else BillReminderScheduler.cancel(context, bill.id)
-                                                }.isSuccess
-                                                status = when {
-                                                    !reminderUpdated -> "تم تغيير حالة الفاتورة، لكن تعذر تحديث التذكير المحلي."
-                                                    bill.isActive -> "تم إيقاف الفاتورة."
-                                                    else -> "تمت إعادة تفعيل الفاتورة."
-                                                }
+                                                status = if (updated.isActive) "تمت إعادة تفعيل الفاتورة." else "تم إيقاف الفاتورة."
                                             }.onFailure { status = "تعذر تغيير حالة الفاتورة." }
                                         }
                                     }
