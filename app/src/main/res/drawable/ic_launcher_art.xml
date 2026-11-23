@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="432"
+    android:viewportHeight="432">
+    <path android:fillColor="#382078" android:pathData="M78,150 L354,150 L354,360 L78,360 Z" android:fillAlpha="0.0"/>
+    <!-- Rising chart -->
+    <path android:fillColor="#7137C9" android:pathData="M275,214 L275,145 Q275,136 284,136 L307,136 Q316,136 316,145 L316,214 Z"/>
+    <path android:fillColor="#8E4CE8" android:pathData="M319,214 L319,112 Q319,103 328,103 L351,103 Q360,103 360,112 L360,214 Z"/>
+    <path android:fillColor="#B06AFF" android:pathData="M363,214 L363,82 Q363,73 372,73 L395,73 Q404,73 404,82 L404,214 Z"/>
+    <!-- Coins behind the wallet -->
+    <path android:fillColor="#B96B08" android:pathData="M119,157 A53,53 0,1 1,225 157 A53,53 0,1 1,119 157"/>
+    <path android:fillColor="#FFD15A" android:pathData="M126,150 A46,46 0,1 1,218 150 A46,46 0,1 1,126 150"/>
+    <path android:fillColor="#F4A91C" android:pathData="M138,150 A34,34 0,1 1,206 150 A34,34 0,1 1,138 150"/>
+    <path android:fillColor="#FFE28A" android:pathData="M148,150 A24,24 0,1 1,196 150 A24,24 0,1 1,148 150" android:fillAlpha="0.35"/>
+    <path android:fillColor="#9C5608" android:pathData="M160,132 L174,132 L174,141 L185,141 L185,151 L174,151 L174,170 L163,170 L163,151 L151,151 L151,141 L160,141 Z"/>
+    <!-- Wallet body -->
+    <path android:fillColor="#260B69" android:pathData="M72,190 Q72,161 102,161 L326,161 Q352,161 352,190 L352,333 Q352,360 325,360 L101,360 Q72,360 72,333 Z"/>
+    <path android:fillColor="#6325C8" android:pathData="M82,193 Q82,174 103,174 L321,174 Q340,174 340,194 L340,326 Q340,347 320,347 L103,347 Q82,347 82,326 Z"/>
+    <path android:fillColor="#40129A" android:pathData="M90,199 Q90,184 106,184 L316,184 Q330,184 330,199 L330,320 Q330,337 314,337 L106,337 Q90,337 90,320 Z"/>
+    <path android:fillColor="#260B69" android:pathData="M90,202 Q90,190 105,190 L316,190 Q330,190 330,204 L330,316 Q330,331 315,331 L105,331 Q90,331 90,316 Z"/>
+    <!-- Wallet flap and clasp -->
+    <path android:fillColor="#7C3FE0" android:pathData="M72,205 Q72,184 94,184 L322,184 Q346,184 346,208 L346,252 Q346,274 324,274 L72,274 Z"/>
+    <path android:fillColor="#5C25C2" android:pathData="M82,211 Q82,195 99,195 L319,195 Q335,195 335,211 L335,249 Q335,263 320,263 L82,263 Z"/>
+    <path android:fillColor="#F7B936" android:pathData="M290,219 A24,24 0,1 1,338 219 A24,24 0,1 1,290 219"/>
+    <path android:fillColor="#FFE08A" android:pathData="M297,219 A17,17 0,1 1,331 219 A17,17 0,1 1,297 219"/>
+    <!-- Microphone and sound bars -->
+    <path android:fillColor="#E9D7FF" android:pathData="M112,222 A18,18 0,0 1,148 222 L148,254 A18,18 0,0 1,112 254 Z"/>
+    <path android:fillColor="#E9D7FF" android:pathData="M106,236 L106,257 Q106,277 130,277 Q154,277 154,257 L154,236 L164,236 L164,257 Q164,284 136,288 L136,302 L150,302 L150,311 L110,311 L110,302 L124,302 L124,288 Q96,284 96,257 L96,236 Z"/>
+    <path android:fillColor="#D7B6FF" android:pathData="M83,231 L91,231 L91,270 L83,270 Z M174,231 L182,231 L182,270 L174,270 Z M68,241 L75,241 L75,260 L68,260 Z M190,241 L197,241 L197,260 L190,260 Z"/>
+    <!-- Golden growth arrow -->
+    <path android:fillColor="#FFD35C" android:pathData="M204,146 L277,95 L266,82 L318,68 L304,121 L291,107 L213,162 Z"/>
+    <!-- Orbit sweep -->
+    <path android:fillColor="#00000000" android:strokeColor="#FFC43D" android:strokeWidth="7" android:strokeLineCap="round" android:pathData="M48,306 Q165,390 334,285"/>
+    <path android:fillColor="#00000000" android:strokeColor="#FFE7A1" android:strokeWidth="2" android:strokeLineCap="round" android:pathData="M48,302 Q165,386 334,281"/>
+</vector>
