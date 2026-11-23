@@ -934,12 +934,12 @@ private fun MoneyLandingScreen(
                             colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
                         ) { Text(if (isCreatingBudget) "جارٍ إنشاء الميزانية..." else "إضافة ميزانية لهذا الشهر") }
                     }
-                    val currentBudgets = budgets.filter { it.periodStartMillis == budgetMonth.startMillis }
+                    val currentBudgets = budgets.filter { it.periodKey == budgetMonth.periodKey }
                     if (currentBudgets.isEmpty()) {
                         Text("لم تُحدد ميزانيات لهذا الشهر بعد.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                     } else {
                         currentBudgets.forEach { budget ->
-                            val spent = com.malekfinance.FinanceBudgetPolicy.calculateSpent(budget, transactions, budgetMonth.endExclusiveMillis)
+                            val spent = com.malekfinance.FinanceBudgetPolicy.calculateSpent(budget, transactions, budgetMonth.startMillis, budgetMonth.endExclusiveMillis)
                             val percent = com.malekfinance.FinanceBudgetPolicy.usagePercent(spent, budget.limitMinor)
                             val alert = com.malekfinance.FinanceBudgetPolicy.alertLevel(spent, budget.limitMinor)
                             Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
