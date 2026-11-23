@@ -11,7 +11,8 @@ data class ParsedTransaction(
     val queryPeriod: String? = null,
     val relativeDayOffset: Int? = null,
     val debtPersonName: String? = null,
-    val debtType: String? = null
+    val debtType: String? = null,
+    val debtPaymentDirection: String? = null
 )
 
 /**
@@ -90,7 +91,8 @@ object VoiceTransactionParser {
             queryPeriod = detectPeriod(lower),
             relativeDayOffset = detectRelativeDay(lower),
             debtPersonName = extractDebtPersonName(normalized),
-            debtType = detectDebtType(lower)
+            debtType = detectDebtType(lower),
+            debtPaymentDirection = detectDebtPaymentDirection(lower)
         )
     }
 
@@ -98,6 +100,8 @@ object VoiceTransactionParser {
         containsAny(text, listOf("كم باقي في الميزانية", "كم تبقى من الميزانية", "هل تجاوزت الميزانية", "حالة الميزانية", "وضع الميزانية")) -> VoiceCommandType.BUDGET_STATUS_QUERY
         containsAny(text, listOf("سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "حصلت دين من", "تحصيل دين من", "استلمت سداد من")) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
         containsAny(text, listOf("حوّل", "حول", "تحويل", "انقل")) && containsAny(text, listOf("من")) && containsAny(text, listOf("إلى", "الى")) -> VoiceCommandType.TRANSFER_DRAFT
+        containsAny(text, listOf("سددت دين", "سداد دين", "سدد الدين", "ادفع الدين", "أدفع الدين")) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
+        containsAny(text, listOf("حصلت دين", "حصّلت الدين", "تحصيل دين", "استلمت سداد الدين")) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
         containsAny(text, listOf("أعطيت", "اعطيت", "أقرضت", "اقرضت", "سلفت", "استلفت", "اقترضت", "أخذت قرض", "اخذت قرض")) -> VoiceCommandType.DEBT_CREATE_DRAFT
         containsAny(text, listOf("ما الفواتير المستحقة", "ما علي من فواتير", "الفواتير القادمة", "متى الفاتورة القادمة", "ما هي الفواتير")) -> VoiceCommandType.UPCOMING_BILLS_QUERY
         containsAny(text, listOf("سدد فاتورة", "سدد الفاتورة", "ادفع فاتورة", "ادفع الفاتورة", "دفع فاتورة", "دفع الفاتورة")) -> VoiceCommandType.BILL_PAYMENT_DRAFT
@@ -113,6 +117,13 @@ object VoiceTransactionParser {
         containsAny(text, listOf("كم دخل", "كم استلمت", "إجمالي الدخل", "مجموع الدخل")) -> VoiceCommandType.INCOME_QUERY
         containsAny(text, listOf("ملخص مالي", "ملخص حسابي", "اعطني ملخص", "أعطني ملخص", "التقرير المالي")) -> VoiceCommandType.SUMMARY_QUERY
         else -> VoiceCommandType.TRANSACTION
+    }
+
+
+    private fun detectDebtPaymentDirection(text: String): String? = when {
+        containsAny(text, listOf("سددت دين", "سداد دين", "سدد الدين", "ادفع الدين", "أدفع الدين")) -> "OWED_BY_ME"
+        containsAny(text, listOf("حصلت دين", "حصّلت الدين", "تحصيل دين", "استلمت سداد الدين")) -> "OWED_TO_ME"
+        else -> null
     }
 
     private fun detectDebtType(text: String): String? = when {
