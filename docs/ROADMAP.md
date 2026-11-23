@@ -1,4 +1,4 @@
-# خارطة طريق Malek Finance — مالك فاينانس
+# خارطة طريق MK Finance
 
 > الفرع النشط الوحيد: `feature/voice-finance`. لا تعدّل `main`.
 >
