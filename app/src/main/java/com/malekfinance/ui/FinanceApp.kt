@@ -604,6 +604,7 @@ private fun DebtManagementSection(
     var description by remember { mutableStateOf("") }
     var principal by remember { mutableStateOf("") }
     var debtType by remember { mutableStateOf("OWED_BY_ME") }
+    var recordCashMovement by remember { mutableStateOf(true) }
     var walletId by remember { mutableStateOf<Long?>(null) }
     var paymentInputs by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
     var busy by remember { mutableStateOf(false) }
@@ -622,6 +623,10 @@ private fun DebtManagementSection(
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(selected = debtType == "OWED_BY_ME", onClick = { debtType = "OWED_BY_ME" }, label = { Text("أنا مدين") })
                 FilterChip(selected = debtType == "OWED_TO_ME", onClick = { debtType = "OWED_TO_ME" }, label = { Text("لي عنده") })
+            }
+            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                Checkbox(checked = recordCashMovement, onCheckedChange = { recordCashMovement = it })
+                Text("تحديث رصيد المحفظة بأصل الدين (ألغِ التحديد إذا كان ديناً قديماً مسجلاً سابقاً)", style = MaterialTheme.typography.bodySmall)
             }
             Text("محفظة وعملة الدين", color = FinanceColors.TextSecondary)
             LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -654,7 +659,7 @@ private fun DebtManagementSection(
                                 db.withTransaction {
                                     val currentWallet = db.walletDao().findById(wallet.id) ?: error("Wallet not found")
                                     check(currentWallet.currencyCode == wallet.currencyCode)
-                                    if (debtType == "OWED_TO_ME") {
+                                    if (recordCashMovement && debtType == "OWED_TO_ME") {
                                         val currentTransactions = db.dao().forWallet(currentWallet.id)
                                         val currentTransfers = db.transferDao().forWallet(currentWallet.id)
                                         if (!com.malekfinance.FinanceLedger.hasSufficientFunds(currentWallet, amountMinor, currentTransactions, currentTransfers)) {
@@ -667,9 +672,10 @@ private fun DebtManagementSection(
                                         debtType = debtType,
                                         principalMinor = amountMinor,
                                         currencyCode = wallet.currencyCode,
-                                        walletId = wallet.id
+                                        walletId = wallet.id,
+                                        cashMovementRecorded = recordCashMovement
                                     ))
-                                    db.dao().insert(FinanceTransaction(
+                                    if (recordCashMovement) db.dao().insert(FinanceTransaction(
                                         amountMinor = amountMinor,
                                         kind = if (debtType == "OWED_BY_ME") "DEBT_RECEIVED" else "DEBT_ISSUED",
                                         note = (if (debtType == "OWED_BY_ME") "استلام قرض من: " else "إقراض سلفة إلى: ") + cleanName,
@@ -682,7 +688,7 @@ private fun DebtManagementSection(
                                 person = ""
                                 description = ""
                                 principal = ""
-                                status = "تم تسجيل أصل الدين وحركة المحفظة معاً."
+                                status = if (recordCashMovement) "تم تسجيل أصل الدين وحركة المحفظة معاً." else "تم تسجيل الدين السابق دون تعديل رصيد المحفظة."
                             } catch (_: com.malekfinance.InsufficientWalletFundsException) {
                                 status = "رصيد المحفظة لا يكفي لإقراض هذا المبلغ."
                             } catch (_: Exception) {
