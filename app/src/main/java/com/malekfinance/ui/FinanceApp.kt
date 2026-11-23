@@ -417,6 +417,12 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var debtWalletDraftId by remember { mutableStateOf<Long?>(null) }
     var debtRecordCashMovement by remember { mutableStateOf(true) }
     var isDebtSaving by remember { mutableStateOf(false) }
+    var hasSavingsDraft by remember { mutableStateOf(false) }
+    var savingsAmountDraft by remember { mutableStateOf("") }
+    var savingsGoalDraftId by remember { mutableStateOf<Long?>(null) }
+    var savingsDraftType by remember { mutableStateOf("CONTRIBUTION") }
+    var isSavingsSaving by remember { mutableStateOf(false) }
+    val voiceSavingsGoals by db.savingsGoalDao().observeAll().collectAsState(initial = emptyList())
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
     val compatibleCategories = activeCategories.filter {
@@ -474,6 +480,19 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 transferAmountText = ""
                 transferNote = ""
                 status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
+            } else if (parsed.command == VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT ||
+                parsed.command == VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT) {
+                hasDraft = false
+                hasTransferDraft = false
+                hasDebtDraft = false
+                amount = ""
+                description = ""
+                kind = null
+                hasSavingsDraft = true
+                savingsDraftType = if (parsed.command == VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT) "CONTRIBUTION" else "WITHDRAWAL"
+                savingsAmountDraft = parsed.amount.orEmpty()
+                savingsGoalDraftId = voiceSavingsGoals.firstOrNull { spoken.contains(it.name, ignoreCase = true) }?.id
+                status = "راجع هدف الادخار والمبلغ. لن يتم تسجيل المساهمة أو السحب إلا بعد التأكيد."
             } else if (parsed.command == VoiceCommandType.DEBT_CREATE_DRAFT) {
                 hasDraft = false
                 hasTransferDraft = false
@@ -494,6 +513,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 description = ""
                 kind = null
                 hasDebtDraft = false
+                hasSavingsDraft = false
+                savingsAmountDraft = ""
+                savingsGoalDraftId = null
                 debtPersonDraft = ""
                 debtDescriptionDraft = ""
                 debtAmountDraft = ""
@@ -623,7 +645,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                             "، المتبقي " + java.math.BigDecimal(remaining, 2).toPlainString() + " " + wallet.currencyCode
                                     }
                                 }
-                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT -> ""
+                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
                             .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
