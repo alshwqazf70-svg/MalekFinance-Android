@@ -95,8 +95,7 @@ internal fun BillManagementSection(
     LaunchedEffect(bills, hasNotificationPermission) {
         bills.forEach { bill ->
             runCatching {
-                val occurrenceKey = FinanceBillPolicy.occurrenceKey(bill.nextDueAt)
-                if (bill.isActive && hasNotificationPermission && bill.lastReminderOccurrenceKey != occurrenceKey) {
+                if (FinanceBillPolicy.shouldScheduleReminder(bill) && hasNotificationPermission) {
                     BillReminderScheduler.schedule(context, bill.id, bill.nextDueAt)
                 } else {
                     BillReminderScheduler.cancel(context, bill.id)
