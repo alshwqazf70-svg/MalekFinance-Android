@@ -27,7 +27,7 @@ object BillReminderScheduler {
 
     fun schedule(context: Context, billId: Long, dueAt: Long) {
         val now = System.currentTimeMillis()
-        val reminderAt = (dueAt - TimeUnit.DAYS.toMillis(1)).coerceAtLeast(now)
+        val reminderAt = com.malekfinance.FinanceBillPolicy.reminderAt(dueAt, now)
         val request = OneTimeWorkRequestBuilder<BillReminderWorker>()
             .setInputData(workDataOf("billId" to billId, "scheduledDueAt" to dueAt))
             .setInitialDelay((reminderAt - now).coerceAtLeast(0), TimeUnit.MILLISECONDS)
