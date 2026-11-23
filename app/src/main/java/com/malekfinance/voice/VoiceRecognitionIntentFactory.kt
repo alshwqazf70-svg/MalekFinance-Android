@@ -13,6 +13,7 @@ object VoiceRecognitionIntentFactory {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ar-YE")
             putExtra(RecognizerIntent.EXTRA_PROMPT, "مثال: صرفت خمسة آلاف ريال بنزين")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
         }
         return intent.takeIf { it.resolveActivity(context.packageManager) != null }
     }
