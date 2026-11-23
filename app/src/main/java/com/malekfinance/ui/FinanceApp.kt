@@ -391,6 +391,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var kind by remember { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf("تحدث عن العملية، ثم راجع كل التفاصيل قبل الحفظ.") }
     var hasDraft by remember { mutableStateOf(false) }
+    var isSavingDraft by remember { mutableStateOf(false) }
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
     val compatibleCategories = activeCategories.filter {
@@ -463,17 +464,19 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         }
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) launchFinanceRecognition(speechLauncher)
-        else status = "إذن الميكروفون مرفوض. يمكنك إدخال العملية يدوياً."
+        if (granted) {
+            if (!launchFinanceRecognition(speechLauncher)) status = "خدمة التعرف الصوتي غير متاحة على هذا الجهاز. يمكنك الكتابة يدوياً."
+        } else status = "إذن الميكروفون مرفوض. يمكنك إدخال العملية يدوياً."
     }
 
     fun startListening() {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            launchFinanceRecognition(speechLauncher)
+            if (!launchFinanceRecognition(speechLauncher)) status = "خدمة التعرف الصوتي غير متاحة على هذا الجهاز. يمكنك الكتابة يدوياً."
         } else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
     fun saveReviewedDraft() {
+        if (isSavingDraft) return
         val normalized = normalizeFinanceAmount(amount).replace('٫', '.').replace(',', '.').trim()
         val minor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
         val selectedKind = kind
@@ -500,6 +503,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             status = "أنشئ محفظة أولاً من قسم مالي."
             return
         }
+        isSavingDraft = true
         scope.launch {
             runCatching {
                 db.dao().insert(
@@ -523,6 +527,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             }.onFailure {
                 status = "تعذر حفظ العملية. بيانات المسودة ما زالت موجودة؛ حاول مجدداً."
             }
+            isSavingDraft = false
         }
     }
 
@@ -616,9 +621,10 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                     Button(
                         onClick = ::saveReviewedDraft,
                         modifier = Modifier.fillMaxWidth(),
+                        enabled = !isSavingDraft,
                         colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
                     ) {
-                        Text("تأكيد وحفظ العملية")
+                        Text(if (isSavingDraft) "جارٍ حفظ العملية..." else "تأكيد وحفظ العملية")
                     }
                 }
             }
@@ -626,13 +632,15 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 }
 
-private fun launchFinanceRecognition(launcher: androidx.activity.result.ActivityResultLauncher<Intent>) {
+private fun launchFinanceRecognition(launcher: androidx.activity.result.ActivityResultLauncher<Intent>): Boolean {
     val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar-YE")
-        putExtra(RecognizerIntent.EXTRA_PROMPT, "مثال: صرفت ١٥٠٠ ريال بنزين")
+        putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ar-YE")
+        putExtra(RecognizerIntent.EXTRA_PROMPT, "مثال: صرفت خمسة آلاف ريال بنزين")
+        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
     }
-    runCatching { launcher.launch(intent) }
+    return runCatching { launcher.launch(intent) }.isSuccess
 }
 
 private fun normalizeFinanceAmount(value: String): String {
