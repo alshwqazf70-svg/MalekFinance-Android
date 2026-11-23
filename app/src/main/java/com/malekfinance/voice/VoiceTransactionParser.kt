@@ -1,6 +1,6 @@
 package com.malekfinance.voice
 
-enum class VoiceCommandType { TRANSACTION, CANCEL_DRAFT, BALANCE_QUERY, SPENDING_QUERY, INCOME_QUERY, SUMMARY_QUERY, RECENT_TRANSACTIONS_QUERY }
+enum class VoiceCommandType { TRANSACTION, CANCEL_DRAFT, BALANCE_QUERY, SPENDING_QUERY, INCOME_QUERY, SUMMARY_QUERY, RECENT_TRANSACTIONS_QUERY, DEBT_OWED_BY_ME_QUERY, DEBT_OWED_TO_ME_QUERY }
 
 data class ParsedTransaction(
     val amount: String?,
@@ -91,6 +91,8 @@ object VoiceTransactionParser {
     }
 
     private fun detectCommand(text: String): VoiceCommandType = when {
+        containsAny(text, listOf("كم علي من ديون", "كم علي", "كم أنا مدين", "كم انا مدين", "كم باقي علي")) -> VoiceCommandType.DEBT_OWED_BY_ME_QUERY
+        containsAny(text, listOf("كم لي عند", "كم مستحق لي", "كم الناس لي", "كم عند الناس لي")) -> VoiceCommandType.DEBT_OWED_TO_ME_QUERY
         containsAny(text, listOf("آخر العمليات", "اخر العمليات", "اعرض العمليات", "أعرض العمليات", "آخر المصروفات", "اخر المصروفات")) -> VoiceCommandType.RECENT_TRANSACTIONS_QUERY
         containsAny(text, listOf("ألغ المسودة", "الغ المسودة", "إلغاء المسودة", "الغِ العملية", "ألغ العملية", "لا تسجلها")) -> VoiceCommandType.CANCEL_DRAFT
         containsAny(text, listOf("كم رصيدي", "كم معي", "رصيد محفظتي", "كم باقي", "كم تبقى")) -> VoiceCommandType.BALANCE_QUERY
