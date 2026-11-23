@@ -430,15 +430,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var hasBillDraft by remember { mutableStateOf(false) }
     var billDraftId by remember { mutableStateOf<Long?>(null) }
     var isBillSaving by remember { mutableStateOf(false) }
-    var hasDebtPaymentDraft by remember { mutableStateOf(false) }
-    var debtPaymentAmountDraft by remember { mutableStateOf("") }
-    var debtPaymentDebtId by remember { mutableStateOf<Long?>(null) }
-    var isDebtPaymentSaving by remember { mutableStateOf(false) }
     val voiceDebts by db.debtDao().observeAll().collectAsState(initial = emptyList())
     val voiceDebtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
     val voiceBills by db.billDao().observeAll().collectAsState(initial = emptyList())
-    val voiceDebts by db.debtDao().observeAll().collectAsState(initial = emptyList())
-    val voiceDebtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
     val voiceSavingsGoals by db.savingsGoalDao().observeAll().collectAsState(initial = emptyList())
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
@@ -1076,53 +1070,6 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         }
     }
 
-    fun confirmVoiceDebtPayment() {
-        if (isDebtPaymentSaving) return
-        val debt = voiceDebts.firstOrNull { it.id == debtPaymentDebtId }
-        val minor = runCatching {
-            normalizeFinanceAmount(debtPaymentAmountDraft).replace('٫', '.').replace(',', '.').toBigDecimalOrNull()
-                ?.movePointRight(2)?.longValueExact()
-        }.getOrNull()
-        if (debt == null) {
-            status = "اختر الدين أو الشخص الصحيح قبل التأكيد."
-            return
-        }
-        if (minor == null || minor <= 0L) {
-            status = "أدخل مبلغ دفعة صحيحاً أكبر من صفر."
-            return
-        }
-        val outstanding = com.malekfinance.FinanceDebtPolicy.outstanding(
-            debt.principalMinor, voiceDebtPayments.filter { it.debtId == debt.id }
-        )
-        if (java.math.BigInteger.valueOf(minor) > outstanding) {
-            status = "مبلغ الدفعة أكبر من المتبقي من الدين."
-            return
-        }
-        isDebtPaymentSaving = true
-        scope.launch {
-            runCatching { com.malekfinance.FinanceDebtPaymentOperations.applyPayment(db, debt.id, minor) }
-                .onSuccess {
-                    hasDebtPaymentDraft = false
-                    debtPaymentAmountDraft = ""
-                    debtPaymentDebtId = null
-                    transcript = ""
-                    status = if (debt.debtType == "OWED_BY_ME") {
-                        "تم تسجيل سداد جزء من دين " + debt.personName + "."
-                    } else {
-                        "تم تسجيل تحصيل جزء من دين " + debt.personName + "."
-                    }
-                }
-                .onFailure {
-                    status = if (it is com.malekfinance.InsufficientWalletFundsException) {
-                        "رصيد المحفظة لا يكفي لإتمام السداد."
-                    } else {
-                        "تعذر تسجيل الدفعة؛ لم يُحفظ أي جزء منها."
-                    }
-                }
-            isDebtPaymentSaving = false
-        }
-    }
-
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
             Card(
@@ -1164,149 +1111,6 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         if (transcript.isNotBlank()) {
             item {
                 SectionCard("العبارة التي سمعتها", transcript, "مسودة للمراجعة فقط")
-            }
-        }
-        if (hasDebtPaymentDraft) {
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("مراجعة سداد أو تحصيل الدين", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        OutlinedTextField(
-                            value = debtPaymentAmountDraft,
-                            onValueChange = { debtPaymentAmountDraft = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("مبلغ الدفعة") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
-                            enabled = !isDebtPaymentSaving
-                        )
-                        Text("اختر الدين المرتبط بالدفعة:", color = FinanceColors.TextSecondary)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(voiceDebts, key = { it.id }) { debt ->
-                                val remaining = com.malekfinance.FinanceDebtPolicy.outstanding(
-                                    debt.principalMinor, voiceDebtPayments.filter { it.debtId == debt.id }
-                                )
-                                if (remaining.signum() > 0) {
-                                    FilterChip(
-                                        selected = debtPaymentDebtId == debt.id,
-                                        onClick = { debtPaymentDebtId = debt.id },
-                                        enabled = !isDebtPaymentSaving,
-                                        label = {
-                                            Text(debt.personName + " · " +
-                                                (if (debt.debtType == "OWED_BY_ME") "عليّ " else "لي ") +
-                                                java.math.BigDecimal(remaining, 2).toPlainString() + " " + debt.currencyCode)
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        Text("سيتم تسجيل الدفعة الجزئية كدخل أو مصروف حسب اتجاه الدين.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
-                        Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
-                        Button(
-                            onClick = ::confirmVoiceDebtPayment,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isDebtPaymentSaving,
-                            colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
-                        ) { Text(if (isDebtPaymentSaving) "جارٍ تسجيل الدفعة..." else "مراجعة وتأكيد الدفعة") }
-                        TextButton(
-                            onClick = ::cancelVoiceDraft,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isDebtPaymentSaving
-                        ) { Text("إلغاء الدفعة") }
-                    }
-                }
-            }
-        }
-        if (hasBillDraft) {
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("مراجعة دفع الفاتورة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        Text("اختر الفاتورة النشطة التي تريد دفعها:", color = FinanceColors.TextSecondary)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(voiceBills.filter {
-                                it.isActive && com.malekfinance.FinanceBillPolicy.isDue(it.nextDueAt, System.currentTimeMillis())
-                            }, key = { it.id }) { bill ->
-                                FilterChip(
-                                    selected = billDraftId == bill.id,
-                                    onClick = { billDraftId = bill.id },
-                                    enabled = !isBillSaving,
-                                    label = {
-                                        Text(bill.title + " · " + java.math.BigDecimal.valueOf(bill.amountMinor, 2).toPlainString() +
-                                            " " + bill.currencyCode + " · " + com.malekfinance.FinanceBillPolicy.formatLocalDate(bill.nextDueAt))
-                                    }
-                                )
-                            }
-                        }
-                        if (voiceBills.none {
-                                it.isActive && com.malekfinance.FinanceBillPolicy.isDue(it.nextDueAt, System.currentTimeMillis())
-                            }) {
-                            Text("لا توجد فاتورة مستحقة حالياً للدفع.", color = FinanceColors.TextSecondary)
-                        }
-                        Text("سيُسجل المبلغ الكامل كعملية مصروف، ولن يتم الدفع تلقائياً.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
-                        Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
-                        Button(
-                            onClick = ::confirmVoiceBillPayment,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isBillSaving && voiceBills.any {
-                                it.isActive && com.malekfinance.FinanceBillPolicy.isDue(it.nextDueAt, System.currentTimeMillis())
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
-                        ) { Text(if (isBillSaving) "جارٍ تسجيل الدفع..." else "مراجعة وتأكيد دفع الفاتورة") }
-                        TextButton(
-                            onClick = ::cancelVoiceDraft,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isBillSaving
-                        ) { Text("إلغاء دفع الفاتورة") }
-                    }
-                }
-            }
-        }
-        if (hasSavingsDraft) {
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
-                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(
-                            if (savingsDraftType == "CONTRIBUTION") "مراجعة مساهمة الادخار الصوتية" else "مراجعة سحب الادخار الصوتي",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                        OutlinedTextField(
-                            value = savingsAmountDraft,
-                            onValueChange = { savingsAmountDraft = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            label = { Text("المبلغ") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                            singleLine = true,
-                            enabled = !isSavingsSaving
-                        )
-                        Text("اختر هدف الادخار", color = FinanceColors.TextSecondary)
-                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(voiceSavingsGoals, key = { it.id }) { goal ->
-                                FilterChip(
-                                    selected = savingsGoalDraftId == goal.id,
-                                    onClick = { savingsGoalDraftId = goal.id },
-                                    enabled = !isSavingsSaving,
-                                    label = { Text(goal.name + " · " + goal.currencyCode) }
-                                )
-                            }
-                        }
-                        Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
-                        Button(
-                            onClick = ::confirmVoiceSavings,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isSavingsSaving,
-                            colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
-                        ) {
-                            Text(if (isSavingsSaving) "جارٍ حفظ العملية..." else if (savingsDraftType == "CONTRIBUTION") "مراجعة وتأكيد المساهمة" else "مراجعة وتأكيد السحب")
-                        }
-                        TextButton(
-                            onClick = ::cancelVoiceDraft,
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isSavingsSaving
-                        ) { Text("إلغاء العملية") }
-                    }
-                }
             }
         }
         if (hasDebtPaymentDraft) {
