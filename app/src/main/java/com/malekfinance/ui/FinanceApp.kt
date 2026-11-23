@@ -1035,6 +1035,45 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 SectionCard("العبارة التي سمعتها", transcript, "مسودة للمراجعة فقط")
             }
         }
+        if (hasBillDraft) {
+            item {
+                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text("مراجعة دفع الفاتورة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("اختر الفاتورة النشطة التي تريد دفعها:", color = FinanceColors.TextSecondary)
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            items(voiceBills.filter { it.isActive }, key = { it.id }) { bill ->
+                                FilterChip(
+                                    selected = billDraftId == bill.id,
+                                    onClick = { billDraftId = bill.id },
+                                    enabled = !isBillSaving,
+                                    label = {
+                                        Text(bill.title + " · " + java.math.BigDecimal.valueOf(bill.amountMinor, 2).toPlainString() +
+                                            " " + bill.currencyCode + " · " + com.malekfinance.FinanceBillPolicy.formatLocalDate(bill.nextDueAt))
+                                    }
+                                )
+                            }
+                        }
+                        if (voiceBills.none { it.isActive }) {
+                            Text("لا توجد فواتير نشطة.", color = FinanceColors.TextSecondary)
+                        }
+                        Text("سيُسجل المبلغ الكامل كعملية مصروف، ولن يتم الدفع تلقائياً.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                        Button(
+                            onClick = ::confirmVoiceBillPayment,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isBillSaving && voiceBills.any { it.isActive },
+                            colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                        ) { Text(if (isBillSaving) "جارٍ تسجيل الدفع..." else "مراجعة وتأكيد دفع الفاتورة") }
+                        TextButton(
+                            onClick = ::cancelVoiceDraft,
+                            modifier = Modifier.fillMaxWidth(),
+                            enabled = !isBillSaving
+                        ) { Text("إلغاء دفع الفاتورة") }
+                    }
+                }
+            }
+        }
         if (hasSavingsDraft) {
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
@@ -1221,7 +1260,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 }
             }
         }
-        if (!hasTransferDraft && !hasDebtDraft && !hasSavingsDraft) item {
+        if (!hasTransferDraft && !hasDebtDraft && !hasSavingsDraft && !hasBillDraft) item {
             Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(if (hasDraft) "راجع وعدّل قبل الحفظ" else "إدخال يدوي بديل", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
