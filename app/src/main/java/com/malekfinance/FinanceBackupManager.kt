@@ -55,7 +55,7 @@ object FinanceBackupManager {
 
         val salt = ByteArray(16).also(SecureRandom()::nextBytes)
         val nonce = ByteArray(12).also(SecureRandom()::nextBytes)
-        val key = deriveKey(password, salt)
+        val key = try { deriveKey(password, salt) } finally { password.fill('\u0000') }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, key, GCMParameterSpec(128, nonce))
         cipher.updateAAD(MAGIC.toByteArray(StandardCharsets.US_ASCII))
@@ -66,7 +66,6 @@ object FinanceBackupManager {
         output.write(ByteBuffer.allocate(4).putInt(encrypted.size).array())
         output.write(encrypted)
         output.flush()
-        password.fill('\u0000')
     }
 
     suspend fun restore(db: FinanceDb, input: InputStream, password: CharArray) {
@@ -79,11 +78,11 @@ object FinanceBackupManager {
         val nonce = bytes.copyOfRange(24, 36)
         val encryptedLength = ByteBuffer.wrap(bytes, 36, 4).int
         require(encryptedLength > 16 && encryptedLength == bytes.size - 40) { "Backup file is incomplete" }
+        val key = try { deriveKey(password, salt) } finally { password.fill('\u0000') }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, deriveKey(password, salt), GCMParameterSpec(128, nonce))
+        cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, nonce))
         cipher.updateAAD(magicBytes)
         val json = JSONObject(String(cipher.doFinal(bytes.copyOfRange(40, bytes.size)), StandardCharsets.UTF_8))
-        password.fill('\u0000')
         require(json.optString("format") == MAGIC && json.optInt("schemaVersion") == 12) {
             "Backup database version is not supported by this app version"
         }
