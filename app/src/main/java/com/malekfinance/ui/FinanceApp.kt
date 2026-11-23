@@ -401,6 +401,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var status by remember { mutableStateOf("تحدث عن العملية، ثم راجع كل التفاصيل قبل الحفظ.") }
     var hasDraft by remember { mutableStateOf(false) }
     var isSavingDraft by remember { mutableStateOf(false) }
+    var draftCreatedAt by remember { mutableStateOf(System.currentTimeMillis()) }
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
     val compatibleCategories = activeCategories.filter {
@@ -476,6 +477,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 amount = parsed.amount.orEmpty()
                 description = parsed.description
                 kind = parsed.kind
+                draftCreatedAt = parsed.relativeDayOffset?.let { offset ->
+                    java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, offset) }.timeInMillis
+                } ?: System.currentTimeMillis()
                 category = activeCategories.firstOrNull {
                     it.name == parsed.category && (parsed.kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, parsed.kind))
                 }?.name ?: activeCategories.firstOrNull {
@@ -512,6 +516,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         description = ""
         kind = null
         category = "عام"
+        draftCreatedAt = System.currentTimeMillis()
         hasDraft = false
         status = "تم إلغاء المسودة دون حفظ أي عملية."
     }
@@ -555,7 +560,8 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                         note = description.trim(),
                         category = resolvedCategory,
                         walletId = wallet.id,
-                        currencyCode = wallet.currencyCode
+                        currencyCode = wallet.currencyCode,
+                        createdAt = draftCreatedAt
                     )
                 )
             }.onSuccess {
@@ -564,6 +570,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 description = ""
                 kind = null
                 category = "عام"
+                draftCreatedAt = System.currentTimeMillis()
                 hasDraft = false
                 status = "تم حفظ العملية في ${wallet.name}."
             }.onFailure {
