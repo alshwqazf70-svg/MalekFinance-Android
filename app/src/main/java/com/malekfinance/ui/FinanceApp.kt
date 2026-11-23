@@ -505,10 +505,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 transferToWalletId = mentionedWallets.getOrNull(1)?.id
                 status = "راجع محفظة المصدر والوجهة والمبلغ. لن يتم التحويل إلا بعد ضغط زر التأكيد."
             } else if (parsed.command != VoiceCommandType.TRANSACTION) {
-                hasDraft = false
-                amount = ""
-                description = ""
-                kind = null
+                // Read-only voice queries must not silently discard an unconfirmed draft.
                 scope.launch {
                     val wallet = selectedWallet
                     if (wallet == null) {
@@ -611,6 +608,17 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                     }
                 }
             } else {
+                // A newly parsed transaction replaces any older, unconfirmed special draft.
+                hasTransferDraft = false
+                hasDebtDraft = false
+                transferAmountText = ""
+                transferNote = ""
+                transferFromWalletId = null
+                transferToWalletId = null
+                debtPersonDraft = ""
+                debtDescriptionDraft = ""
+                debtAmountDraft = ""
+                debtWalletDraftId = null
                 amount = parsed.amount.orEmpty()
                 description = parsed.description
                 kind = parsed.kind
@@ -656,6 +664,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         draftCreatedAt = System.currentTimeMillis()
         hasDraft = false
         hasTransferDraft = false
+        hasDebtDraft = false
         transferAmountText = ""
         transferNote = ""
         debtPersonDraft = ""
@@ -664,6 +673,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         debtWalletDraftId = null
         transferFromWalletId = null
         transferToWalletId = null
+        debtRecordCashMovement = true
         status = "تم إلغاء المسودة دون حفظ أي عملية."
     }
 
