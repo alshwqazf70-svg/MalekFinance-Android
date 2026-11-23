@@ -177,4 +177,11 @@ class VoiceTransactionParserTest {
         assertEquals("200", withdrawal.amount)
     }
 
+    @Test fun recognizesBillPaymentDraftRequests() {
+        assertEquals(
+            VoiceCommandType.BILL_PAYMENT_DRAFT,
+            VoiceTransactionParser.parse("سدد فاتورة الكهرباء").command
+        )
+    }
+
 }
