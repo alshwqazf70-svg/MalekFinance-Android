@@ -741,6 +741,8 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         hasSavingsDraft = false
         savingsAmountDraft = ""
         savingsGoalDraftId = null
+        hasBillDraft = false
+        billDraftId = null
         transferAmountText = ""
         transferNote = ""
         debtPersonDraft = ""
@@ -952,6 +954,41 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 }
             }
             isSavingsSaving = false
+        }
+    }
+
+    fun confirmVoiceBillPayment() {
+        if (isBillSaving) return
+        val bill = voiceBills.firstOrNull { it.id == billDraftId }
+        if (bill == null) {
+            status = "اختر فاتورة نشطة قبل التأكيد."
+            return
+        }
+        if (!bill.isActive) {
+            status = "هذه الفاتورة غير نشطة."
+            return
+        }
+        if (!com.malekfinance.FinanceBillPolicy.isDue(bill.nextDueAt, System.currentTimeMillis())) {
+            status = "لم يحِن موعد استحقاق هذه الفاتورة بعد."
+            return
+        }
+        isBillSaving = true
+        scope.launch {
+            runCatching { com.malekfinance.FinanceBillOperations.pay(db, bill.id) }
+                .onSuccess {
+                    hasBillDraft = false
+                    billDraftId = null
+                    transcript = ""
+                    status = "تم تأكيد دفع فاتورة " + bill.title + " وتسجيل المصروف."
+                }
+                .onFailure {
+                    status = if (it is com.malekfinance.InsufficientWalletFundsException) {
+                        "رصيد المحفظة لا يكفي لدفع هذه الفاتورة."
+                    } else {
+                        "تعذر الدفع؛ ربما سُددت هذه الدورة بالفعل أو حدث خطأ. لم يتم اعتماد دفع جزئي."
+                    }
+                }
+            isBillSaving = false
         }
     }
 
