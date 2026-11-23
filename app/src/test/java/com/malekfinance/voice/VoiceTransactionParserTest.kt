@@ -102,4 +102,15 @@ class VoiceTransactionParserTest {
         )
     }
 
+    @Test fun recognizesBothDebtBalanceQueryDirections() {
+        assertEquals(
+            VoiceCommandType.DEBT_OWED_BY_ME_QUERY,
+            VoiceTransactionParser.parse("كم علي من ديون؟").command
+        )
+        assertEquals(
+            VoiceCommandType.DEBT_OWED_TO_ME_QUERY,
+            VoiceTransactionParser.parse("كم لي عند أحمد؟").command
+        )
+    }
+
 }
