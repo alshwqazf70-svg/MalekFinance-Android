@@ -32,6 +32,8 @@ import com.malekfinance.FinanceTransfer
 import com.malekfinance.voice.VoiceTransactionParser
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
+import com.malekfinance.voice.VoiceCommandType
+import com.malekfinance.voice.VoiceQueryEngine
 import androidx.room.withTransaction
 
 private enum class FinanceSection(val title: String) {
@@ -406,16 +408,57 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         } else {
             val parsed = VoiceTransactionParser.parse(spoken)
             transcript = spoken
-            amount = parsed.amount.orEmpty()
-            description = parsed.description
-            category = parsed.category
-            kind = parsed.kind
-            hasDraft = true
-            status = when {
-                parsed.amount == null && parsed.kind == null -> "لم أتعرف على المبلغ أو نوع العملية. أكمل البيانات وحدد دخل أو مصروف."
-                parsed.amount == null -> "حدد المبلغ قبل الحفظ."
-                parsed.kind == null -> "لم يتضح هل هي عملية دخل أم مصروف. اختر النوع بنفسك."
-                else -> "راجع المبلغ والنوع والوصف والتصنيف. لن تُحفظ العملية قبل تأكيدك."
+            if (parsed.command != VoiceCommandType.TRANSACTION) {
+                hasDraft = false
+                amount = ""
+                description = ""
+                kind = null
+                scope.launch {
+                    val wallet = selectedWallet
+                    if (wallet == null) {
+                        status = "أنشئ محفظة أولاً حتى أستطيع قراءة بياناتك المالية."
+                    } else {
+                        runCatching {
+                            val walletTransactions = db.dao().forWallet(wallet.id)
+                            val transfers = db.transferDao().forWallet(wallet.id)
+                            when (parsed.command) {
+                                VoiceCommandType.BALANCE_QUERY -> {
+                                    val balance = com.malekfinance.FinanceLedger.calculateBalance(wallet, walletTransactions, transfers)
+                                    val major = balance.divide(java.math.BigInteger.valueOf(100))
+                                    val minor = balance.remainder(java.math.BigInteger.valueOf(100)).abs()
+                                    "رصيد " + wallet.name + ": " + String.format(java.util.Locale.ROOT, "%s.%02d %s", major.toString(), minor.toInt(), wallet.currencyCode)
+                                }
+                                VoiceCommandType.SPENDING_QUERY -> {
+                                    val result = VoiceQueryEngine.calculate(walletTransactions, "EXPENSE", wallet.id, wallet.currencyCode, parsed.queryPeriod)
+                                    "مصروفات " + wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
+                                }
+                                VoiceCommandType.INCOME_QUERY -> {
+                                    val result = VoiceQueryEngine.calculate(walletTransactions, "INCOME", wallet.id, wallet.currencyCode, parsed.queryPeriod)
+                                    "الدخل في " + wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
+                                }
+                                VoiceCommandType.SUMMARY_QUERY -> {
+                                    val income = VoiceQueryEngine.calculate(walletTransactions, "INCOME", wallet.id, wallet.currencyCode, parsed.queryPeriod)
+                                    val expense = VoiceQueryEngine.calculate(walletTransactions, "EXPENSE", wallet.id, wallet.currencyCode, parsed.queryPeriod)
+                                    "ملخص " + wallet.name + ": الدخل " + VoiceQueryEngine.formatAmount(income) + "، المصروف " + VoiceQueryEngine.formatAmount(expense)
+                                }
+                                VoiceCommandType.TRANSACTION -> ""
+                            }
+                        }.onSuccess { status = it }
+                            .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
+                    }
+                }
+            } else {
+                amount = parsed.amount.orEmpty()
+                description = parsed.description
+                category = parsed.category
+                kind = parsed.kind
+                hasDraft = true
+                status = when {
+                    parsed.amount == null && parsed.kind == null -> "لم أتعرف على المبلغ أو نوع العملية. أكمل البيانات وحدد دخل أو مصروف."
+                    parsed.amount == null -> "حدد المبلغ قبل الحفظ."
+                    parsed.kind == null -> "لم يتضح هل هي عملية دخل أم مصروف. اختر النوع بنفسك."
+                    else -> "راجع المبلغ والنوع والوصف والتصنيف. لن تُحفظ العملية قبل تأكيدك."
+                }
             }
         }
     }
