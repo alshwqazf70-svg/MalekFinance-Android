@@ -1206,6 +1206,7 @@ private fun ReportsLandingScreen(
                 }.onSuccess { exportStatus = "تمت استعادة النسخة الاحتياطية. أُعيد تحميل بيانات الحساب." }
                     .onFailure { exportStatus = "فشلت الاستعادة ولم تُعتمد بيانات جزئية: " + (it.message ?: "تحقق من الملف وكلمة المرور") }
                 backupPassword = ""
+                backupPasswordConfirm = ""
                 backupBusy = false
             }
         } else if (backupPassword.length < 8) exportStatus = "أدخل كلمة مرور النسخة الاحتياطية أولاً."
