@@ -494,6 +494,29 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 transferAmountText = ""
                 transferNote = ""
                 status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
+            } else if (parsed.command == VoiceCommandType.CORRECT_AMOUNT) {
+                val corrected = parsed.amount?.let { raw ->
+                    runCatching {
+                        normalizeFinanceAmount(raw).replace('٫', '.').replace(',', '.').toBigDecimalOrNull()
+                    }.getOrNull()
+                }
+                if (corrected == null || corrected <= java.math.BigDecimal.ZERO) {
+                    status = "لم أتعرف على مبلغ تصحيح صحيح أكبر من صفر."
+                } else {
+                    val normalizedCorrection = corrected.stripTrailingZeros().toPlainString()
+                    when {
+                        hasDraft -> amount = normalizedCorrection
+                        hasTransferDraft -> transferAmountText = normalizedCorrection
+                        hasDebtDraft -> debtAmountDraft = normalizedCorrection
+                        hasDebtPaymentDraft -> debtPaymentAmountDraft = normalizedCorrection
+                        hasSavingsDraft -> savingsAmountDraft = normalizedCorrection
+                        hasBillDraft -> status = "مبلغ الفاتورة محفوظ في سجلها. عدّل الفاتورة من قسم الفواتير قبل الدفع."
+                        else -> status = "لا توجد مسودة حالية لتصحيح مبلغها. ابدأ بإدخال عملية أولاً."
+                    }
+                    if (!hasBillDraft && (hasDraft || hasTransferDraft || hasDebtDraft || hasDebtPaymentDraft || hasSavingsDraft)) {
+                        status = "تم تحديث مبلغ المسودة إلى " + normalizedCorrection + ". راجع بقية التفاصيل قبل التأكيد."
+                    }
+                }
             } else if (parsed.command == VoiceCommandType.DEBT_PAYMENT_DRAFT) {
                 hasDraft = false
                 hasTransferDraft = false
@@ -710,7 +733,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                             "، المتبقي " + java.math.BigDecimal(remaining, 2).toPlainString() + " " + wallet.currencyCode
                                     }
                                 }
-                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT -> ""
+                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.CORRECT_AMOUNT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
                             .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
