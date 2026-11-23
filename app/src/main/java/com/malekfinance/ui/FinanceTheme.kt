@@ -25,7 +25,7 @@ fun FinanceTheme(content: @Composable () -> Unit) {
     MaterialTheme(
         colorScheme = darkColorScheme(
             primary = FinanceColors.Primary,
-            onPrimary = Color.White,
+            onPrimary = FinanceColors.Background,
             secondary = FinanceColors.PrimaryLight,
             background = FinanceColors.Background,
             onBackground = FinanceColors.TextPrimary,
