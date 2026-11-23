@@ -42,7 +42,7 @@ The `docs/` directory is the canonical reference for product scope and engineeri
 The existing source has been described as containing:
 - Kotlin, Jetpack Compose and Material 3.
 - Arabic-first dark UI and right-to-left layout.
-- Local Room storage for transactions, wallets, transfers, categories, budgets, debts, savings goals, recurring income and recurring expenses (Room schema v10; migrations 1→10 are implemented, but the full upgrade chain still requires database-level verification).
+- Local Room storage for transactions, wallets, transfers, categories, budgets, debts, savings goals, recurring income, recurring expenses and bills/payment records (Room schema v11; migrations 1→11 are implemented, but the full upgrade chain still requires database-level verification).
 - Wallet creation with opening balances and per-wallet currency balances; transaction entry can select a wallet.
 - Internal transfers are stored separately from income/expense, currently limited to wallets with the same currency and sufficient source balance.
 - Currency-isolated YER dashboard/report totals; balances are not combined across currencies.
@@ -54,6 +54,7 @@ The existing source has been described as containing:
 - Debt and advance tracking with partial repayment/collection.
 - Savings goals with partial contributions and withdrawals. Contributions reserve wallet funds without being counted as expenses; withdrawals return funds without being counted as income.
 - Salary and recurring income rules (weekly/monthly), with manually confirmed receipts, wallet routing, pause/resume and per-period duplicate protection.
+- Bills with one-time, monthly or yearly due dates, in-app due/overdue status and user-confirmed payment records linked to expenses. No automatic bill payment or background system notification is claimed.
 
 Recurring income is not posted automatically: the user confirms actual receipt for each due period. Monthly schedules retain the chosen day across short months; weekly schedules advance by seven days.
 
