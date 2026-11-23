@@ -66,6 +66,9 @@ interface FinanceRecurringIncomeEntryDao {
     @Query("SELECT * FROM recurring_income_entries WHERE ruleId = :ruleId ORDER BY recordedAt DESC, id DESC")
     suspend fun forRule(ruleId: Long): List<FinanceRecurringIncomeEntry>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM recurring_income_entries WHERE ruleId = :ruleId AND occurrenceKey = :occurrenceKey)")
+    suspend fun exists(ruleId: Long, occurrenceKey: String): Boolean
+
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(entry: FinanceRecurringIncomeEntry): Long
 }
