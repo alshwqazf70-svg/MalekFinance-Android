@@ -56,6 +56,6 @@ class FinanceNavigationUiTest {
     @Test
     fun moneyScreenRemainsReachableFromBottomNavigation() {
         composeRule.onNodeWithText("مالي").performClick()
-        composeRule.onNodeWithText("المحافظ").assertExists()
+        composeRule.onNodeWithText("محافظك وأرصدتك").assertExists()
     }
 }
