@@ -66,6 +66,21 @@ class FinanceDebtPolicyTest {
         assertEquals(8L, collection.debtId)
     }
     @Test
+    fun issuedAdvanceReducesFundsAvailableForInternalTransfers() {
+        val wallet = FinanceWallet(id = 1, name = "نقدية", currencyCode = "YER", openingBalanceMinor = 10_000)
+        val issuedAdvance = FinanceTransaction(
+            amountMinor = 7_000,
+            kind = "DEBT_ISSUED",
+            note = "سلفة",
+            walletId = 1,
+            currencyCode = "YER",
+            debtId = 30
+        )
+        assertTrue(FinanceLedger.hasSufficientFunds(wallet, 3_000, listOf(issuedAdvance), emptyList()))
+        assertFalse(FinanceLedger.hasSufficientFunds(wallet, 3_001, listOf(issuedAdvance), emptyList()))
+    }
+
+    @Test
     fun receivingBorrowedMoneyAndIssuingAnAdvanceChangeCashButNotIncomeExpenseTotals() {
         val wallet = FinanceWallet(id = 1, name = "نقدية", currencyCode = "YER", openingBalanceMinor = 10_000)
         val principalMovements = listOf(
