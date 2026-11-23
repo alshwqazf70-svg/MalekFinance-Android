@@ -82,4 +82,11 @@ class VoiceTransactionParserTest {
         assertEquals(null, VoiceTransactionParser.parse("استلمت ألف ثم صرفت خمسمئة").kind)
     }
 
+    @Test fun parsesRelativeTransactionDatesWithoutGuessingOtherDates() {
+        assertEquals(-1, VoiceTransactionParser.parse("دفعت ألف ريال بنزين أمس").relativeDayOffset)
+        assertEquals(0, VoiceTransactionParser.parse("صرفت مئة ريال اليوم").relativeDayOffset)
+        assertEquals(-2, VoiceTransactionParser.parse("اشتريت أغراض أول أمس").relativeDayOffset)
+        assertEquals(null, VoiceTransactionParser.parse("صرفت مئة ريال").relativeDayOffset)
+    }
+
 }
