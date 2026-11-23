@@ -64,6 +64,7 @@ internal fun RecurringIncomeSection(
     var walletId by remember { mutableStateOf<Long?>(null) }
     var status by remember { mutableStateOf<String?>(null) }
     var creating by remember { mutableStateOf(false) }
+    var editingRuleId by remember { mutableStateOf<Long?>(null) }
     val busyRules = remember { mutableStateMapOf<Long, Boolean>() }
 
     LaunchedEffect(rules) {
@@ -97,17 +98,17 @@ internal fun RecurringIncomeSection(
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = incomeType == "SALARY", onClick = { incomeType = "SALARY" }, label = { Text("راتب") })
-                FilterChip(selected = incomeType == "RECURRING", onClick = { incomeType = "RECURRING" }, label = { Text("دخل متكرر") })
+                FilterChip(selected = incomeType == "SALARY", onClick = { incomeType = "SALARY" }, enabled = editingRuleId == null, label = { Text("راتب") })
+                FilterChip(selected = incomeType == "RECURRING", onClick = { incomeType = "RECURRING" }, enabled = editingRuleId == null, label = { Text("دخل متكرر") })
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = frequency == "MONTHLY", onClick = { frequency = "MONTHLY" }, label = { Text("شهري") })
-                FilterChip(selected = frequency == "WEEKLY", onClick = { frequency = "WEEKLY" }, label = { Text("أسبوعي") })
+                FilterChip(selected = frequency == "MONTHLY", onClick = { frequency = "MONTHLY" }, enabled = editingRuleId == null, label = { Text("شهري") })
+                FilterChip(selected = frequency == "WEEKLY", onClick = { frequency = "WEEKLY" }, enabled = editingRuleId == null, label = { Text("أسبوعي") })
             }
             if (frequency == "MONTHLY") {
                 OutlinedTextField(
                     value = monthlyDay, onValueChange = { monthlyDay = it.filter { ch -> ch.isDigit() } },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth(), enabled = editingRuleId == null,
                     label = { Text("يوم الاستحقاق من الشهر (1 إلى 31)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     singleLine = true
@@ -118,7 +119,7 @@ internal fun RecurringIncomeSection(
                 items(wallets, key = { it.id }) { wallet ->
                     FilterChip(
                         selected = selectedWallet?.id == wallet.id,
-                        onClick = { walletId = wallet.id },
+                        onClick = { walletId = wallet.id }, enabled = editingRuleId == null,
                         label = { Text(wallet.name + " • " + wallet.currencyCode) }
                     )
                 }
@@ -131,6 +132,22 @@ internal fun RecurringIncomeSection(
                         title.isBlank() -> status = "اكتب اسم الراتب أو مصدر الدخل."
                         title.trim().length > 60 -> status = "الاسم طويل؛ الحد الأقصى 60 حرفاً."
                         amountMinor == null || amountMinor <= 0L -> status = "أدخل مبلغاً صحيحاً أكبر من صفر."
+                        editingRuleId != null -> scope.launch {
+                            if (creating) return@launch
+                            creating = true
+                            try {
+                                db.withTransaction {
+                                    val current = db.recurringIncomeRuleDao().findById(editingRuleId!!) ?: error("Rule not found")
+                                    db.recurringIncomeRuleDao().update(current.copy(title = title.trim(), amountMinor = amountMinor))
+                                }
+                                editingRuleId = null
+                                title = ""
+                                amount = ""
+                                status = "تم تعديل الاسم والمبلغ. حُفظت مواعيد الاستحقاق والسجل السابق كما هي."
+                            } catch (_: Exception) {
+                                status = "تعذر تعديل الاستحقاق؛ لم يتغير السجل."
+                            } finally { creating = false }
+                        }
                         selectedWallet == null -> status = "اختر محفظة لاستلام الدخل."
                         frequency == "MONTHLY" && (requestedDay == null || requestedDay !in 1..31) -> status = "حدد يوم الاستحقاق بين 1 و31."
                         else -> scope.launch {
@@ -164,7 +181,11 @@ internal fun RecurringIncomeSection(
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !creating && wallets.isNotEmpty(),
                 colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
-            ) { Text(if (creating) "جارٍ إنشاء الاستحقاق..." else "إضافة راتب أو دخل متكرر") }
+            ) { Text(if (creating) "جارٍ الحفظ..." else if (editingRuleId != null) "حفظ التعديلات" else "إضافة راتب أو دخل متكرر") }
+            if (editingRuleId != null) {
+                TextButton(onClick = { editingRuleId = null; title = ""; amount = ""; status = "تم إلغاء التعديل." }) { Text("إلغاء التعديل") }
+                Text("التعديل يحافظ على المحفظة ونوع التكرار والمواعيد وسجل الاستحقاقات السابق.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+            }
         }
 
         HorizontalDivider(color = FinanceColors.Divider)
@@ -212,6 +233,18 @@ internal fun RecurringIncomeSection(
                             Text("عمليات مسجلة: " + ruleEntries.size, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                         }
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(
+                                onClick = {
+                                    editingRuleId = rule.id
+                                    title = rule.title
+                                    amount = BigDecimal.valueOf(rule.amountMinor, 2).stripTrailingZeros().toPlainString()
+                                    incomeType = rule.incomeType
+                                    frequency = rule.frequency
+                                    monthlyDay = rule.anchorDay.toString()
+                                    walletId = rule.walletId
+                                    status = "عدّل الاسم والمبلغ فقط؛ ستبقى كل المواعيد والدفعات السابقة محفوظة."
+                                }
+                            ) { Text("تعديل", color = FinanceColors.PrimaryLight) }
                             if (rule.isActive) {
                                 Button(
                                     onClick = {
