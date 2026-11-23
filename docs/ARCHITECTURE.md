@@ -1,4 +1,4 @@
-# البنية التقنية — Malek Finance
+# البنية التقنية — MK Finance
 
 ## 1. المنصة والتقنيات
 - Android Native باستخدام Kotlin.
