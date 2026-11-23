@@ -58,19 +58,7 @@ class BillReminderWorker(
 
         val db = try {
             Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
-                .addMigrations(
-                    FinanceDb.MIGRATION_1_2,
-                    FinanceDb.MIGRATION_2_3,
-                    FinanceDb.MIGRATION_3_4,
-                    FinanceDb.MIGRATION_4_5,
-                    FinanceDb.MIGRATION_5_6,
-                    FinanceDb.MIGRATION_6_7,
-                    FinanceDb.MIGRATION_7_8,
-                    FinanceDb.MIGRATION_8_9,
-                    FinanceDb.MIGRATION_9_10,
-                    FinanceDb.MIGRATION_10_11,
-                    FinanceDb.MIGRATION_11_12
-                )
+                .addMigrations(*FinanceDb.ALL_MIGRATIONS)
                 .build()
         } catch (_: Exception) {
             return Result.retry()
