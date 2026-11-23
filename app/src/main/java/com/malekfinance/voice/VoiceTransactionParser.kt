@@ -9,7 +9,8 @@ data class ParsedTransaction(
     val description: String,
     val command: VoiceCommandType = VoiceCommandType.TRANSACTION,
     val queryPeriod: String? = null,
-    val relativeDayOffset: Int? = null
+    val relativeDayOffset: Int? = null,
+    val debtPersonName: String? = null
 )
 
 /**
@@ -86,7 +87,8 @@ object VoiceTransactionParser {
             description = description,
             command = command,
             queryPeriod = detectPeriod(lower),
-            relativeDayOffset = detectRelativeDay(lower)
+            relativeDayOffset = detectRelativeDay(lower),
+            debtPersonName = extractDebtPersonName(normalized)
         )
     }
 
@@ -103,6 +105,11 @@ object VoiceTransactionParser {
         containsAny(text, listOf("كم دخل", "كم استلمت", "إجمالي الدخل", "مجموع الدخل")) -> VoiceCommandType.INCOME_QUERY
         containsAny(text, listOf("ملخص مالي", "ملخص حسابي", "اعطني ملخص", "أعطني ملخص", "التقرير المالي")) -> VoiceCommandType.SUMMARY_QUERY
         else -> VoiceCommandType.TRANSACTION
+    }
+
+    private fun extractDebtPersonName(text: String): String? {
+        val match = Regex("""(?:عند|لدى)\\s+([^؟،,]+)""").find(text) ?: return null
+        return match.groupValues[1].trim().trimEnd('؟', '?', '.', '،', ',').ifBlank { null }
     }
 
     private fun detectRelativeDay(text: String): Int? = when {
