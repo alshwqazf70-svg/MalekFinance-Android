@@ -483,6 +483,14 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                     val expense = VoiceQueryEngine.calculate(walletTransactions, "EXPENSE", wallet.id, wallet.currencyCode, parsed.queryPeriod)
                                     "ملخص " + wallet.name + ": الدخل " + VoiceQueryEngine.formatAmount(income) + "، المصروف " + VoiceQueryEngine.formatAmount(expense)
                                 }
+                                VoiceCommandType.RECENT_TRANSACTIONS_QUERY -> {
+                                    val recent = walletTransactions.sortedByDescending { it.createdAt }.take(5)
+                                    if (recent.isEmpty()) "لا توجد عمليات مسجلة في " + wallet.name + "."
+                                    else "آخر العمليات في " + wallet.name + ": " + recent.joinToString("؛ ") {
+                                        val kindLabel = if (it.kind == "INCOME") "دخل" else if (it.kind == "EXPENSE") "مصروف" else it.kind
+                                        kindLabel + " " + java.math.BigDecimal.valueOf(it.amountMinor, 2).toPlainString() + " " + wallet.currencyCode + " — " + it.note
+                                    }
+                                }
                                 VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
