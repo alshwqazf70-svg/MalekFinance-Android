@@ -43,4 +43,16 @@ class VoiceQueryEngineTest {
         )
         assertEquals("123.45 YER", VoiceQueryEngine.formatAmount(result))
     }
+    @Test
+    fun categorySpecificVoiceSpendingQueryFiltersTheSelectedCategory() {
+        val items = listOf(
+            FinanceTransaction(amountMinor = 1_000, kind = "EXPENSE", note = "fuel", category = "بنزين", walletId = 1, currencyCode = "YER", createdAt = date(8)),
+            FinanceTransaction(amountMinor = 2_000, kind = "EXPENSE", note = "food", category = "مطاعم", walletId = 1, currencyCode = "YER", createdAt = date(8))
+        )
+        val result = VoiceQueryEngine.calculate(
+            items, "EXPENSE", 1, "YER", "MONTH", date(20), category = "بنزين"
+        )
+        assertEquals("1000", result.amountMinor.toString())
+    }
+
 }
