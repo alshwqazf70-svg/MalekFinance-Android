@@ -242,6 +242,20 @@ class FinanceRoomIntegrityTest {
         assertEquals(before, rowCount("transactions"))
     }
 
+
+    @Test
+    fun transferRejectsNonPositiveSameWalletAndCrossCurrencyRequests() = runBlocking {
+        val yer = db.walletDao().insert(FinanceWallet(name = "ريال", currencyCode = "YER", openingBalanceMinor = 10_000))
+        val usd = db.walletDao().insert(FinanceWallet(name = "دولار", currencyCode = "USD", openingBalanceMinor = 10_000))
+
+        expectFailure { FinanceTransferOperations.transfer(db, yer, usd, 100) }
+        expectFailure { FinanceTransferOperations.transfer(db, yer, yer, 100) }
+        expectFailure { FinanceTransferOperations.transfer(db, yer, usd, 0) }
+        expectFailure { FinanceTransferOperations.transfer(db, yer, usd, -1) }
+
+        assertEquals(0, rowCount("transfers"))
+    }
+
     private suspend fun expectFailure(block: suspend () -> Unit) {
         var failed = false
         try {
