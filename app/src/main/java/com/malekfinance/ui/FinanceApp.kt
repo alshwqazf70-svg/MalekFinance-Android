@@ -454,6 +454,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
             } else if (parsed.command == VoiceCommandType.TRANSFER_DRAFT) {
                 hasDraft = false
+                amount = ""
+                description = ""
+                kind = null
                 hasTransferDraft = true
                 transferAmountText = parsed.amount.orEmpty()
                 transferNote = spoken
@@ -696,6 +699,10 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 transferFromWalletId = null
                 transferToWalletId = null
                 transcript = ""
+                amount = ""
+                description = ""
+                kind = null
+                hasDraft = false
                 status = "تم التحويل بنجاح من " + source.name + " إلى " + destination.name + "."
             }.onFailure {
                 status = if (it is com.malekfinance.InsufficientWalletFundsException) {
