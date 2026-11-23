@@ -417,6 +417,11 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var debtWalletDraftId by remember { mutableStateOf<Long?>(null) }
     var debtRecordCashMovement by remember { mutableStateOf(true) }
     var isDebtSaving by remember { mutableStateOf(false) }
+    var hasDebtPaymentDraft by remember { mutableStateOf(false) }
+    var debtPaymentDraftId by remember { mutableStateOf<Long?>(null) }
+    var debtPaymentAmountDraft by remember { mutableStateOf("") }
+    var debtPaymentTypeDraft by remember { mutableStateOf("OWED_BY_ME") }
+    var isDebtPaymentSaving by remember { mutableStateOf(false) }
     var hasSavingsDraft by remember { mutableStateOf(false) }
     var savingsAmountDraft by remember { mutableStateOf("") }
     var savingsGoalDraftId by remember { mutableStateOf<Long?>(null) }
@@ -426,6 +431,8 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var billDraftId by remember { mutableStateOf<Long?>(null) }
     var isBillSaving by remember { mutableStateOf(false) }
     val voiceBills by db.billDao().observeAll().collectAsState(initial = emptyList())
+    val voiceDebts by db.debtDao().observeAll().collectAsState(initial = emptyList())
+    val voiceDebtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
     val voiceSavingsGoals by db.savingsGoalDao().observeAll().collectAsState(initial = emptyList())
     var selectedWalletId by remember { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
