@@ -1,6 +1,6 @@
 package com.malekfinance.voice
 
-enum class VoiceCommandType { TRANSACTION, TRANSFER_DRAFT, CANCEL_DRAFT, BALANCE_QUERY, SPENDING_QUERY, INCOME_QUERY, SUMMARY_QUERY, RECENT_TRANSACTIONS_QUERY, DEBT_OWED_BY_ME_QUERY, DEBT_OWED_TO_ME_QUERY, SAVINGS_BALANCE_QUERY, UPCOMING_BILLS_QUERY, BUDGET_STATUS_QUERY }
+enum class VoiceCommandType { TRANSACTION, TRANSFER_DRAFT, DEBT_CREATE_DRAFT, CANCEL_DRAFT, BALANCE_QUERY, SPENDING_QUERY, INCOME_QUERY, SUMMARY_QUERY, RECENT_TRANSACTIONS_QUERY, DEBT_OWED_BY_ME_QUERY, DEBT_OWED_TO_ME_QUERY, SAVINGS_BALANCE_QUERY, UPCOMING_BILLS_QUERY, BUDGET_STATUS_QUERY }
 
 data class ParsedTransaction(
     val amount: String?,
@@ -10,7 +10,8 @@ data class ParsedTransaction(
     val command: VoiceCommandType = VoiceCommandType.TRANSACTION,
     val queryPeriod: String? = null,
     val relativeDayOffset: Int? = null,
-    val debtPersonName: String? = null
+    val debtPersonName: String? = null,
+    val debtType: String? = null
 )
 
 /**
@@ -88,13 +89,15 @@ object VoiceTransactionParser {
             command = command,
             queryPeriod = detectPeriod(lower),
             relativeDayOffset = detectRelativeDay(lower),
-            debtPersonName = extractDebtPersonName(normalized)
+            debtPersonName = extractDebtPersonName(normalized),
+            debtType = detectDebtType(lower)
         )
     }
 
     private fun detectCommand(text: String): VoiceCommandType = when {
         containsAny(text, listOf("كم باقي في الميزانية", "كم تبقى من الميزانية", "هل تجاوزت الميزانية", "حالة الميزانية", "وضع الميزانية")) -> VoiceCommandType.BUDGET_STATUS_QUERY
         containsAny(text, listOf("حوّل", "حول", "تحويل", "انقل")) && containsAny(text, listOf("من")) && containsAny(text, listOf("إلى", "الى")) -> VoiceCommandType.TRANSFER_DRAFT
+        containsAny(text, listOf("أعطيت", "اعطيت", "أقرضت", "اقرضت", "سلفت", "استلفت", "اقترضت", "أخذت قرض", "اخذت قرض")) -> VoiceCommandType.DEBT_CREATE_DRAFT
         containsAny(text, listOf("ما الفواتير المستحقة", "ما علي من فواتير", "الفواتير القادمة", "متى الفاتورة القادمة", "ما هي الفواتير")) -> VoiceCommandType.UPCOMING_BILLS_QUERY
         containsAny(text, listOf("كم ادخرت", "كم ادخاري", "كم وفرت", "رصيد الادخار", "رصيد التوفير")) -> VoiceCommandType.SAVINGS_BALANCE_QUERY
         containsAny(text, listOf("كم علي من ديون", "كم علي", "كم أنا مدين", "كم انا مدين", "كم باقي علي")) -> VoiceCommandType.DEBT_OWED_BY_ME_QUERY
@@ -108,9 +111,18 @@ object VoiceTransactionParser {
         else -> VoiceCommandType.TRANSACTION
     }
 
+    private fun detectDebtType(text: String): String? = when {
+        containsAny(text, listOf("أعطيت", "اعطيت", "أقرضت", "اقرضت", "سلفت")) -> "OWED_TO_ME"
+        containsAny(text, listOf("استلفت", "اقترضت", "أخذت قرض", "اخذت قرض")) -> "OWED_BY_ME"
+        else -> null
+    }
+
     private fun extractDebtPersonName(text: String): String? {
-        val match = Regex("""(?:عند|لدى)\s+([^؟،,]+)""").find(text) ?: return null
-        return match.groupValues[1].trim().trimEnd('؟', '?', '.', '،', ',').ifBlank { null }
+        val queryMatch = Regex("""(?:عند|لدى)\s+([^؟،,]+)""").find(text)
+        if (queryMatch != null) return queryMatch.groupValues[1].trim().trimEnd('؟', '?', '.', '،', ',').ifBlank { null }
+        val loanMatch = Regex("""(?:أعطيت|اعطيت|أقرضت|اقرضت|سلفت)\s+(?:لـ)?([^\s،؟,]+)""").find(text)
+            ?: Regex("""(?:استلفت|اقترضت)\s+من\s+([^\s،؟,]+)""").find(text)
+        return loanMatch?.groupValues?.get(1)?.trim()?.trimStart('ل')?.trimEnd('؟', '?', '.', '،', ',')?.ifBlank { null }
     }
 
     private fun detectRelativeDay(text: String): Int? = when {
