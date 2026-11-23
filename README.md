@@ -62,7 +62,7 @@ These items still require source review and successful CI/device verification be
 
 ## Build and verification
 
-GitHub Actions is configured to run JVM unit tests and assemble a debug APK. A successful build and its artifact must be confirmed from the relevant workflow run; configuration alone is not proof of success.
+GitHub Actions is configured to run JVM unit tests, Room/Compose instrumentation tests on an Android emulator, and assemble a debug APK. It can also build a signed release APK when the owner supplies all signing credentials through GitHub Secrets. A successful build and its artifact must be confirmed from the relevant workflow run; configuration alone is not proof of success.
 
 Speech recognition depends on the recognition app/service available on the device and may require an internet connection. Offline speech recognition is not guaranteed across devices.
 
