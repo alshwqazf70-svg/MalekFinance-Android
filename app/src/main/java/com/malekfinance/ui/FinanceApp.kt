@@ -180,11 +180,11 @@ private fun HomeDashboard(
                     Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column(Modifier.weight(1f)) {
                             Text(row.note, fontWeight = FontWeight.SemiBold)
-                            Text(row.category + " • " + if (row.kind == "INCOME") "دخل" else "مصروف", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                            Text(row.category + " • " + when (row.kind) { "INCOME" -> "دخل"; "EXPENSE" -> "مصروف"; "DEBT_RECEIVED" -> "استلام قرض"; "DEBT_ISSUED" -> "إقراض سلفة"; else -> "عملية" }, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                         }
                         Text(
-                            (if (row.kind == "INCOME") "+" else "−") + formatCurrencyMoney(row.amountMinor, row.currencyCode),
-                            color = if (row.kind == "INCOME") FinanceColors.Income else FinanceColors.Expense,
+                            (if (row.kind == "INCOME" || row.kind == "DEBT_RECEIVED") "+" else "−") + formatCurrencyMoney(row.amountMinor, row.currencyCode),
+                            color = if (row.kind == "INCOME" || row.kind == "DEBT_RECEIVED") FinanceColors.Income else FinanceColors.Expense,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -329,29 +329,33 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                                     Text(row.note, fontWeight = FontWeight.SemiBold)
-                                    Text(row.category + " • " + if (row.kind == "INCOME") "دخل" else "مصروف", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                                    Text(row.category + " • " + when (row.kind) { "INCOME" -> "دخل"; "EXPENSE" -> "مصروف"; "DEBT_RECEIVED" -> "استلام قرض"; "DEBT_ISSUED" -> "إقراض سلفة"; else -> "عملية" }, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                                     Text(
-                                        (if (row.kind == "INCOME") "+" else "−") + formatCurrencyMoney(row.amountMinor, row.currencyCode),
-                                        color = if (row.kind == "INCOME") FinanceColors.Income else FinanceColors.Expense,
+                                        (if (row.kind == "INCOME" || row.kind == "DEBT_RECEIVED") "+" else "−") + formatCurrencyMoney(row.amountMinor, row.currencyCode),
+                                        color = if (row.kind == "INCOME" || row.kind == "DEBT_RECEIVED") FinanceColors.Income else FinanceColors.Expense,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                Column {
-                                    TextButton(onClick = {
-                                        editingId = row.id
-                                        editAmount = java.math.BigDecimal.valueOf(row.amountMinor, 2).stripTrailingZeros().toPlainString()
-                                        editNote = row.note
-                                        editCategory = row.category
-                                        editKind = row.kind
-                                        status = null
-                                    }) { Text("تعديل", color = FinanceColors.PrimaryLight) }
-                                    TextButton(onClick = {
-                                        scope.launch {
-                                            runCatching { db.dao().delete(row) }
-                                                .onSuccess { status = "تم حذف العملية." }
-                                                .onFailure { status = "تعذر حذف العملية. حاول مرة أخرى." }
-                                        }
-                                    }) { Text("حذف", color = FinanceColors.Expense) }
+                                if (row.debtId == null) {
+                                    Column {
+                                        TextButton(onClick = {
+                                            editingId = row.id
+                                            editAmount = java.math.BigDecimal.valueOf(row.amountMinor, 2).stripTrailingZeros().toPlainString()
+                                            editNote = row.note
+                                            editCategory = row.category
+                                            editKind = row.kind
+                                            status = null
+                                        }) { Text("تعديل", color = FinanceColors.PrimaryLight) }
+                                        TextButton(onClick = {
+                                            scope.launch {
+                                                runCatching { db.dao().delete(row) }
+                                                    .onSuccess { status = "تم حذف العملية." }
+                                                    .onFailure { status = "تعذر حذف العملية. حاول مرة أخرى." }
+                                            }
+                                        }) { Text("حذف", color = FinanceColors.Expense) }
+                                    }
+                                } else {
+                                    Text("مرتبطة بدين؛ تُدار من قسم الديون", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.labelSmall)
                                 }
                             }
                         }
@@ -647,18 +651,29 @@ private fun DebtManagementSection(
                             if (busy) return@launch
                             busy = true
                             try {
-                                db.debtDao().insert(com.malekfinance.FinanceDebt(
-                                    personName = cleanName,
-                                    description = description.trim(),
-                                    debtType = debtType,
-                                    principalMinor = amountMinor,
-                                    currencyCode = wallet.currencyCode,
-                                    walletId = wallet.id
-                                ))
+                                db.withTransaction {
+                                    val debtId = db.debtDao().insert(com.malekfinance.FinanceDebt(
+                                        personName = cleanName,
+                                        description = description.trim(),
+                                        debtType = debtType,
+                                        principalMinor = amountMinor,
+                                        currencyCode = wallet.currencyCode,
+                                        walletId = wallet.id
+                                    ))
+                                    db.dao().insert(FinanceTransaction(
+                                        amountMinor = amountMinor,
+                                        kind = if (debtType == "OWED_BY_ME") "DEBT_RECEIVED" else "DEBT_ISSUED",
+                                        note = (if (debtType == "OWED_BY_ME") "استلام قرض من: " else "إقراض سلفة إلى: ") + cleanName,
+                                        category = if (debtType == "OWED_BY_ME") "قرض مستلم" else "سلفة ممنوحة",
+                                        walletId = wallet.id,
+                                        currencyCode = wallet.currencyCode,
+                                        debtId = debtId
+                                    ))
+                                }
                                 person = ""
                                 description = ""
                                 principal = ""
-                                status = "تم تسجيل الدين. لم يتغير رصيد المحفظة؛ يتغير عند تسجيل الدفعات."
+                                status = "تم تسجيل أصل الدين وحركة المحفظة معاً."
                             } catch (_: Exception) {
                                 status = "تعذر تسجيل الدين؛ تحقق من البيانات."
                             } finally {
