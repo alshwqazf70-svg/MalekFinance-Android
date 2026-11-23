@@ -68,6 +68,7 @@ class VoiceTransactionParserTest {
         val income = VoiceTransactionParser.parse("كم استلمت هذا الشهر؟")
         assertEquals(VoiceCommandType.INCOME_QUERY, income.command)
         assertEquals("MONTH", income.queryPeriod)
+        assertEquals("عام", VoiceTransactionParser.parse("كم دخل هذا الشهر؟").category)
 
         val summary = VoiceTransactionParser.parse("اعطني ملخص مالي")
         assertEquals(VoiceCommandType.SUMMARY_QUERY, summary.command)
