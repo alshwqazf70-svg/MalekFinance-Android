@@ -11,7 +11,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.room.withTransaction
 import com.malekfinance.*
 import kotlinx.coroutines.launch
 import java.math.BigInteger
@@ -130,25 +129,7 @@ internal fun SavingsManagementSection(
                                             if (busyGoals[goal.id] == true) return@launch
                                             busyGoals[goal.id] = true
                                             try {
-                                                db.withTransaction {
-                                                    val currentGoal = db.savingsGoalDao().findById(goal.id) ?: error("Savings goal not found")
-                                                    val latestEntries = db.savingsEntryDao().forGoal(goal.id)
-                                                    check(FinanceSavingsPolicy.canContribute(currentGoal.targetMinor, latestEntries, amountMinor))
-                                                    val wallet = db.walletDao().findById(currentGoal.walletId) ?: error("Wallet not found")
-                                                    check(wallet.currencyCode == currentGoal.currencyCode)
-                                                    val latestTransactions = db.dao().forWallet(wallet.id)
-                                                    val latestTransfers = db.transferDao().forWallet(wallet.id)
-                                                    if (!FinanceLedger.hasSufficientFunds(wallet, amountMinor, latestTransactions, latestTransfers)) throw InsufficientWalletFundsException()
-                                                    val transactionId = db.dao().insert(FinanceTransaction(
-                                                        amountMinor = amountMinor, kind = "SAVINGS_CONTRIBUTION",
-                                                        note = "مساهمة ادخار: " + currentGoal.name, category = "ادخار",
-                                                        walletId = wallet.id, currencyCode = wallet.currencyCode, savingsGoalId = currentGoal.id
-                                                    ))
-                                                    db.savingsEntryDao().insert(FinanceSavingsEntry(
-                                                        goalId = currentGoal.id, transactionId = transactionId,
-                                                        entryType = "CONTRIBUTION", amountMinor = amountMinor
-                                                    ))
-                                                }
+                                                FinanceSavingsOperations.contribute(db, goal.id, amountMinor)
                                                 amountInputs.remove(goal.id)
                                                 status = "تمت إضافة المساهمة إلى الهدف وحجزها من المحفظة."
                                             } catch (_: InsufficientWalletFundsException) {
@@ -179,22 +160,7 @@ internal fun SavingsManagementSection(
                                             if (busyGoals[goal.id] == true) return@launch
                                             busyGoals[goal.id] = true
                                             try {
-                                                db.withTransaction {
-                                                    val currentGoal = db.savingsGoalDao().findById(goal.id) ?: error("Savings goal not found")
-                                                    val latestEntries = db.savingsEntryDao().forGoal(goal.id)
-                                                    check(FinanceSavingsPolicy.canWithdraw(latestEntries, amountMinor))
-                                                    val wallet = db.walletDao().findById(currentGoal.walletId) ?: error("Wallet not found")
-                                                    check(wallet.currencyCode == currentGoal.currencyCode)
-                                                    val transactionId = db.dao().insert(FinanceTransaction(
-                                                        amountMinor = amountMinor, kind = "SAVINGS_WITHDRAWAL",
-                                                        note = "سحب من الادخار: " + currentGoal.name, category = "ادخار",
-                                                        walletId = wallet.id, currencyCode = wallet.currencyCode, savingsGoalId = currentGoal.id
-                                                    ))
-                                                    db.savingsEntryDao().insert(FinanceSavingsEntry(
-                                                        goalId = currentGoal.id, transactionId = transactionId,
-                                                        entryType = "WITHDRAWAL", amountMinor = amountMinor
-                                                    ))
-                                                }
+                                                FinanceSavingsOperations.withdraw(db, goal.id, amountMinor)
                                                 withdrawalInputs.remove(goal.id)
                                                 status = "تم تسجيل السحب وإعادة المبلغ إلى المحفظة."
                                             } catch (_: Exception) {
