@@ -52,7 +52,7 @@ object FinanceReportAnalytics {
         range: FinanceReportRange,
         nowMillis: Long = System.currentTimeMillis()
     ): List<FinanceCategoryTotal> {
-        val start = boundary(nowMillis, range, -1)
+        val start = boundary(nowMillis, range, 0)
         val totals = transactions.asSequence()
             .filter { it.walletId == walletId && it.currencyCode == currencyCode }
             .filter { it.kind == "EXPENSE" && it.amountMinor > 0 && it.createdAt >= start && it.createdAt <= nowMillis }
