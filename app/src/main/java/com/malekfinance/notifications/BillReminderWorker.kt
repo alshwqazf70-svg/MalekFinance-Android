@@ -111,11 +111,11 @@ class BillReminderWorker(
                 Intent(applicationContext, MainActivity::class.java),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
-            val isDue = System.currentTimeMillis() >= bill.nextDueAt
+            val isDue = System.currentTimeMillis() >= latestBill.nextDueAt
             val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
                 .setSmallIcon(android.R.drawable.ic_dialog_info)
                 .setContentTitle(if (isDue) "فاتورة مستحقة" else "تذكير بموعد فاتورة")
-                .setContentText(bill.title + if (isDue) " — حان موعد الاستحقاق" else " — موعد الاستحقاق خلال 24 ساعة")
+                .setContentText(latestBill.title + if (isDue) " — حان موعد الاستحقاق" else " — موعد الاستحقاق خلال 24 ساعة")
                 .setContentIntent(openApp)
                 .setAutoCancel(true)
                 .setPriority(NotificationCompat.PRIORITY_DEFAULT)
