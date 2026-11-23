@@ -224,6 +224,11 @@ class VoiceTransactionParserTest {
         assertEquals(null, correction.kind)
     }
 
+    @Test fun parsesMultiWordTwelve() {
+        assertEquals("12", VoiceTransactionParser.parse("دفعت اثني عشر ريال").amount)
+        assertEquals("12", VoiceTransactionParser.parse("دفعت اثنا عشر ريال").amount)
+    }
+
     @Test fun parsesFormalAndColloquialHundredsAcrossArabicSpellings() {
         assertEquals("500", VoiceTransactionParser.parse("دفعت خمسمائة ريال").amount)
         assertEquals("300", VoiceTransactionParser.parse("دفعت ثلاثمائة ريال").amount)

@@ -45,6 +45,11 @@ object VoiceTransactionParser {
         "الفين" to 2_000L, "ألفين" to 2_000L, "مليون" to 1_000_000L, "مليونين" to 2_000_000L
     )
 
+    // Keep description cleanup synchronized with the supported amount vocabulary.
+    private val spokenNumberPattern = Regex(
+        """(?<![\p{L}\p{N}])(?:${numberWords.keys.sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }})(?![\p{L}\p{N}])"""
+    )
+
     fun parse(raw: String): ParsedTransaction {
         val normalized = normalizeDigits(raw)
             .replace('٫', '.')
@@ -89,7 +94,7 @@ object VoiceTransactionParser {
 
         val description = normalized
             .replace(digitAmount, " ")
-            .replace(Regex("""\b(صفر|واحد|واحدة|واحده|اثنين|اثنان|ثنين|ثلاثة|ثلاث|اربعة|أربعة|اربع|خمسة|خمس|ستة|ست|سبعة|سبع|ثمانية|ثمان|تسعة|تسع|عشرة|عشر|عشرين|ثلاثين|اربعين|أربعين|خمسين|ستين|سبعين|ثمانين|تسعين|مئة|مائة|مائه|مئه|ميه|مية|ثلاثمية|ثلاثميه|ثلاثمئة|ثلاثمائة|اربعمية|أربعمية|اربعمئة|أربعمئة|اربعمائة|أربعمائة|خمسمية|خمسمئة|خمسمائة|ستمية|ستمئة|ستمائة|سبعمية|سبعمئة|سبعمائة|ثمانمية|ثمانمئة|ثمانمائة|تسعمية|تسعمئة|تسعمائة|الف|ألف|آلاف|الفين|ألفين|مليون|مليونين)\b"""), " ")
+            .replace(spokenNumberPattern, " "))
             .replace(Regex("""(ريال|ريالات|ر\.ي|صرف|صرفت|دفعت|اشتريت|شريت|بعت|جاني|جاءني|خسرت|ربحت|استلمت|قبضت|سجل|سجّل)"""), " ")
             .replace(Regex("""\s+"""), " ")
             .trim()
@@ -184,8 +189,18 @@ object VoiceTransactionParser {
         var total = java.math.BigInteger.ZERO
         var group = java.math.BigInteger.ZERO
         var found = false
-        for (token in tokens) {
-            val value = numberWords[token] ?: numberWords[token.removePrefix("و")] ?: continue
+        var index = 0
+        while (index < tokens.size) {
+            val token = tokens[index].removePrefix("و")
+            val value = when {
+                (token == "اثني" || token == "اثنا") && tokens.getOrNull(index + 1) == "عشر" -> {
+                    index++
+                    12L
+                }
+                else -> numberWords[token]
+            }
+            index++
+            if (value == null) continue
             found = true
             when (value) {
                 1_000_000L, 1_000L -> {
