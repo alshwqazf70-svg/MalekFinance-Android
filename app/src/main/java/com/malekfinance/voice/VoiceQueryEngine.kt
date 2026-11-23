@@ -18,8 +18,8 @@ object VoiceQueryEngine {
         walletId: Long,
         currencyCode: String,
         period: String?,
-        category: String? = null,
-        nowMillis: Long = System.currentTimeMillis()
+        nowMillis: Long = System.currentTimeMillis(),
+        category: String? = null
     ): VoiceQueryResult {
         require(kind == "INCOME" || kind == "EXPENSE")
         val start = periodStart(period ?: "MONTH", nowMillis)
