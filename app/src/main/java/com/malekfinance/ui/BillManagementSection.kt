@@ -154,10 +154,17 @@ internal fun BillManagementSection(
                 ) {
                     notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                 } else {
-                    val intent = android.content.Intent(
-                        android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS
-                    ).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    val appDetails = android.content.Intent(
+                        android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                        android.net.Uri.parse("package:${context.packageName}")
+                    )
+                    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS
+                        ).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    } else appDetails
                     runCatching { context.startActivity(intent) }
+                        .onFailure { runCatching { context.startActivity(appDetails) } }
                 }
             }) {
                 Text("فتح إعدادات إشعارات التطبيق", color = FinanceColors.PrimaryLight)
