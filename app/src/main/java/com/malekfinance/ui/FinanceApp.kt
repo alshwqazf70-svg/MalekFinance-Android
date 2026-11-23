@@ -1073,20 +1073,13 @@ private fun MoneyLandingScreen(
                                     if (isTransferring) return@launch
                                     isTransferring = true
                                     try {
-                                        db.withTransaction {
-                                            val latestTransactions = db.dao().forWallet(fromWallet.id)
-                                            val latestTransfers = db.transferDao().forWallet(fromWallet.id)
-                                            if (!com.malekfinance.FinanceLedger.hasSufficientFunds(fromWallet, amountMinor ?: 0L, latestTransactions, latestTransfers)) {
-                                                throw com.malekfinance.InsufficientWalletFundsException()
-                                            }
-                                            db.transferDao().insert(FinanceTransfer(
-                                                fromWalletId = fromWallet.id,
-                                                toWalletId = toWallet.id,
-                                                amountMinor = amountMinor ?: 0L,
-                                                currencyCode = fromWallet.currencyCode,
-                                                note = transferNote.trim()
-                                            ))
-                                        }
+                                        com.malekfinance.FinanceTransferOperations.transfer(
+                                            db = db,
+                                            fromWalletId = fromWallet.id,
+                                            toWalletId = toWallet.id,
+                                            amountMinor = amountMinor,
+                                            note = transferNote
+                                        )
                                         transferAmount = ""
                                         status = "تم تسجيل التحويل الداخلي وتحديث رصيدي المحفظتين."
                                     } catch (_: com.malekfinance.InsufficientWalletFundsException) {
