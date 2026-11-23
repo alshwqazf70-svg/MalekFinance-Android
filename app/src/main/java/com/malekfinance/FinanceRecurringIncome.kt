@@ -71,6 +71,22 @@ interface FinanceRecurringIncomeEntryDao {
 }
 
 object FinanceRecurringIncomePolicy {
+    fun firstDueAt(now: Long, frequency: String, anchorDay: Int): Long? {
+        val calendar = Calendar.getInstance().apply { timeInMillis = now }
+        when (frequency) {
+            "WEEKLY" -> return now
+            "MONTHLY" -> {
+                calendar.set(Calendar.DAY_OF_MONTH, 1)
+                val currentDay = Calendar.getInstance().apply { timeInMillis = now }.get(Calendar.DAY_OF_MONTH)
+                if (currentDay > anchorDay) calendar.add(Calendar.MONTH, 1)
+                val lastDay = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+                calendar.set(Calendar.DAY_OF_MONTH, anchorDay.coerceIn(1, lastDay))
+                return calendar.timeInMillis
+            }
+            else -> return null
+        }
+    }
+
     fun occurrenceKey(dueAt: Long): String {
         val calendar = Calendar.getInstance().apply { timeInMillis = dueAt }
         return "%04d-%02d-%02d".format(
