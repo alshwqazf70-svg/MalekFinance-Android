@@ -133,10 +133,14 @@ object VoiceTransactionParser {
     }
 
     private fun detectPeriod(text: String): String? = when {
+        containsAny(text, listOf("أول أمس", "اول امس")) -> "DAY_BEFORE_YESTERDAY"
         containsAny(text, listOf("اليوم", "هذا اليوم")) -> "TODAY"
         containsAny(text, listOf("امس", "أمس")) -> "YESTERDAY"
+        containsAny(text, listOf("الأسبوع الماضي", "الاسبوع الماضي")) -> "LAST_WEEK"
         containsAny(text, listOf("هذا الاسبوع", "هذا الأسبوع", "الاسبوع الحالي", "الأسبوع الحالي")) -> "WEEK"
+        containsAny(text, listOf("الشهر الماضي")) -> "LAST_MONTH"
         containsAny(text, listOf("هذا الشهر", "الشهر الحالي")) -> "MONTH"
+        containsAny(text, listOf("السنة الماضية", "العام الماضي")) -> "LAST_YEAR"
         containsAny(text, listOf("هذه السنة", "هذا العام", "السنة الحالية")) -> "YEAR"
         else -> null
     }
