@@ -907,7 +907,7 @@ private fun MoneyLandingScreen(
                                 val limitMinor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
                                 when {
                                     limitMinor == null || limitMinor <= 0L -> status = "أدخل حداً صحيحاً للميزانية أكبر من صفر."
-                                    budgets.any { it.categoryName == selectedCategory && it.currencyCode == budgetCurrency && it.periodStartMillis == budgetMonth.startMillis } -> status = "توجد ميزانية لهذا التصنيف والعملة في الشهر الحالي."
+                                    budgets.any { it.categoryName == selectedCategory && it.currencyCode == budgetCurrency && it.periodKey == budgetMonth.periodKey } -> status = "توجد ميزانية لهذا التصنيف والعملة في الشهر الحالي."
                                     else -> scope.launch {
                                         if (isCreatingBudget) return@launch
                                         isCreatingBudget = true
@@ -915,7 +915,7 @@ private fun MoneyLandingScreen(
                                             db.budgetDao().insert(com.malekfinance.FinanceBudget(
                                                 categoryName = selectedCategory,
                                                 currencyCode = budgetCurrency,
-                                                periodStartMillis = budgetMonth.startMillis,
+                                                periodKey = budgetMonth.periodKey,
                                                 limitMinor = limitMinor
                                             ))
                                             budgetCategoryName = selectedCategory
