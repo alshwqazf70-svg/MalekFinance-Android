@@ -256,6 +256,44 @@ class FinanceRoomIntegrityTest {
         assertEquals(0, rowCount("transfers"))
     }
 
+
+    @Test
+    fun debtCreationIsAtomicAndRefusesUnfundedLending() = runBlocking {
+        val walletId = db.walletDao().insert(
+            FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 1_000)
+        )
+
+        expectFailure {
+            FinanceDebtOperations.create(
+                db = db,
+                personName = "أحمد",
+                description = "سلفة",
+                debtType = "OWED_TO_ME",
+                principalMinor = 1_001,
+                walletId = walletId,
+                recordCashMovement = true
+            )
+        }
+        assertEquals(0, rowCount("debts"))
+        assertEquals(0, rowCount("transactions"))
+
+        val debtId = FinanceDebtOperations.create(
+            db = db,
+            personName = "خالد",
+            description = "قرض",
+            debtType = "OWED_BY_ME",
+            principalMinor = 500,
+            walletId = walletId,
+            recordCashMovement = true
+        )
+        val debt = db.debtDao().findById(debtId)!!
+        val linked = db.dao().forWallet(walletId).single()
+        assertEquals("OWED_BY_ME", debt.debtType)
+        assertEquals(debtId, linked.debtId)
+        assertEquals("DEBT_RECEIVED", linked.kind)
+        assertEquals(500L, linked.amountMinor)
+    }
+
     private suspend fun expectFailure(block: suspend () -> Unit) {
         var failed = false
         try {
@@ -267,7 +305,7 @@ class FinanceRoomIntegrityTest {
     }
 
     private fun rowCount(table: String): Int {
-        require(table in setOf("transactions", "transfers"))
+        require(table in setOf("transactions", "transfers", "debts"))
         return db.openHelper.writableDatabase.query("SELECT COUNT(*) FROM $table").use { cursor ->
             check(cursor.moveToFirst())
             cursor.getInt(0)
