@@ -70,6 +70,9 @@ class FinanceRoomIntegrityTest {
 
     @Test
     fun failedMultiStepRoomTransactionRollsBackEveryInsertedRow() = runBlocking {
+        val walletId = db.walletDao().insert(
+            FinanceWallet(name = "محفظة اختبار", currencyCode = "YER")
+        )
         expectFailure {
             db.withTransaction {
                 db.dao().insert(
@@ -77,7 +80,7 @@ class FinanceRoomIntegrityTest {
                         amountMinor = 250,
                         kind = "EXPENSE",
                         note = "must roll back",
-                        walletId = 1,
+                        walletId = walletId,
                         currencyCode = "YER"
                     )
                 )
@@ -292,6 +295,32 @@ class FinanceRoomIntegrityTest {
         assertEquals(debtId, linked.debtId)
         assertEquals("DEBT_RECEIVED", linked.kind)
         assertEquals(500L, linked.amountMinor)
+    }
+
+    @Test
+    fun debtCreationRollsBackDebtWhenLinkedCashMovementInsertFails() = runBlocking {
+        val walletId = db.walletDao().insert(
+            FinanceWallet(name = "النقد", currencyCode = "YER", openingBalanceMinor = 10_000)
+        )
+        db.openHelper.writableDatabase.execSQL(
+            "CREATE TRIGGER reject_debt_cash_movement BEFORE INSERT ON transactions " +
+                "WHEN NEW.kind = 'DEBT_RECEIVED' BEGIN SELECT RAISE(ABORT, 'forced ledger failure'); END"
+        )
+
+        expectFailure {
+            FinanceDebtOperations.create(
+                db = db,
+                personName = "أحمد",
+                description = "اختبار التراجع الذري",
+                debtType = "OWED_BY_ME",
+                principalMinor = 500,
+                walletId = walletId,
+                recordCashMovement = true
+            )
+        }
+
+        assertEquals(0, rowCount("debts"))
+        assertEquals(0, rowCount("transactions"))
     }
 
     private suspend fun expectFailure(block: suspend () -> Unit) {
