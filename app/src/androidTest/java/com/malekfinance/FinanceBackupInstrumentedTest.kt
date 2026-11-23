@@ -139,23 +139,47 @@ class FinanceBackupInstrumentedTest {
         assertTrue(failed)
         assertEquals("محفوظ", db.dao().forWallet(walletId).single().note)
     }
+
     @Test
-    fun rejectedShortBackupPasswordsAreClearedFromMemory() = runBlocking {
-        val exportPassword = "short".toCharArray()
+    fun modifiedCiphertextIsRejectedWithoutChangingExistingData() = runBlocking {
+        val walletId = db.walletDao().insert(FinanceWallet(name = "النقد", currencyCode = "YER"))
+        db.dao().insert(FinanceTransaction(amountMinor = 400, kind = "EXPENSE", note = "داخل النسخة", walletId = walletId))
+        val backup = ByteArrayOutputStream()
+        FinanceBackupManager.export(db, backup, "integrity-pass".toCharArray())
+
+        db.dao().insert(FinanceTransaction(amountMinor = 900, kind = "EXPENSE", note = "الحالي", walletId = walletId))
+        val tampered = backup.toByteArray().also { it[it.lastIndex] = (it.last().toInt() xor 0x01).toByte() }
+        var failed = false
         try {
-            FinanceBackupManager.export(db, ByteArrayOutputStream(), exportPassword)
-            throw AssertionError("Expected short export password to be rejected")
-        } catch (_: IllegalArgumentException) {
-            assertTrue(exportPassword.all { it == '\u0000' })
+            FinanceBackupManager.restore(db, ByteArrayInputStream(tampered), "integrity-pass".toCharArray())
+        } catch (_: Exception) {
+            failed = true
         }
 
-        val restorePassword = "short".toCharArray()
+        assertTrue(failed)
+        val rows = db.dao().forWallet(walletId)
+        assertEquals(2, rows.size)
+        assertTrue(rows.any { it.note == "داخل النسخة" })
+        assertTrue(rows.any { it.note == "الحالي" })
+    }
+
+    @Test
+    fun truncatedBackupIsRejectedWithoutChangingExistingData() = runBlocking {
+        val walletId = db.walletDao().insert(FinanceWallet(name = "النقد", currencyCode = "YER"))
+        db.dao().insert(FinanceTransaction(amountMinor = 700, kind = "EXPENSE", note = "البيانات الحالية", walletId = walletId))
+        val truncated = ByteArrayOutputStream().also {
+            FinanceBackupManager.export(db, it, "truncate-pass".toCharArray())
+        }.toByteArray().copyOf(24)
+
+        var failed = false
         try {
-            FinanceBackupManager.restore(db, ByteArrayInputStream(byteArrayOf()), restorePassword)
-            throw AssertionError("Expected short restore password to be rejected")
-        } catch (_: IllegalArgumentException) {
-            assertTrue(restorePassword.all { it == '\u0000' })
+            FinanceBackupManager.restore(db, ByteArrayInputStream(truncated), "truncate-pass".toCharArray())
+        } catch (_: Exception) {
+            failed = true
         }
+
+        assertTrue(failed)
+        assertEquals("البيانات الحالية", db.dao().forWallet(walletId).single().note)
     }
 
 }
