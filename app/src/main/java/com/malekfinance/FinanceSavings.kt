@@ -60,6 +60,7 @@ interface FinanceSavingsEntryDao {
 object FinanceSavingsPolicy {
     fun balance(entries: List<FinanceSavingsEntry>): BigInteger =
         entries.fold(BigInteger.ZERO) { total, entry ->
+            if (entry.amountMinor <= 0L) return@fold total
             val amount = BigInteger.valueOf(entry.amountMinor)
             when (entry.entryType) {
                 "CONTRIBUTION" -> total.add(amount)
