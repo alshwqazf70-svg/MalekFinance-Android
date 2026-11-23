@@ -48,7 +48,8 @@ The existing source has been described as containing:
 - Currency-isolated YER dashboard/report totals; balances are not combined across currencies.
 - Manual transaction entry and initial voice-assisted entry.
 - Initial Arabic/Persian numeral normalization and keyword-based category suggestions.
-- Transaction categories, editing, deletion, search and filters.\n- Custom income/expense/shared categories with archive and restore; the Room v3→v4 migration and new UI still require CI/device verification.
+- Transaction categories, editing, deletion, search and filters.
+- Custom income/expense/shared categories with archive and restore; the Room v3→v4 migration and new UI still require CI/device verification.
 
 These items still require source review and successful CI/device verification before being treated as release-ready.
 
