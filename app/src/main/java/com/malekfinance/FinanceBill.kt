@@ -143,5 +143,8 @@ object FinanceBillPolicy {
 
     fun reminderAt(dueAt: Long, now: Long): Long = (dueAt - 86_400_000L).coerceAtLeast(now)
 
+    fun shouldScheduleReminder(bill: FinanceBill): Boolean =
+        bill.isActive && bill.lastReminderOccurrenceKey != occurrenceKey(bill.nextDueAt)
+
     fun isDue(nextDueAt: Long, now: Long): Boolean = now >= nextDueAt
 }
