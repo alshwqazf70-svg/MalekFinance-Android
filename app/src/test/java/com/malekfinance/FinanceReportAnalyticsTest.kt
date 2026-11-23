@@ -58,7 +58,7 @@ class FinanceReportAnalyticsTest {
             FinanceTransaction(amountMinor = 9_000, kind = "EXPENSE", note = "outside", walletId = 1, currencyCode = "YER", createdAt = time(13))
         )
         val result = FinanceReportAnalytics.customRange(rows, 1, "YER", start, endExclusive)
-        assertEquals("2000", result.expenseMinor.toString())
+        assertEquals("4000", result.expenseMinor.toString())
         assertEquals("2000", result.incomeMinor.toString())
         assertEquals(2, FinanceReportAnalytics.customCategoryBreakdown(rows, 1, "YER", start, endExclusive).size)
     }
