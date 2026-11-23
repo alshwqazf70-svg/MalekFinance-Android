@@ -184,4 +184,11 @@ class VoiceTransactionParserTest {
         )
     }
 
+    @Test fun recognizesBillPaymentAsReviewableDraft() {
+        assertEquals(
+            VoiceCommandType.BILL_PAYMENT_DRAFT,
+            VoiceTransactionParser.parse("ادفع فاتورة الكهرباء").command
+        )
+    }
+
 }
