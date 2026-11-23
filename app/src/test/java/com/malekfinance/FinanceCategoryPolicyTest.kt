@@ -15,6 +15,13 @@ class FinanceCategoryPolicyTest {
     }
 
     @Test
+    fun categoryNamesAreUniqueRegardlessOfKindAndCase() {
+        assertTrue(FinanceCategoryPolicy.nameAlreadyExists(listOf("عام", "طعام"), " طعام "))
+        assertTrue(FinanceCategoryPolicy.nameAlreadyExists(listOf("عام", "طعام"), "عَام"))
+        assertFalse(FinanceCategoryPolicy.nameAlreadyExists(listOf("عام", "طعام"), "مواصلات"))
+    }
+
+    @Test
     fun categoryKindMustMatchTransactionUnlessCategoryIsShared() {
         assertTrue(FinanceCategoryPolicy.isCompatible("EXPENSE", "EXPENSE"))
         assertTrue(FinanceCategoryPolicy.isCompatible("INCOME", "INCOME"))
