@@ -106,7 +106,7 @@ internal fun RecurringIncomeSection(
             }
             if (frequency == "MONTHLY") {
                 OutlinedTextField(
-                    value = monthlyDay, onValueChange = { monthlyDay = it.filter(Char::isDigit) },
+                    value = monthlyDay, onValueChange = { monthlyDay = it.filter { ch -> ch.isDigit() } },
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text("يوم الاستحقاق من الشهر (1 إلى 31)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
