@@ -48,4 +48,35 @@ class FinanceLedgerTest {
         assertFalse(FinanceLedger.hasSufficientFunds(wallet, 0, emptyList(), emptyList()))
         assertFalse(FinanceLedger.hasSufficientFunds(wallet, -1, emptyList(), emptyList()))
     }
+
+    @Test
+    fun invalidSignedTransactionsAndTransfersCannotCreateWalletFunds() {
+        val wallet = FinanceWallet(id = 1, name = "نقدية", currencyCode = "YER", openingBalanceMinor = 1_000)
+        val transactions = listOf(
+            FinanceTransaction(amountMinor = -50_000, kind = "EXPENSE", note = "invalid negative expense", walletId = 1, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = -40_000, kind = "INCOME", note = "invalid negative income", walletId = 1, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = 20_000, kind = "INCOME", note = "wrong wallet", walletId = 2, currencyCode = "YER")
+        )
+        val transfers = listOf(
+            FinanceTransfer(fromWalletId = 1, toWalletId = 2, amountMinor = -30_000, currencyCode = "YER"),
+            FinanceTransfer(fromWalletId = 1, toWalletId = 1, amountMinor = 50_000, currencyCode = "YER"),
+            FinanceTransfer(fromWalletId = 1, toWalletId = 3, amountMinor = 70_000, currencyCode = "USD"),
+            FinanceTransfer(fromWalletId = 4, toWalletId = 5, amountMinor = 90_000, currencyCode = "YER")
+        )
+
+        assertEquals(BigInteger.valueOf(1_000), FinanceLedger.calculateBalance(wallet, transactions, transfers))
+    }
+
+    @Test
+    fun largeLedgerTotalsDoNotOverflowLong() {
+        val wallet = FinanceWallet(id = 1, name = "نقدية", currencyCode = "YER", openingBalanceMinor = Long.MAX_VALUE)
+        val transactions = listOf(
+            FinanceTransaction(amountMinor = Long.MAX_VALUE, kind = "INCOME", note = "large income", walletId = 1, currencyCode = "YER")
+        )
+
+        assertEquals(
+            BigInteger.valueOf(Long.MAX_VALUE).multiply(BigInteger.valueOf(2)),
+            FinanceLedger.calculateBalance(wallet, transactions, emptyList())
+        )
+    }
 }
