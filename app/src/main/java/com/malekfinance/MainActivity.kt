@@ -40,7 +40,7 @@ import com.malekfinance.ui.FinanceColors
 import java.text.NumberFormat
 import java.util.Locale
 
-@Entity(tableName = "transactions", indices = [Index(value = ["walletId"])])
+@Entity(tableName = "transactions", indices = [Index(value = ["walletId"]), Index(value = ["debtId"])])
 data class FinanceTransaction(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val amountMinor: Long,
@@ -202,6 +202,7 @@ abstract class FinanceDb : RoomDatabase() {
         val MIGRATION_6_7 = object : Migration(6, 7) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE transactions ADD COLUMN debtId INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_transactions_debtId ON transactions(debtId)")
                 db.execSQL(
                     "CREATE TABLE IF NOT EXISTS debts (" +
                         "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, personName TEXT NOT NULL, " +
