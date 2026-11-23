@@ -711,7 +711,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                             "، المتبقي " + java.math.BigDecimal(remaining, 2).toPlainString() + " " + wallet.currencyCode
                                     }
                                 }
-                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT -> ""
+                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
                             .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
