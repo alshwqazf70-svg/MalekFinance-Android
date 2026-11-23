@@ -224,6 +224,17 @@ class VoiceTransactionParserTest {
         assertEquals(null, correction.kind)
     }
 
+    @Test fun parsesFormalAndColloquialHundredsAcrossArabicSpellings() {
+        assertEquals("500", VoiceTransactionParser.parse("دفعت خمسمائة ريال").amount)
+        assertEquals("300", VoiceTransactionParser.parse("دفعت ثلاثمائة ريال").amount)
+        assertEquals("400", VoiceTransactionParser.parse("دفعت أربعمائة ريال").amount)
+        assertEquals("600", VoiceTransactionParser.parse("دفعت ستمائة ريال").amount)
+        assertEquals("700", VoiceTransactionParser.parse("دفعت سبعمائة ريال").amount)
+        assertEquals("800", VoiceTransactionParser.parse("دفعت ثمانمائة ريال").amount)
+        assertEquals("900", VoiceTransactionParser.parse("دفعت تسعمائة ريال").amount)
+        assertEquals("100", VoiceTransactionParser.parse("دفعت مائة ريال").amount)
+    }
+
     @Test fun understandsYemeniColloquialNumbersAndQueries() {
         assertEquals("500", VoiceTransactionParser.parse("صرفت خمسمية ريال").amount)
         assertEquals("300", VoiceTransactionParser.parse("دفعت ثلاثمية ريال").amount)

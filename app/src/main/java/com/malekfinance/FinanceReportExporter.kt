@@ -127,8 +127,11 @@ object FinanceReportExporter {
         java.math.BigDecimal.valueOf(minor, 2).toPlainString()
 
     private fun csvCell(value: String): String {
-        val first = value.firstOrNull()
-        val safe = if (first == '=' || first == '+' || first == '-' || first == '@' || first == '\t' || first == '\r') "'$value" else value
+        // Ignore leading whitespace/control characters when detecting spreadsheet formulas.
+        val firstMeaningful = value.dropWhile { it.isWhitespace() || it == '\uFEFF' }.firstOrNull()
+        val formulaLike = firstMeaningful == '=' || firstMeaningful == '+' ||
+            firstMeaningful == '-' || firstMeaningful == '@'
+        val safe = if (formulaLike) "'$value" else value
         return "\"" + safe.replace("\"", "\"\"") + "\""
     }
 

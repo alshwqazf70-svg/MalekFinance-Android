@@ -37,6 +37,24 @@ class FinanceReportExporterTest {
     }
 
     @Test
+    fun csvEscapesFormulaPrefixesEvenAfterLeadingWhitespace() {
+        val hostileRows = listOf(
+            rows.first().copy(note = "=HYPERLINK(\"https://example.invalid\",\"click\")"),
+            rows.first().copy(note = "  +SUM(1,2)"),
+            rows.first().copy(note = "\t-10+20"),
+            rows.first().copy(note = "\uFEFF@malicious")
+        )
+        val output = ByteArrayOutputStream()
+        FinanceReportExporter.writeCsv(output, wallet, hostileRows)
+        val csv = output.toString(Charsets.UTF_8.name())
+
+        assertTrue(csv.contains("\"'=HYPERLINK(\"\"https://example.invalid\"\",\"\"click\"\")\""))
+        assertTrue(csv.contains("\"'  +SUM(1,2)\""))
+        assertTrue(csv.contains("\"'\t-10+20\""))
+        assertTrue(csv.contains("\"'\uFEFF@malicious\""))
+    }
+
+    @Test
     fun xlsxIsAValidOpenXmlZipWithWorksheetAndArabicCells() {
         val output = ByteArrayOutputStream()
         FinanceReportExporter.writeXlsx(output, wallet, rows)
