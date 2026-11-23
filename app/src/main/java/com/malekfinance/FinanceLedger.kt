@@ -22,7 +22,8 @@ object FinanceLedger {
                 val amount = BigInteger.valueOf(transaction.amountMinor)
                 when (transaction.kind) {
                     "INCOME" -> balance = balance.add(amount)
-                    "EXPENSE" -> balance = balance.subtract(amount)
+                    "EXPENSE", "DEBT_ISSUED" -> balance = balance.subtract(amount)
+                    "DEBT_RECEIVED" -> balance = balance.add(amount)
                 }
             }
 
