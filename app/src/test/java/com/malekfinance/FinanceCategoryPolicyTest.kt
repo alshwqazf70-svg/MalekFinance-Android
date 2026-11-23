@@ -16,9 +16,9 @@ class FinanceCategoryPolicyTest {
 
     @Test
     fun categoryNamesAreUniqueRegardlessOfKindAndCase() {
-        assertTrue(FinanceCategoryPolicy.nameAlreadyExists(listOf("عام", "طعام"), " طعام "))
-        assertTrue(FinanceCategoryPolicy.nameAlreadyExists(listOf("عام", "طعام"), "عَام"))
-        assertFalse(FinanceCategoryPolicy.nameAlreadyExists(listOf("عام", "طعام"), "مواصلات"))
+        assertTrue(FinanceCategoryPolicy.nameAlreadyExists(listOf("General", "Food"), " food "))
+        assertTrue(FinanceCategoryPolicy.nameAlreadyExists(listOf("General", "Food"), "GENERAL"))
+        assertFalse(FinanceCategoryPolicy.nameAlreadyExists(listOf("General", "Food"), "Transport"))
     }
 
     @Test
