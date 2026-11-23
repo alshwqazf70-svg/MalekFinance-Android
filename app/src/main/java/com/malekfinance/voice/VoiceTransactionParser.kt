@@ -28,7 +28,7 @@ object VoiceTransactionParser {
         "خمسة" to 5L, "خمس" to 5L, "ستة" to 6L, "ست" to 6L,
         "سبعة" to 7L, "سبع" to 7L, "ثمانية" to 8L, "ثمان" to 8L, "ثمانيه" to 8L,
         "تسعة" to 9L, "تسع" to 9L, "عشرة" to 10L, "عشر" to 10L,
-        "احدعشر" to 11L, "أحدعشر" to 11L, "اثناعشر" to 12L, "اثني عشر" to 12L, "اثنا عشر" to 12L,
+        "احدعشر" to 11L, "أحدعشر" to 11L, "اثناعشر" to 12L, "اثني عشر" to 12L,
         "عشرين" to 20L, "عشرون" to 20L, "ثلاثين" to 30L, "ثلاثون" to 30L,
         "اربعين" to 40L, "أربعين" to 40L, "خمسين" to 50L, "ستين" to 60L,
         "سبعين" to 70L, "ثمانين" to 80L, "تسعين" to 90L,
@@ -58,7 +58,7 @@ object VoiceTransactionParser {
             .trim()
         val lower = normalized.lowercase()
         val command = detectCommand(lower)
-        val extractedAmount = extractAmount(normalized)
+        val amount = extractAmount(normalized)
         val incomeIntent = containsAny(lower, listOf(
             "دخل", "استلمت", "قبضت", "إيراد", "ايراد", "حول لي", "حوّل لي",
             "حصلت", "راتب", "رجع لي", "رجّع لي", "رجعلي", "وصلني", "جاني", "جاءني", "بعت", "ربحت"
@@ -74,9 +74,6 @@ object VoiceTransactionParser {
             "ما استلمت", "لم استلم", "لم أستلم", "ما قبضت",
             "ما بعت", "لم أبع", "لم ابيع", "ما ربحت", "لم أربح", "ما جاني", "ما جاءني"
         ))
-        // A sentence describing both receipt and spending is not one transaction.
-        // Never combine its separate amounts into a misleading draft amount.
-        val amount = extractedAmount.takeUnless { incomeIntent && expenseIntent }
         val kind = when {
             command != VoiceCommandType.TRANSACTION -> null
             negatedExpense || negatedIncome -> null

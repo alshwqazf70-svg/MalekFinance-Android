@@ -24,7 +24,36 @@ import com.malekfinance.MainActivity
 import java.util.concurrent.TimeUnit
 
 object BillReminderScheduler {
+    private const val CHANNEL_ID = "malek_finance_bill_reminders"
+
     private fun workName(billId: Long) = "malek-finance-bill-reminder-$billId"
+
+    fun canPostNotifications(context: Context): Boolean {
+        if (Build.VERSION.SDK_INT >= 33 &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) return false
+        val compat = NotificationManagerCompat.from(context)
+        if (!compat.areNotificationsEnabled()) return false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            ensureNotificationChannel(context)
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (manager.getNotificationChannel(CHANNEL_ID)?.importance == NotificationManager.IMPORTANCE_NONE) return false
+        }
+        return true
+    }
+
+    fun ensureNotificationChannel(context: Context) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.createNotificationChannel(
+                NotificationChannel(
+                    CHANNEL_ID,
+                    "تذكيرات الفواتير",
+                    NotificationManager.IMPORTANCE_DEFAULT
+                ).apply { description = "تنبيهات مواعيد الفواتير في MK Finance — إدارة أموالك" }
+            )
+        }
+    }
 
     fun schedule(context: Context, billId: Long, dueAt: Long) {
         val now = System.currentTimeMillis()
@@ -75,23 +104,8 @@ class BillReminderWorker(
                 latestBill.lastReminderOccurrenceKey == occurrenceKey
             ) return Result.success()
 
-            if (Build.VERSION.SDK_INT >= 33 &&
-                ContextCompat.checkSelfPermission(
-                    applicationContext,
-                    Manifest.permission.POST_NOTIFICATIONS
-                ) != PackageManager.PERMISSION_GRANTED
-            ) return Result.success()
-
-            val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                manager.createNotificationChannel(
-                    NotificationChannel(
-                        CHANNEL_ID,
-                        "تذكيرات الفواتير",
-                        NotificationManager.IMPORTANCE_DEFAULT
-                    ).apply { description = "تنبيهات مواعيد الفواتير في MK Finance — إدارة أموالك" }
-                )
-            }
+            BillReminderScheduler.ensureNotificationChannel(applicationContext)
+            if (!BillReminderScheduler.canPostNotifications(applicationContext)) return Result.success()
 
             val openApp = PendingIntent.getActivity(
                 applicationContext,
@@ -119,9 +133,5 @@ class BillReminderWorker(
         } finally {
             db.close()
         }
-    }
-
-    companion object {
-        private const val CHANNEL_ID = "malek_finance_bill_reminders"
     }
 }

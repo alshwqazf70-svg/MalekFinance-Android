@@ -72,14 +72,11 @@ internal fun BillManagementSection(
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    var hasNotificationPermission by remember {
-        mutableStateOf(
-            Build.VERSION.SDK_INT < 33 ||
-                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
-        )
+    var notificationsEnabled by remember {
+        mutableStateOf(BillReminderScheduler.canPostNotifications(context))
     }
-    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        hasNotificationPermission = granted
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        notificationsEnabled = BillReminderScheduler.canPostNotifications(context)
     }
 
     // Permission can be changed from Android Settings while the app is backgrounded.
@@ -87,13 +84,9 @@ internal fun BillManagementSection(
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                val granted = Build.VERSION.SDK_INT < 33 ||
-                    ContextCompat.checkSelfPermission(
-                        context,
-                        Manifest.permission.POST_NOTIFICATIONS
-                    ) == PackageManager.PERMISSION_GRANTED
-                if (hasNotificationPermission != granted) {
-                    hasNotificationPermission = granted
+                val enabled = BillReminderScheduler.canPostNotifications(context)
+                if (notificationsEnabled != enabled) {
+                    notificationsEnabled = enabled
                 }
             }
         }
@@ -117,10 +110,10 @@ internal fun BillManagementSection(
             delay(30_000)
         }
     }
-    LaunchedEffect(bills, hasNotificationPermission) {
+    LaunchedEffect(bills, notificationsEnabled) {
         bills.forEach { bill ->
             runCatching {
-                if (FinanceBillPolicy.shouldScheduleReminder(bill) && hasNotificationPermission) {
+                if (FinanceBillPolicy.shouldScheduleReminder(bill) && notificationsEnabled) {
                     BillReminderScheduler.schedule(context, bill.id, bill.nextDueAt)
                 } else {
                     BillReminderScheduler.cancel(context, bill.id)
@@ -149,14 +142,25 @@ internal fun BillManagementSection(
             color = FinanceColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall
         )
-        if (Build.VERSION.SDK_INT >= 33 && !hasNotificationPermission) {
+        if (!notificationsEnabled) {
             Text(
-                "إذن الإشعارات غير مفعّل؛ ستبقى مواعيد الفواتير ظاهرة هنا، لكن لن تصلك تنبيهات خارج التطبيق.",
+                "إشعارات الفواتير غير مفعّلة من أذونات التطبيق أو إعدادات قناة التذكير؛ ستبقى المواعيد ظاهرة هنا.",
                 color = FinanceColors.TextSecondary,
                 style = MaterialTheme.typography.bodySmall
             )
-            TextButton(onClick = { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }) {
-                Text("تفعيل إشعارات الفواتير", color = FinanceColors.PrimaryLight)
+            TextButton(onClick = {
+                if (Build.VERSION.SDK_INT >= 33 &&
+                    ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                ) {
+                    notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+                } else {
+                    val intent = android.content.Intent(
+                        android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS
+                    ).putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    runCatching { context.startActivity(intent) }
+                }
+            }) {
+                Text("فتح إعدادات إشعارات التطبيق", color = FinanceColors.PrimaryLight)
             }
         }
         if (wallets.isEmpty() || expenseCategories.isEmpty()) {
@@ -228,7 +232,9 @@ internal fun BillManagementSection(
                         selectedWallet == null -> status = "اختر محفظة الدفع."
                         expenseCategories.none { it.name == categoryName } -> status = "اختر تصنيف مصروف نشطاً."
                         else -> {
-                            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                            if (!notificationsEnabled && Build.VERSION.SDK_INT >= 33 &&
+                                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+                            ) {
                                 notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
                             scope.launch {
@@ -251,7 +257,7 @@ internal fun BillManagementSection(
                                 )
                                 title = ""
                                 amount = ""
-                                status = if (hasNotificationPermission) {
+                                status = if (notificationsEnabled) {
                                     "تمت إضافة الفاتورة. موعدها القادم: " + FinanceBillPolicy.formatLocalDate(dueAt) + "، وسيُجدول تذكيرها."
                                 } else {
                                     "تمت إضافة الفاتورة. فعّل إذن الإشعارات لتلقي تذكير قبل الاستحقاق؛ الموعد سيظل ظاهراً داخل التطبيق."
