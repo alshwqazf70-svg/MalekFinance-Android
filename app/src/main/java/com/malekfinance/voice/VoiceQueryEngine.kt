@@ -26,9 +26,10 @@ object VoiceQueryEngine {
         val end = Calendar.getInstance().apply {
             timeInMillis = start.timeInMillis
             when (period ?: "MONTH") {
-                "TODAY", "YESTERDAY" -> add(Calendar.DAY_OF_YEAR, 1)
-                "WEEK" -> add(Calendar.WEEK_OF_YEAR, 1)
-                "YEAR" -> add(Calendar.YEAR, 1)
+                "TODAY", "YESTERDAY", "DAY_BEFORE_YESTERDAY" -> add(Calendar.DAY_OF_YEAR, 1)
+                "WEEK", "LAST_WEEK" -> add(Calendar.WEEK_OF_YEAR, 1)
+                "MONTH", "LAST_MONTH" -> add(Calendar.MONTH, 1)
+                "YEAR", "LAST_YEAR" -> add(Calendar.YEAR, 1)
                 else -> add(Calendar.MONTH, 1)
             }
         }.timeInMillis
@@ -57,12 +58,19 @@ object VoiceQueryEngine {
             when (period) {
                 "TODAY" -> Unit
                 "YESTERDAY" -> add(Calendar.DAY_OF_YEAR, -1)
-                "WEEK" -> {
+                "DAY_BEFORE_YESTERDAY" -> add(Calendar.DAY_OF_YEAR, -2)
+                "WEEK", "LAST_WEEK" -> {
                     val daysFromMonday = (get(Calendar.DAY_OF_WEEK) + 5) % 7
                     add(Calendar.DAY_OF_YEAR, -daysFromMonday)
+                    if (period == "LAST_WEEK") add(Calendar.WEEK_OF_YEAR, -1)
                 }
-                "YEAR" -> {
+                "MONTH", "LAST_MONTH" -> {
+                    set(Calendar.DAY_OF_MONTH, 1)
+                    if (period == "LAST_MONTH") add(Calendar.MONTH, -1)
+                }
+                "YEAR", "LAST_YEAR" -> {
                     set(Calendar.DAY_OF_YEAR, 1)
+                    if (period == "LAST_YEAR") add(Calendar.YEAR, -1)
                 }
                 else -> set(Calendar.DAY_OF_MONTH, 1)
             }
