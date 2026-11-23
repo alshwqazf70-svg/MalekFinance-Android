@@ -108,7 +108,7 @@ object VoiceTransactionParser {
     }
 
     private fun extractDebtPersonName(text: String): String? {
-        val match = Regex("""(?:عند|لدى)\\s+([^؟،,]+)""").find(text) ?: return null
+        val match = Regex("""(?:عند|لدى)\s+([^؟،,]+)""").find(text) ?: return null
         return match.groupValues[1].trim().trimEnd('؟', '?', '.', '،', ',').ifBlank { null }
     }
 
