@@ -14,8 +14,8 @@ class FinanceReportAnalyticsTest {
             FinanceTransaction(amountMinor = 10_000, kind = "INCOME", note = "salary", walletId = 1, currencyCode = "YER", createdAt = time(10)),
             FinanceTransaction(amountMinor = 2_500, kind = "EXPENSE", note = "food", walletId = 1, currencyCode = "YER", createdAt = time(11)),
             FinanceTransaction(amountMinor = 99_000, kind = "EXPENSE", note = "other wallet", walletId = 2, currencyCode = "YER", createdAt = time(11)),
-            FinanceTransaction(amountMinor = 88_000, kind = "INCOME", note = "other currency", walletId = 1, currencyCode = "USD", createdAt = time(11))
-            ,FinanceTransaction(amountMinor = 7_000, kind = "EXPENSE", note = "future dated", walletId = 1, currencyCode = "YER", createdAt = time(21))
+            FinanceTransaction(amountMinor = 88_000, kind = "INCOME", note = "other currency", walletId = 1, currencyCode = "USD", createdAt = time(11)),
+            FinanceTransaction(amountMinor = 7_000, kind = "EXPENSE", note = "future dated", walletId = 1, currencyCode = "YER", createdAt = time(21))
         )
         val timeline = FinanceReportAnalytics.timeline(rows, 1, "YER", FinanceReportRange.MONTHLY, time(20))
         val currentMonth = timeline.last()
