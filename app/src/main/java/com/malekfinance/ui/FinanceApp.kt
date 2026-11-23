@@ -645,6 +645,9 @@ private fun DebtManagementSection(
             Button(
                 onClick = {
                     val cleanName = person.trim()
+                    val cleanDescription = description.trim()
+                    val selectedDebtType = debtType
+                    val shouldRecordCashMovement = recordCashMovement
                     val normalized = normalizeFinanceAmount(principal).replace('٫', '.').replace(',', '.').trim()
                     val amountMinor = runCatching { normalized.toBigDecimalOrNull()?.movePointRight(2)?.longValueExact() }.getOrNull()
                     val wallet = wallets.firstOrNull { it.id == walletId }
@@ -659,7 +662,7 @@ private fun DebtManagementSection(
                                 db.withTransaction {
                                     val currentWallet = db.walletDao().findById(wallet.id) ?: error("Wallet not found")
                                     check(currentWallet.currencyCode == wallet.currencyCode)
-                                    if (recordCashMovement && debtType == "OWED_TO_ME") {
+                                    if (shouldRecordCashMovement && selectedDebtType == "OWED_TO_ME") {
                                         val currentTransactions = db.dao().forWallet(currentWallet.id)
                                         val currentTransfers = db.transferDao().forWallet(currentWallet.id)
                                         if (!com.malekfinance.FinanceLedger.hasSufficientFunds(currentWallet, amountMinor, currentTransactions, currentTransfers)) {
@@ -668,18 +671,18 @@ private fun DebtManagementSection(
                                     }
                                     val debtId = db.debtDao().insert(com.malekfinance.FinanceDebt(
                                         personName = cleanName,
-                                        description = description.trim(),
-                                        debtType = debtType,
+                                        description = cleanDescription,
+                                        debtType = selectedDebtType,
                                         principalMinor = amountMinor,
                                         currencyCode = wallet.currencyCode,
                                         walletId = wallet.id,
-                                        cashMovementRecorded = recordCashMovement
+                                        cashMovementRecorded = shouldRecordCashMovement
                                     ))
                                     if (recordCashMovement) db.dao().insert(FinanceTransaction(
                                         amountMinor = amountMinor,
-                                        kind = if (debtType == "OWED_BY_ME") "DEBT_RECEIVED" else "DEBT_ISSUED",
-                                        note = (if (debtType == "OWED_BY_ME") "استلام قرض من: " else "إقراض سلفة إلى: ") + cleanName,
-                                        category = if (debtType == "OWED_BY_ME") "قرض مستلم" else "سلفة ممنوحة",
+                                        kind = if (selectedDebtType == "OWED_BY_ME") "DEBT_RECEIVED" else "DEBT_ISSUED",
+                                        note = (if (selectedDebtType == "OWED_BY_ME") "استلام قرض من: " else "إقراض سلفة إلى: ") + cleanName,
+                                        category = if (selectedDebtType == "OWED_BY_ME") "قرض مستلم" else "سلفة ممنوحة",
                                         walletId = wallet.id,
                                         currencyCode = wallet.currencyCode,
                                         debtId = debtId
@@ -688,7 +691,7 @@ private fun DebtManagementSection(
                                 person = ""
                                 description = ""
                                 principal = ""
-                                status = if (recordCashMovement) "تم تسجيل أصل الدين وحركة المحفظة معاً." else "تم تسجيل الدين السابق دون تعديل رصيد المحفظة."
+                                status = if (shouldRecordCashMovement) "تم تسجيل أصل الدين وحركة المحفظة معاً." else "تم تسجيل الدين السابق دون تعديل رصيد المحفظة."
                             } catch (_: com.malekfinance.InsufficientWalletFundsException) {
                                 status = "رصيد المحفظة لا يكفي لإقراض هذا المبلغ."
                             } catch (_: Exception) {
