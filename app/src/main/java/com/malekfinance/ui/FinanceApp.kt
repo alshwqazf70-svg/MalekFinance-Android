@@ -835,10 +835,6 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             status = "اختر نوع العملية: دخل أو مصروف."
             return
         }
-        if (description.isBlank()) {
-            status = "أدخل وصفاً للعملية قبل الحفظ."
-            return
-        }
         val resolvedCategory = activeCategories.firstOrNull {
             it.name == category && com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, selectedKind)
         }?.name ?: activeCategories.firstOrNull {
@@ -851,6 +847,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             status = "أنشئ محفظة أولاً من قسم مالي."
             return
         }
+        val resolvedDescription = description.trim().ifBlank {
+            transcript.trim().ifBlank { resolvedCategory }
+        }
         isSavingDraft = true
         scope.launch {
             runCatching {
@@ -858,7 +857,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                     FinanceTransaction(
                         amountMinor = minor,
                         kind = selectedKind,
-                        note = description.trim(),
+                        note = resolvedDescription,
                         category = resolvedCategory,
                         walletId = wallet.id,
                         currencyCode = wallet.currencyCode,
