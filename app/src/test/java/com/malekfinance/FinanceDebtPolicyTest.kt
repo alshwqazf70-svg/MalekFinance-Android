@@ -110,4 +110,17 @@ class FinanceDebtPolicyTest {
         assertEquals(0, principalMovements.count { it.kind == "INCOME" || it.kind == "EXPENSE" })
     }
 
+    @Test
+    fun invalidNonPositivePaymentsCannotIncreaseOutstandingDebt() {
+        val payments = listOf(
+            FinanceDebtPayment(debtId = 1, transactionId = 1, amountMinor = 300),
+            FinanceDebtPayment(debtId = 1, transactionId = 2, amountMinor = -900),
+            FinanceDebtPayment(debtId = 1, transactionId = 3, amountMinor = 0)
+        )
+        assertEquals(BigInteger.valueOf(300), FinanceDebtPolicy.paidAmount(payments))
+        assertEquals(BigInteger.valueOf(700), FinanceDebtPolicy.outstanding(1_000, payments))
+        assertEquals(BigInteger.ZERO, FinanceDebtPolicy.outstanding(-1, payments))
+        assertFalse(FinanceDebtPolicy.canApplyPayment(1_000, payments, 701))
+    }
+
 }
