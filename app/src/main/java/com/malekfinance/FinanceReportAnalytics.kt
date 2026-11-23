@@ -15,6 +15,45 @@ data class FinanceReportBucket(
 data class FinanceCategoryTotal(val category: String, val amountMinor: BigInteger)
 
 object FinanceReportAnalytics {
+    fun customRange(
+        transactions: List<FinanceTransaction>,
+        walletId: Long,
+        currencyCode: String,
+        startInclusive: Long,
+        endExclusive: Long
+    ): FinanceReportBucket {
+        require(endExclusive > startInclusive)
+        val matching = transactions.filter {
+            it.walletId == walletId && it.currencyCode == currencyCode &&
+                it.createdAt >= startInclusive && it.createdAt < endExclusive
+        }
+        return FinanceReportBucket(
+            label = "مخصص",
+            incomeMinor = matching.filter { it.kind == "INCOME" && it.amountMinor > 0 }
+                .fold(BigInteger.ZERO) { sum, row -> sum.add(BigInteger.valueOf(row.amountMinor)) },
+            expenseMinor = matching.filter { it.kind == "EXPENSE" && it.amountMinor > 0 }
+                .fold(BigInteger.ZERO) { sum, row -> sum.add(BigInteger.valueOf(row.amountMinor)) }
+        )
+    }
+
+    fun customCategoryBreakdown(
+        transactions: List<FinanceTransaction>,
+        walletId: Long,
+        currencyCode: String,
+        startInclusive: Long,
+        endExclusive: Long
+    ): List<FinanceCategoryTotal> {
+        require(endExclusive > startInclusive)
+        return transactions.asSequence()
+            .filter { it.walletId == walletId && it.currencyCode == currencyCode }
+            .filter { it.kind == "EXPENSE" && it.amountMinor > 0 && it.createdAt >= startInclusive && it.createdAt < endExclusive }
+            .groupBy { it.category.ifBlank { "عام" } }
+            .map { (category, rows) ->
+                FinanceCategoryTotal(category, rows.fold(BigInteger.ZERO) { sum, row -> sum.add(BigInteger.valueOf(row.amountMinor)) })
+            }
+            .sortedByDescending { it.amountMinor }
+    }
+
     fun timeline(
         transactions: List<FinanceTransaction>,
         walletId: Long,
