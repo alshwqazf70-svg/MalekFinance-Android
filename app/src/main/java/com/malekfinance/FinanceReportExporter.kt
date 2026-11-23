@@ -87,24 +87,29 @@ object FinanceReportExporter {
         val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 11f; color = android.graphics.Color.BLACK }
         val titlePaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply { textSize = 16f; color = android.graphics.Color.BLACK; isFakeBoldText = true }
         try {
-            lines.chunked(42).forEachIndexed { pageIndex, pageLines ->
-                val page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageIndex + 1).create())
-                var y = 40
-                pageLines.forEachIndexed { index, line ->
-                    val paint = if (pageIndex == 0 && index == 0) titlePaint else textPaint
-                    val layout = StaticLayout.Builder.obtain(line, 0, line.length, paint, 535)
-                        .setAlignment(Layout.Alignment.ALIGN_OPPOSITE)
-                        .setTextDirection(TextDirectionHeuristics.RTL)
-                        .setIncludePad(false)
-                        .build()
-                    page.canvas.save()
-                    page.canvas.translate(30f, y.toFloat())
-                    layout.draw(page.canvas)
-                    page.canvas.restore()
-                    y += layout.height + 8
+            var pageNumber = 1
+            var page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNumber).create())
+            var y = 40
+            lines.forEachIndexed { index, line ->
+                val paint = if (index == 0) titlePaint else textPaint
+                val layout = StaticLayout.Builder.obtain(line, 0, line.length, paint, 535)
+                    .setAlignment(Layout.Alignment.ALIGN_OPPOSITE)
+                    .setTextDirection(TextDirectionHeuristics.RTL)
+                    .setIncludePad(false)
+                    .build()
+                if (y + layout.height > 800 && y > 40) {
+                    document.finishPage(page)
+                    pageNumber += 1
+                    page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNumber).create())
+                    y = 40
                 }
-                document.finishPage(page)
+                page.canvas.save()
+                page.canvas.translate(30f, y.toFloat())
+                layout.draw(page.canvas)
+                page.canvas.restore()
+                y += layout.height + 8
             }
+            document.finishPage(page)
             document.writeTo(output)
         } finally {
             document.close()
