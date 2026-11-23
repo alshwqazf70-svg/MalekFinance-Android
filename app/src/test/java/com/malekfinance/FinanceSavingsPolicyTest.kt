@@ -54,4 +54,17 @@ class FinanceSavingsPolicyTest {
         assertEquals(0, movements.count { it.kind == "INCOME" || it.kind == "EXPENSE" })
         assertEquals(1L, movements.first().savingsGoalId)
     }
+    @Test
+    fun invalidNonPositiveSavingsEntriesCannotCreateOrEraseSavedFunds() {
+        val entries = listOf(
+            FinanceSavingsEntry(goalId = 1, transactionId = 1, entryType = "CONTRIBUTION", amountMinor = 500),
+            FinanceSavingsEntry(goalId = 1, transactionId = 2, entryType = "WITHDRAWAL", amountMinor = 100),
+            FinanceSavingsEntry(goalId = 1, transactionId = 3, entryType = "WITHDRAWAL", amountMinor = -900),
+            FinanceSavingsEntry(goalId = 1, transactionId = 4, entryType = "CONTRIBUTION", amountMinor = 0)
+        )
+        assertEquals(BigInteger.valueOf(400), FinanceSavingsPolicy.balance(entries))
+        assertEquals(true, FinanceSavingsPolicy.canWithdraw(entries, 400))
+        assertEquals(false, FinanceSavingsPolicy.canWithdraw(entries, 401))
+    }
+
 }
