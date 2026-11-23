@@ -127,4 +127,11 @@ class VoiceTransactionParserTest {
         )
     }
 
+    @Test fun recognizesTransferRequestAsDraftNotIncomeOrExpense() {
+        val parsed = VoiceTransactionParser.parse("حوّل ١٠٠ ريال من النقد إلى البنك")
+        assertEquals(VoiceCommandType.TRANSFER_DRAFT, parsed.command)
+        assertEquals("100", parsed.amount)
+        assertEquals(null, parsed.kind)
+    }
+
 }
