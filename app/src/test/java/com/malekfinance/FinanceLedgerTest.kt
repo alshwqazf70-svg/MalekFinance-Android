@@ -79,4 +79,48 @@ class FinanceLedgerTest {
             FinanceLedger.calculateBalance(wallet, transactions, emptyList())
         )
     }
+
+    @Test
+    fun everySupportedTransactionKindChangesWalletBalanceInItsCorrectDirection() {
+        val wallet = FinanceWallet(id = 9, name = "دفتر شامل", currencyCode = "YER", openingBalanceMinor = 10_000)
+        val transactions = listOf(
+            FinanceTransaction(amountMinor = 1_000, kind = "INCOME", note = "income", walletId = 9, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = 2_000, kind = "EXPENSE", note = "expense", walletId = 9, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = 300, kind = "DEBT_ISSUED", note = "loan issued", walletId = 9, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = 400, kind = "DEBT_RECEIVED", note = "loan received", walletId = 9, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = 500, kind = "SAVINGS_CONTRIBUTION", note = "saved", walletId = 9, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = 600, kind = "SAVINGS_WITHDRAWAL", note = "withdrawn", walletId = 9, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = 99_999, kind = "UNKNOWN_KIND", note = "unknown must not affect balance", walletId = 9, currencyCode = "YER")
+        )
+
+        assertEquals(
+            BigInteger.valueOf(9_200),
+            FinanceLedger.calculateBalance(wallet, transactions, emptyList())
+        )
+    }
+
+    @Test
+    fun incomingAndOutgoingTransfersAffectOnlyTheirOwnWallet() {
+        val wallet = FinanceWallet(id = 1, name = "الرئيسية", currencyCode = "YER", openingBalanceMinor = 5_000)
+        val other = FinanceWallet(id = 2, name = "الثانية", currencyCode = "YER", openingBalanceMinor = 7_000)
+        val transfers = listOf(
+            FinanceTransfer(fromWalletId = 2, toWalletId = 1, amountMinor = 1_250, currencyCode = "YER"),
+            FinanceTransfer(fromWalletId = 1, toWalletId = 3, amountMinor = 750, currencyCode = "YER")
+        )
+
+        assertEquals(BigInteger.valueOf(5_500), FinanceLedger.calculateBalance(wallet, emptyList(), transfers))
+        assertEquals(BigInteger.valueOf(5_750), FinanceLedger.calculateBalance(other, emptyList(), transfers))
+    }
+
+    @Test
+    fun unsupportedTransactionKindsAndMismatchedCurrenciesNeverChangeBalance() {
+        val wallet = FinanceWallet(id = 3, name = "ريال", currencyCode = "YER", openingBalanceMinor = 2_000)
+        val transactions = listOf(
+            FinanceTransaction(amountMinor = 500, kind = "TRANSFER", note = "transfers are separate", walletId = 3, currencyCode = "YER"),
+            FinanceTransaction(amountMinor = 700, kind = "INCOME", note = "wrong currency", walletId = 3, currencyCode = "USD")
+        )
+
+        assertEquals(BigInteger.valueOf(2_000), FinanceLedger.calculateBalance(wallet, transactions, emptyList()))
+    }
+
 }
