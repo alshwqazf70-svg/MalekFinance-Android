@@ -113,8 +113,8 @@ interface FinanceTransferDao {
 }
 
 @Database(
-    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class],
-    version = 5,
+    entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class, FinanceBudget::class],
+    version = 6,
     exportSchema = false
 )
 abstract class FinanceDb : RoomDatabase() {
@@ -122,6 +122,7 @@ abstract class FinanceDb : RoomDatabase() {
     abstract fun walletDao(): FinanceWalletDao
     abstract fun transferDao(): FinanceTransferDao
     abstract fun categoryDao(): FinanceCategoryDao
+    abstract fun budgetDao(): FinanceBudgetDao
 
     companion object {
         private const val DEFAULT_WALLET_SQL =
@@ -180,6 +181,21 @@ abstract class FinanceDb : RoomDatabase() {
             }
         }
 
+        val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS budgets (" +
+                        "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "categoryName TEXT NOT NULL, currencyCode TEXT NOT NULL, " +
+                        "periodStartMillis INTEGER NOT NULL, limitMinor INTEGER NOT NULL, createdAt INTEGER NOT NULL)"
+                )
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_budgets_categoryName_currencyCode_periodStartMillis " +
+                        "ON budgets(categoryName, currencyCode, periodStartMillis)"
+                )
+            }
+        }
+
         fun seedDefaultWallet(db: SupportSQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS wallets (" +
@@ -226,7 +242,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         val db = Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
-            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5)
+            .addMigrations(FinanceDb.MIGRATION_1_2, FinanceDb.MIGRATION_2_3, FinanceDb.MIGRATION_3_4, FinanceDb.MIGRATION_4_5, FinanceDb.MIGRATION_5_6)
             .addCallback(object : RoomDatabase.Callback() {
                 override fun onCreate(db: SupportSQLiteDatabase) {
                     super.onCreate(db)
