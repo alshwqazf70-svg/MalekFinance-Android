@@ -343,7 +343,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                if (row.debtId == null && row.savingsGoalId == null && row.recurringIncomeRuleId == null) {
+                                if (row.debtId == null && row.savingsGoalId == null && row.recurringIncomeRuleId == null && row.recurringExpenseRuleId == null) {
                                     Column {
                                         TextButton(onClick = {
                                             editingId = row.id
