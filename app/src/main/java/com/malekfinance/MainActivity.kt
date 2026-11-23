@@ -171,7 +171,16 @@ abstract class FinanceDb : RoomDatabase() {
             }
         }
 
-        val MIGRATION_4_5 = object : Migration(4, 5) {\n            override fun migrate(db: SupportSQLiteDatabase) {\n                // Category names are labels referenced by transactions; merge exact duplicates safely.\n                db.execSQL("DELETE FROM categories WHERE id NOT IN (SELECT MIN(id) FROM categories GROUP BY name COLLATE NOCASE)")\n                db.execSQL("DROP INDEX IF EXISTS index_categories_name_kind")\n                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categories_name ON categories(name)")\n            }\n        }\n\n        fun seedDefaultWallet(db: SupportSQLiteDatabase) {
+        val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Category names are labels referenced by transactions; merge duplicates safely.
+                db.execSQL("DELETE FROM categories WHERE id NOT IN (SELECT MIN(id) FROM categories GROUP BY name COLLATE NOCASE)")
+                db.execSQL("DROP INDEX IF EXISTS index_categories_name_kind")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categories_name ON categories(name)")
+            }
+        }
+
+        fun seedDefaultWallet(db: SupportSQLiteDatabase) {
             db.execSQL(
                 "CREATE TABLE IF NOT EXISTS wallets (" +
                     "id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
@@ -188,7 +197,6 @@ abstract class FinanceDb : RoomDatabase() {
                     "name TEXT NOT NULL, kind TEXT NOT NULL, colorHex TEXT NOT NULL, " +
                     "isActive INTEGER NOT NULL, createdAt INTEGER NOT NULL)"
             )
-            db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_categories_name_kind ON categories(name, kind)")
             val defaults = listOf(
                 Triple("عام", "BOTH", "#A855F7"),
                 Triple("بقالة", "EXPENSE", "#A855F7"),
