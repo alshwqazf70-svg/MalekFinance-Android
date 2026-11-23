@@ -1,6 +1,6 @@
 package com.malekfinance.voice
 
-enum class VoiceCommandType { TRANSACTION, TRANSFER_DRAFT, DEBT_CREATE_DRAFT, CANCEL_DRAFT, BALANCE_QUERY, SPENDING_QUERY, INCOME_QUERY, SUMMARY_QUERY, RECENT_TRANSACTIONS_QUERY, DEBT_OWED_BY_ME_QUERY, DEBT_OWED_TO_ME_QUERY, SAVINGS_BALANCE_QUERY, SAVINGS_CONTRIBUTION_DRAFT, SAVINGS_WITHDRAWAL_DRAFT, UPCOMING_BILLS_QUERY, BUDGET_STATUS_QUERY }
+enum class VoiceCommandType { TRANSACTION, TRANSFER_DRAFT, DEBT_CREATE_DRAFT, CANCEL_DRAFT, BALANCE_QUERY, SPENDING_QUERY, INCOME_QUERY, SUMMARY_QUERY, RECENT_TRANSACTIONS_QUERY, DEBT_OWED_BY_ME_QUERY, DEBT_OWED_TO_ME_QUERY, SAVINGS_BALANCE_QUERY, SAVINGS_CONTRIBUTION_DRAFT, SAVINGS_WITHDRAWAL_DRAFT, UPCOMING_BILLS_QUERY, BILL_PAYMENT_DRAFT, BUDGET_STATUS_QUERY }
 
 data class ParsedTransaction(
     val amount: String?,
@@ -99,6 +99,7 @@ object VoiceTransactionParser {
         containsAny(text, listOf("حوّل", "حول", "تحويل", "انقل")) && containsAny(text, listOf("من")) && containsAny(text, listOf("إلى", "الى")) -> VoiceCommandType.TRANSFER_DRAFT
         containsAny(text, listOf("أعطيت", "اعطيت", "أقرضت", "اقرضت", "سلفت", "استلفت", "اقترضت", "أخذت قرض", "اخذت قرض")) -> VoiceCommandType.DEBT_CREATE_DRAFT
         containsAny(text, listOf("ما الفواتير المستحقة", "ما علي من فواتير", "الفواتير القادمة", "متى الفاتورة القادمة", "ما هي الفواتير")) -> VoiceCommandType.UPCOMING_BILLS_QUERY
+        containsAny(text, listOf("سدد فاتورة", "سدد الفاتورة", "ادفع فاتورة", "ادفع الفاتورة", "دفع فاتورة", "دفع الفاتورة")) -> VoiceCommandType.BILL_PAYMENT_DRAFT
         containsAny(text, listOf("كم ادخرت", "كم ادخاري", "كم وفرت", "رصيد الادخار", "رصيد التوفير")) -> VoiceCommandType.SAVINGS_BALANCE_QUERY
         containsAny(text, listOf("اسحب من الادخار", "اسحب من الادخار", "سحب من الادخار", "سحبت من الادخار")) -> VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT
         containsAny(text, listOf("أضف للادخار", "اضف للادخار", "أضف ادخار", "اضف ادخار", "ساهم في الادخار", "أودع في الادخار", "اودع في الادخار", "ادخرت مبلغ")) -> VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT
