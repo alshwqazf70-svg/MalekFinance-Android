@@ -518,15 +518,16 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                     val allDebts = db.debtDao().observeAll().first()
                                     val allPayments = db.debtPaymentDao().observeAll().first()
                                     val outstanding = allDebts.filter {
-                                        it.walletId == wallet.id && it.currencyCode == wallet.currencyCode && it.debtType == debtType
+                                        it.walletId == wallet.id && it.currencyCode == wallet.currencyCode && it.debtType == debtType &&
+                                            (parsed.debtPersonName == null || it.personName.contains(parsed.debtPersonName, ignoreCase = true))
                                     }.fold(java.math.BigInteger.ZERO) { sum, debt ->
                                         sum.add(com.malekfinance.FinanceDebtPolicy.outstanding(
                                             debt.principalMinor, allPayments.filter { it.debtId == debt.id }
                                         ))
                                     }
                                     val amountText = java.math.BigDecimal(outstanding, 2).toPlainString() + " " + wallet.currencyCode
-                                    if (debtType == "OWED_BY_ME") "المتبقي عليك من الديون في " + wallet.name + ": " + amountText
-                                    else "المبالغ المستحقة لك في " + wallet.name + ": " + amountText
+                                    if (debtType == "OWED_BY_ME") "المتبقي عليك من الديون" + (parsed.debtPersonName?.let { " لـ " + it } ?: "") + " في " + wallet.name + ": " + amountText
+                                    else "المبالغ المستحقة لك" + (parsed.debtPersonName?.let { " لدى " + it } ?: "") + " في " + wallet.name + ": " + amountText
                                 }
                                 VoiceCommandType.SAVINGS_BALANCE_QUERY -> {
                                     val goals = db.savingsGoalDao().observeAll().first()
