@@ -89,7 +89,10 @@ object FinanceBackupManager {
     }
 
     suspend fun restore(db: FinanceDb, input: InputStream, password: CharArray) {
-        require(password.size >= 8) { "Backup password must contain at least 8 characters" }
+        if (password.size < 8) {
+            password.fill('\u0000')
+            throw IllegalArgumentException("Backup password must contain at least 8 characters")
+        }
         val bytes = try {
             input.use { readBounded(it, MAX_BACKUP_BYTES) }
         } catch (failure: Throwable) {
@@ -105,7 +108,7 @@ object FinanceBackupManager {
             try {
                 val encryptedLength = ByteBuffer.wrap(bytes, 36, 4).int
                 require(encryptedLength > 16 && encryptedLength == bytes.size - 40) { "Backup file is incomplete" }
-                val key = try { deriveKey(password, salt) } finally { password.fill('\u0000') }
+                val key = deriveKey(password, salt)
                 val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                 cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, nonce))
                 cipher.updateAAD(magicBytes)
