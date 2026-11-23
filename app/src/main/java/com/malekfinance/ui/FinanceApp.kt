@@ -45,6 +45,7 @@ fun FinanceApp(db: FinanceDb) {
     val transactions by db.dao().observe().collectAsState(initial = emptyList())
     val wallets by db.walletDao().observe().collectAsState(initial = emptyList())
     val transfers by db.transferDao().observe().collectAsState(initial = emptyList())
+    val categories by db.categoryDao().observeAll().collectAsState(initial = emptyList())
     // Never combine different currencies into one misleading total.
     val yerTransactions = transactions.filter { it.currencyCode == "YER" }
     val income = yerTransactions.filter { it.kind == "INCOME" }
@@ -96,10 +97,10 @@ fun FinanceApp(db: FinanceDb) {
         ) { padding ->
             when (section) {
                     FinanceSection.HOME -> HomeDashboard(income, expenses, transactions, Modifier.padding(padding), onVoice = { section = FinanceSection.VOICE }, onTransactions = { section = FinanceSection.TRANSACTIONS })
-                    FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, Modifier.padding(padding))
-                    FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, Modifier.padding(padding))
+                    FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, categories.filter { it.isActive }, Modifier.padding(padding))
+                    FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
-                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, Modifier.padding(padding))
+                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, Modifier.padding(padding))
             }
         }
         }
@@ -191,7 +192,7 @@ private fun HomeDashboard(
 }
 
 @Composable
-private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>, modifier: Modifier = Modifier) {
+private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>, activeCategories: List<com.malekfinance.FinanceCategory>, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
     var search by remember { mutableStateOf("") }
     var kindFilter by remember { mutableStateOf("ALL") }
@@ -281,13 +282,16 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                 label = { Text("الوصف") },
                                 singleLine = true
                             )
-                            OutlinedTextField(
-                                value = editCategory,
-                                onValueChange = { editCategory = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text("التصنيف") },
-                                singleLine = true
-                            )
+                            Text("التصنيف", color = FinanceColors.TextSecondary)
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                items(activeCategories, key = { it.id }) { item ->
+                                    FilterChip(
+                                        selected = editCategory == item.name,
+                                        onClick = { editCategory = item.name },
+                                        label = { Text(item.name) }
+                                    )
+                                }
+                            }
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 Button(onClick = {
                                     val normalized = normalizeFinanceAmount(editAmount).replace('٫', '.').replace(',', '.').trim()
@@ -355,7 +359,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
 }
 
 @Composable
-private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, modifier: Modifier = Modifier) {
+private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, activeCategories: List<com.malekfinance.FinanceCategory>, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var transcript by remember { mutableStateOf("") }
@@ -527,16 +531,13 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, modi
                         singleLine = true
                     )
                     Text("التصنيف", color = FinanceColors.TextSecondary)
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("عام", "بقالة", "مطاعم", "مواصلات").forEach { value ->
-                                FilterChip(selected = category == value, onClick = { category = value }, label = { Text(value) })
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf("بنزين", "فواتير", "راتب").forEach { value ->
-                                FilterChip(selected = category == value, onClick = { category = value }, label = { Text(value) })
-                            }
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        items(activeCategories, key = { it.id }) { item ->
+                            FilterChip(
+                                selected = category == item.name,
+                                onClick = { category = item.name },
+                                label = { Text(item.name) }
+                            )
                         }
                     }
                     Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
@@ -590,6 +591,7 @@ private fun MoneyLandingScreen(
     wallets: List<FinanceWallet>,
     transactions: List<FinanceTransaction>,
     transfers: List<FinanceTransfer>,
+    categories: List<com.malekfinance.FinanceCategory>,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -603,6 +605,9 @@ private fun MoneyLandingScreen(
     var transferNote by remember { mutableStateOf("تحويل داخلي") }
     var status by remember { mutableStateOf<String?>(null) }
     var isCreatingWallet by remember { mutableStateOf(false) }
+    var isCreatingCategory by remember { mutableStateOf(false) }
+    var categoryName by remember { mutableStateOf("") }
+    var categoryKind by remember { mutableStateOf("EXPENSE") }
     var isTransferring by remember { mutableStateOf(false) }
 
     LaunchedEffect(wallets) {
@@ -635,6 +640,79 @@ private fun MoneyLandingScreen(
                         }
                         Text(formatCurrencyMoney(balance, wallet.currencyCode), style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                         Text("العملة: " + wallet.currencyCode + " • الرصيد الافتتاحي: " + formatCurrencyMoney(wallet.openingBalanceMinor, wallet.currencyCode), color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            }
+        }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
+                Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("إدارة التصنيفات", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    Text("أنشئ تصنيفاتك الخاصة أو أعد تفعيل المؤرشف منها. أرشفة التصنيف لا تغيّر العمليات القديمة.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(
+                        value = categoryName,
+                        onValueChange = { categoryName = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("اسم التصنيف الجديد") },
+                        singleLine = true
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        FilterChip(selected = categoryKind == "EXPENSE", onClick = { categoryKind = "EXPENSE" }, label = { Text("مصروف") })
+                        FilterChip(selected = categoryKind == "INCOME", onClick = { categoryKind = "INCOME" }, label = { Text("دخل") })
+                        FilterChip(selected = categoryKind == "BOTH", onClick = { categoryKind = "BOTH" }, label = { Text("كلاهما") })
+                    }
+                    Button(
+                        onClick = {
+                            val name = categoryName.trim()
+                            when {
+                                name.isBlank() -> status = "اكتب اسم التصنيف."
+                                name.length > 32 -> status = "اسم التصنيف طويل؛ الحد الأقصى 32 حرفاً."
+                                categories.any { it.kind == categoryKind && it.name.equals(name, ignoreCase = true) } -> status = "هذا التصنيف موجود بالفعل؛ يمكنك إعادة تفعيله من القائمة."
+                                else -> scope.launch {
+                                    if (isCreatingCategory) return@launch
+                                    isCreatingCategory = true
+                                    try {
+                                        db.categoryDao().insert(com.malekfinance.FinanceCategory(name = name, kind = categoryKind))
+                                        categoryName = ""
+                                        status = "تمت إضافة التصنيف."
+                                    } catch (_: Exception) {
+                                        status = "تعذر إضافة التصنيف. تحقق من الاسم وحاول مجدداً."
+                                    } finally {
+                                        isCreatingCategory = false
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isCreatingCategory,
+                        colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
+                    ) { Text(if (isCreatingCategory) "جارٍ إضافة التصنيف..." else "إضافة التصنيف") }
+                    categories.forEach { item ->
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(Modifier.weight(1f)) {
+                                Text(item.name, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    when (item.kind) { "INCOME" -> "تصنيف دخل"; "BOTH" -> "دخل ومصروف"; else -> "تصنيف مصروف" } +
+                                        if (item.isActive) " • نشط" else " • مؤرشف",
+                                    color = FinanceColors.TextSecondary,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            TextButton(onClick = {
+                                scope.launch {
+                                    runCatching {
+                                        if (item.isActive) db.categoryDao().archive(item.id)
+                                        else db.categoryDao().restore(item.id)
+                                    }.onSuccess {
+                                        status = if (item.isActive) "تمت أرشفة التصنيف؛ العمليات السابقة محفوظة." else "تمت إعادة تفعيل التصنيف."
+                                    }.onFailure {
+                                        status = "تعذر تحديث حالة التصنيف."
+                                    }
+                                }
+                            }) {
+                                Text(if (item.isActive) "أرشفة" else "تفعيل", color = if (item.isActive) FinanceColors.Expense else FinanceColors.PrimaryLight)
+                            }
+                        }
                     }
                 }
             }
