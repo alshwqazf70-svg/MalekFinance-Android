@@ -1150,7 +1150,9 @@ private fun ReportsLandingScreen(
                 if (customResult != null && wallet != null) {
                     Text("الدخل: " + reportMoney(customResult.incomeMinor, wallet.currencyCode), color = FinanceColors.Income)
                     Text("المصروف: " + reportMoney(customResult.expenseMinor, wallet.currencyCode), color = FinanceColors.Expense)
-                    Text("عدد تصنيفات المصروف: " + customCategories.size)
+                    customCategories.forEach { item ->
+                        Text(item.category + ": " + reportMoney(item.amountMinor, wallet.currencyCode), color = FinanceColors.TextSecondary)
+                    }
                 }
             }
             item {
