@@ -489,7 +489,10 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 description = ""
                 kind = null
                 hasBillDraft = true
-                billDraftId = voiceBills.firstOrNull { spoken.contains(it.title, ignoreCase = true) }?.id
+                billDraftId = voiceBills.firstOrNull {
+                    it.isActive && com.malekfinance.FinanceBillPolicy.isDue(it.nextDueAt, System.currentTimeMillis()) &&
+                        spoken.contains(it.title, ignoreCase = true)
+                }?.id
                 status = "اختر الفاتورة وراجع المبلغ وموعد الاستحقاق. لن يتم تسجيل الدفع إلا بعد التأكيد."
             } else if (parsed.command == VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT ||
                 parsed.command == VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT) {
@@ -1042,7 +1045,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                         Text("مراجعة دفع الفاتورة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text("اختر الفاتورة النشطة التي تريد دفعها:", color = FinanceColors.TextSecondary)
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            items(voiceBills.filter { it.isActive }, key = { it.id }) { bill ->
+                            items(voiceBills.filter {
+                                it.isActive && com.malekfinance.FinanceBillPolicy.isDue(it.nextDueAt, System.currentTimeMillis())
+                            }, key = { it.id }) { bill ->
                                 FilterChip(
                                     selected = billDraftId == bill.id,
                                     onClick = { billDraftId = bill.id },
@@ -1054,15 +1059,19 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                 )
                             }
                         }
-                        if (voiceBills.none { it.isActive }) {
-                            Text("لا توجد فواتير نشطة.", color = FinanceColors.TextSecondary)
+                        if (voiceBills.none {
+                                it.isActive && com.malekfinance.FinanceBillPolicy.isDue(it.nextDueAt, System.currentTimeMillis())
+                            }) {
+                            Text("لا توجد فاتورة مستحقة حالياً للدفع.", color = FinanceColors.TextSecondary)
                         }
                         Text("سيُسجل المبلغ الكامل كعملية مصروف، ولن يتم الدفع تلقائياً.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                         Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                         Button(
                             onClick = ::confirmVoiceBillPayment,
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !isBillSaving && voiceBills.any { it.isActive },
+                            enabled = !isBillSaving && voiceBills.any {
+                                it.isActive && com.malekfinance.FinanceBillPolicy.isDue(it.nextDueAt, System.currentTimeMillis())
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
                         ) { Text(if (isBillSaving) "جارٍ تسجيل الدفع..." else "مراجعة وتأكيد دفع الفاتورة") }
                         TextButton(
