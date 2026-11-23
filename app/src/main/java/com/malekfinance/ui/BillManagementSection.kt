@@ -124,6 +124,16 @@ internal fun BillManagementSection(
             color = FinanceColors.TextSecondary,
             style = MaterialTheme.typography.bodySmall
         )
+        if (Build.VERSION.SDK_INT >= 33 && !hasNotificationPermission) {
+            Text(
+                "إذن الإشعارات غير مفعّل؛ ستبقى مواعيد الفواتير ظاهرة هنا، لكن لن تصلك تنبيهات خارج التطبيق.",
+                color = FinanceColors.TextSecondary,
+                style = MaterialTheme.typography.bodySmall
+            )
+            TextButton(onClick = { notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS) }) {
+                Text("تفعيل إشعارات الفواتير", color = FinanceColors.PrimaryLight)
+            }
+        }
         if (wallets.isEmpty() || expenseCategories.isEmpty()) {
             Text(
                 if (wallets.isEmpty()) "أنشئ محفظة أولاً لتحديد مصدر دفع الفاتورة."
@@ -201,7 +211,7 @@ internal fun BillManagementSection(
                             creating = true
                             try {
                                 val calendar = Calendar.getInstance().apply { timeInMillis = dueAt }
-                                val newBillId = db.billDao().insert(
+                                db.billDao().insert(
                                     FinanceBill(
                                         title = title.trim(),
                                         categoryName = categoryName,
