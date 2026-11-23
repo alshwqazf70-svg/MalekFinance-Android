@@ -119,7 +119,7 @@ object FinanceBackupManager {
                             else -> error("Unsupported cell type")
                         }
                     }
-                    database.insert(table, androidx.sqlite.db.SupportSQLiteDatabase.CONFLICT_ABORT, content)
+                    database.insert(table, android.database.sqlite.SQLiteDatabase.CONFLICT_ABORT, content)
                 }
             }
         }
