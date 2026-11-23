@@ -36,14 +36,6 @@ jobs:
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Run unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
-      - name: Run Room instrumentation tests
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 35
-          target: google_apis
-          arch: x86_64
-          profile: pixel_2
-          script: gradle --no-daemon :app:connectedDebugAndroidTest
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
       - name: Upload APK artifact
@@ -79,3 +71,17 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
+      # Run emulator-dependent checks after publishing build artifacts so a
+      # transient hosted-emulator boot failure cannot prevent APK retrieval.
+      - name: Run Room instrumentation tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_2
+          emulator-boot-timeout: 600
+          disable-animations: true
+          disable-linux-hw-accel: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          script: gradle --no-daemon :app:connectedDebugAndroidTest
