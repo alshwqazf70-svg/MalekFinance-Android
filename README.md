@@ -71,3 +71,11 @@ Speech recognition depends on the recognition app/service available on the devic
 Active development branch: `feature/voice-finance`.
 
 Work incrementally: review the existing source, implement one roadmap phase at a time, update documentation with each change, run relevant tests, then verify the debug build.
+
+
+## الميزات التي أضيفت في دفعة التطوير الأخيرة
+- استعلامات صوتية محلية للرصيد والدخل والمصروف والملخص، مع فهم أولي للأرقام المنطوقة العربية واليمنية والتواريخ النسبية.
+- تقارير يومية وأسبوعية وشهرية وسنوية، مع مقارنة نطاق مخصص وفصل المحافظ والعملات.
+- تصدير PDF وCSV وExcel XLSX.
+- نسخ احتياطي محلي مشفر بكلمة مرور واستعادة ذرية؛ النسخ التلقائي غير المشفر في Android معطل.
+- اختبارات إضافية لدفتر الأستاذ وRoom والترحيلات والتقارير والنسخ الاحتياطي وواجهات Compose. هذه الميزات تحتاج نتائج CI واختبار جهاز قبل إعلان الإصدار مستقراً.
