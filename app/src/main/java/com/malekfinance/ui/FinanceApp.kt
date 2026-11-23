@@ -435,6 +435,12 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var hasBillDraft by remember { mutableStateOf(false) }
     var billDraftId by remember { mutableStateOf<Long?>(null) }
     var isBillSaving by remember { mutableStateOf(false) }
+    var hasDebtPaymentDraft by remember { mutableStateOf(false) }
+    var debtPaymentAmountDraft by remember { mutableStateOf("") }
+    var debtPaymentDebtId by remember { mutableStateOf<Long?>(null) }
+    var isDebtPaymentSaving by remember { mutableStateOf(false) }
+    val voiceDebts by db.debtDao().observeAll().collectAsState(initial = emptyList())
+    val voiceDebtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
     val voiceBills by db.billDao().observeAll().collectAsState(initial = emptyList())
     val voiceDebts by db.debtDao().observeAll().collectAsState(initial = emptyList())
     val voiceDebtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
@@ -550,6 +556,21 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                         com.malekfinance.FinanceDebtPolicy.outstanding(debt.principalMinor, voiceDebtPayments.filter { it.debtId == debt.id }).signum() > 0
                 }?.id
                 status = "اختر الدين الصحيح وراجع مبلغ الدفعة. لن يتم السداد أو التحصيل إلا بعد التأكيد."
+            } else if (parsed.command == VoiceCommandType.DEBT_PAYMENT_DRAFT) {
+                hasDraft = false
+                hasTransferDraft = false
+                hasDebtDraft = false
+                hasSavingsDraft = false
+                hasBillDraft = false
+                amount = ""
+                description = ""
+                kind = null
+                hasDebtPaymentDraft = true
+                debtPaymentAmountDraft = parsed.amount.orEmpty()
+                debtPaymentDebtId = voiceDebts.firstOrNull {
+                    parsed.debtPersonName != null && it.personName.contains(parsed.debtPersonName, ignoreCase = true)
+                }?.id
+                status = "اختر الدين الصحيح وراجع مبلغ السداد أو التحصيل قبل التأكيد."
             } else if (parsed.command == VoiceCommandType.BILL_PAYMENT_DRAFT) {
                 hasDraft = false
                 hasTransferDraft = false
@@ -744,7 +765,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                                             "، المتبقي " + java.math.BigDecimal(remaining, 2).toPlainString() + " " + wallet.currencyCode
                                     }
                                 }
-                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT -> ""
+                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT -> ""
                             }
                         }.onSuccess { status = it }
                             .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
