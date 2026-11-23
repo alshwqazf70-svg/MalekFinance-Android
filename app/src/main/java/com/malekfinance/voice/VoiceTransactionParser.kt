@@ -108,25 +108,27 @@ object VoiceTransactionParser {
     private fun extractAmount(text: String): String? {
         digitAmount.find(text)?.value?.replace('٫', '.')?.replace(',', '.')?.let { return it }
         val tokens = text.lowercase().replace(Regex("""[،,؟?.!]"""), " ").split(Regex("""\s+"""))
-        var total = 0L
-        var group = 0L
+        var total = java.math.BigInteger.ZERO
+        var group = java.math.BigInteger.ZERO
         var found = false
         for (token in tokens) {
             val value = numberWords[token] ?: numberWords[token.removePrefix("و")] ?: continue
             found = true
             when (value) {
-                1_000_000L -> { total = Math.addExact(total, Math.multiplyExact(if (group == 0L) 1L else group, value)); group = 0L }
-                2_000_000L -> { total = Math.addExact(total, value); group = 0L }
-                2_000L -> { total = Math.addExact(total, value); group = 0L }
-                1_000L -> {
-                    total = Math.addExact(total, Math.multiplyExact(if (group == 0L) 1L else group, 1_000L))
-                    group = 0L
+                1_000_000L, 1_000L -> {
+                    val multiplier = java.math.BigInteger.valueOf(value)
+                    total = total.add((if (group == java.math.BigInteger.ZERO) java.math.BigInteger.ONE else group).multiply(multiplier))
+                    group = java.math.BigInteger.ZERO
                 }
-                else -> group = Math.addExact(group, value)
+                2_000_000L, 2_000L -> {
+                    total = total.add(java.math.BigInteger.valueOf(value))
+                    group = java.math.BigInteger.ZERO
+                }
+                else -> group = group.add(java.math.BigInteger.valueOf(value))
             }
         }
         if (!found) return null
-        return runCatching { Math.addExact(total, group).toString() }.getOrNull()
+        return total.add(group).toString()
     }
 
     private fun containsAny(text: String, phrases: List<String>) = phrases.any(text::contains)
