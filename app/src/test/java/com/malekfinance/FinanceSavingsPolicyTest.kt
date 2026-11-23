@@ -65,6 +65,12 @@ class FinanceSavingsPolicyTest {
         assertEquals(BigInteger.valueOf(400), FinanceSavingsPolicy.balance(entries))
         assertEquals(true, FinanceSavingsPolicy.canWithdraw(entries, 400))
         assertEquals(false, FinanceSavingsPolicy.canWithdraw(entries, 401))
+        val corruptedHistory = listOf(
+            FinanceSavingsEntry(goalId = 2, transactionId = 5, entryType = "CONTRIBUTION", amountMinor = 100),
+            FinanceSavingsEntry(goalId = 2, transactionId = 6, entryType = "WITHDRAWAL", amountMinor = 500)
+        )
+        assertEquals(BigInteger.ZERO, FinanceSavingsPolicy.balance(corruptedHistory))
+        assertEquals(true, FinanceSavingsPolicy.canContribute(1_000, corruptedHistory, 1_000))
     }
 
 }
