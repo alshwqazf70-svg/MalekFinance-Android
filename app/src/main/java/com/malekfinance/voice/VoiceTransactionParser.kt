@@ -1,6 +1,6 @@
 package com.malekfinance.voice
 
-enum class VoiceCommandType { TRANSACTION, TRANSFER_DRAFT, DEBT_CREATE_DRAFT, DEBT_PAYMENT_DRAFT, CANCEL_DRAFT, BALANCE_QUERY, SPENDING_QUERY, INCOME_QUERY, SUMMARY_QUERY, RECENT_TRANSACTIONS_QUERY, DEBT_OWED_BY_ME_QUERY, DEBT_OWED_TO_ME_QUERY, SAVINGS_BALANCE_QUERY, SAVINGS_CONTRIBUTION_DRAFT, SAVINGS_WITHDRAWAL_DRAFT, UPCOMING_BILLS_QUERY, BILL_PAYMENT_DRAFT, BUDGET_STATUS_QUERY }
+enum class VoiceCommandType { TRANSACTION, TRANSFER_DRAFT, DEBT_CREATE_DRAFT, DEBT_PAYMENT_DRAFT, CANCEL_DRAFT, CORRECT_AMOUNT, BALANCE_QUERY, SPENDING_QUERY, INCOME_QUERY, SUMMARY_QUERY, RECENT_TRANSACTIONS_QUERY, DEBT_OWED_BY_ME_QUERY, DEBT_OWED_TO_ME_QUERY, SAVINGS_BALANCE_QUERY, SAVINGS_CONTRIBUTION_DRAFT, SAVINGS_WITHDRAWAL_DRAFT, UPCOMING_BILLS_QUERY, BILL_PAYMENT_DRAFT, BUDGET_STATUS_QUERY }
 
 data class ParsedTransaction(
     val amount: String?,
@@ -33,8 +33,15 @@ object VoiceTransactionParser {
         "اربعين" to 40L, "أربعين" to 40L, "خمسين" to 50L, "ستين" to 60L,
         "سبعين" to 70L, "ثمانين" to 80L, "تسعين" to 90L,
         "مئة" to 100L, "مائة" to 100L, "ميه" to 100L, "مية" to 100L,
-        "مئتين" to 200L, "مائتين" to 200L, "ألف" to 1_000L, "الف" to 1_000L, "آلاف" to 1_000L, "ثلاثمئة" to 300L, "اربعمئة" to 400L,
-        "خمسمئة" to 500L, "ستمئة" to 600L, "سبعمئة" to 700L, "ثمانمئة" to 800L, "تسعمئة" to 900L,
+        "مئتين" to 200L, "مائتين" to 200L, "ميتين" to 200L, "ميتين" to 200L,
+        "ثلاثمية" to 300L, "ثلاثميه" to 300L, "ثلاثمئة" to 300L,
+        "اربعمية" to 400L, "أربعمية" to 400L, "اربعمئة" to 400L, "أربعمئة" to 400L,
+        "خمسمية" to 500L, "خمسمئة" to 500L,
+        "ستمية" to 600L, "ستمئة" to 600L,
+        "سبعمية" to 700L, "سبعمئة" to 700L,
+        "ثمانمية" to 800L, "ثمانمئة" to 800L,
+        "تسعمية" to 900L, "تسعمئة" to 900L,
+        "ألف" to 1_000L, "الف" to 1_000L, "آلاف" to 1_000L,
         "الفين" to 2_000L, "ألفين" to 2_000L, "مليون" to 1_000_000L, "مليونين" to 2_000_000L
     )
 
@@ -97,7 +104,8 @@ object VoiceTransactionParser {
     }
 
     private fun detectCommand(text: String): VoiceCommandType = when {
-        containsAny(text, listOf("كم باقي في الميزانية", "كم تبقى من الميزانية", "هل تجاوزت الميزانية", "حالة الميزانية", "وضع الميزانية")) -> VoiceCommandType.BUDGET_STATUS_QUERY
+        containsAny(text, listOf("صحح المبلغ", "صحح لي المبلغ", "عدل المبلغ", "عدّل المبلغ", "غير المبلغ", "غيّر المبلغ", "لا المبلغ", "المبلغ الصحيح")) -> VoiceCommandType.CORRECT_AMOUNT
+        containsAny(text, listOf("كم باقي في الميزانية", "كم تبقى من الميزانية", "هل تجاوزت الميزانية", "حالة الميزانية", "وضع الميزانية", "قديش باقي في الميزانية")) -> VoiceCommandType.BUDGET_STATUS_QUERY
         containsAny(text, listOf(
             "سدد دين", "سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "ادفع دين", "ادفع الدين", "أدفع الدين",
             "حصلت دين", "حصلت دين من", "حصّلت الدين", "تحصيل دين", "تحصيل دين من", "استلمت سداد الدين", "استلمت سداد من"
@@ -113,9 +121,9 @@ object VoiceTransactionParser {
         containsAny(text, listOf("كم لي عند", "كم مستحق لي", "كم الناس لي", "كم عند الناس لي")) -> VoiceCommandType.DEBT_OWED_TO_ME_QUERY
         containsAny(text, listOf("آخر العمليات", "اخر العمليات", "اعرض العمليات", "أعرض العمليات", "آخر المصروفات", "اخر المصروفات")) -> VoiceCommandType.RECENT_TRANSACTIONS_QUERY
         containsAny(text, listOf("ألغ المسودة", "الغ المسودة", "إلغاء المسودة", "الغِ العملية", "ألغ العملية", "لا تسجلها")) -> VoiceCommandType.CANCEL_DRAFT
-        containsAny(text, listOf("كم رصيدي", "كم معي", "رصيد محفظتي", "كم باقي", "كم تبقى")) -> VoiceCommandType.BALANCE_QUERY
-        containsAny(text, listOf("كم صرفت", "كم انفقت", "كم أنفقت", "إجمالي المصروف", "مجموع المصروف")) -> VoiceCommandType.SPENDING_QUERY
-        containsAny(text, listOf("كم دخل", "كم استلمت", "إجمالي الدخل", "مجموع الدخل")) -> VoiceCommandType.INCOME_QUERY
+        containsAny(text, listOf("كم رصيدي", "كم معي", "قديش معي", "كم باقي معي", "رصيد محفظتي", "كم باقي", "كم تبقى")) -> VoiceCommandType.BALANCE_QUERY
+        containsAny(text, listOf("كم صرفت", "قديش صرفت", "بكم صرفت", "كم صرفنا", "كم دفعت", "كم انفقت", "كم أنفقت", "إجمالي المصروف", "مجموع المصروف")) -> VoiceCommandType.SPENDING_QUERY
+        containsAny(text, listOf("كم دخل", "قديش دخل", "كم دخل علي", "كم استلمت", "إجمالي الدخل", "مجموع الدخل")) -> VoiceCommandType.INCOME_QUERY
         containsAny(text, listOf("ملخص مالي", "ملخص حسابي", "اعطني ملخص", "أعطني ملخص", "التقرير المالي")) -> VoiceCommandType.SUMMARY_QUERY
         else -> VoiceCommandType.TRANSACTION
     }
@@ -156,7 +164,7 @@ object VoiceTransactionParser {
         containsAny(text, listOf("اليوم", "هذا اليوم")) -> "TODAY"
         containsAny(text, listOf("امس", "أمس")) -> "YESTERDAY"
         containsAny(text, listOf("الأسبوع الماضي", "الاسبوع الماضي")) -> "LAST_WEEK"
-        containsAny(text, listOf("هذا الاسبوع", "هذا الأسبوع", "الاسبوع الحالي", "الأسبوع الحالي")) -> "WEEK"
+        containsAny(text, listOf("هذا الاسبوع", "هذا الأسبوع", "الاسبوع الحالي", "الأسبوع الحالي", "هذا الاسبوع الحالي")) -> "WEEK"
         containsAny(text, listOf("الشهر الماضي")) -> "LAST_MONTH"
         containsAny(text, listOf("هذا الشهر", "الشهر الحالي")) -> "MONTH"
         containsAny(text, listOf("السنة الماضية", "العام الماضي")) -> "LAST_YEAR"
