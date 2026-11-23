@@ -51,7 +51,7 @@ class FinanceReportExporterTest {
         assertTrue(entries.containsKey("xl/workbook.xml"))
         val sheet = entries["xl/worksheets/sheet1.xml"].orEmpty()
         assertTrue(sheet.contains("مشتريات، منزل"))
-        assertTrue(sheet.contains("123.45"))
+        assertTrue(sheet.contains("<v>123.45</v>"))
         assertTrue(!sheet.contains("محفظة أخرى"))
     }
 }
