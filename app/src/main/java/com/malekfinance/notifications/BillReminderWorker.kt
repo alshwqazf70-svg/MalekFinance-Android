@@ -11,13 +11,14 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
+import androidx.room.Room
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import androidx.room.Room
+import com.malekfinance.FinanceBillPolicy
 import com.malekfinance.FinanceDb
 import com.malekfinance.MainActivity
 import java.util.concurrent.TimeUnit
@@ -27,7 +28,7 @@ object BillReminderScheduler {
 
     fun schedule(context: Context, billId: Long, dueAt: Long) {
         val now = System.currentTimeMillis()
-        val reminderAt = com.malekfinance.FinanceBillPolicy.reminderAt(dueAt, now)
+        val reminderAt = FinanceBillPolicy.reminderAt(dueAt, now)
         val request = OneTimeWorkRequestBuilder<BillReminderWorker>()
             .setInputData(workDataOf("billId" to billId, "scheduledDueAt" to dueAt))
             .setInitialDelay((reminderAt - now).coerceAtLeast(0), TimeUnit.MILLISECONDS)
@@ -67,58 +68,64 @@ class BillReminderWorker(
                     FinanceDb.MIGRATION_7_8,
                     FinanceDb.MIGRATION_8_9,
                     FinanceDb.MIGRATION_9_10,
-                    FinanceDb.MIGRATION_10_11
+                    FinanceDb.MIGRATION_10_11,
+                    FinanceDb.MIGRATION_11_12
                 )
                 .build()
         } catch (_: Exception) {
             return Result.retry()
         }
 
-        val bill = try {
-            db.billDao().findById(billId)
+        try {
+            val bill = db.billDao().findById(billId) ?: return Result.success()
+            val occurrenceKey = FinanceBillPolicy.occurrenceKey(scheduledDueAt)
+            if (!bill.isActive || bill.nextDueAt != scheduledDueAt ||
+                bill.lastReminderOccurrenceKey == occurrenceKey
+            ) return Result.success()
+
+            if (Build.VERSION.SDK_INT >= 33 &&
+                ContextCompat.checkSelfPermission(
+                    applicationContext,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) return Result.success()
+
+            val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                manager.createNotificationChannel(
+                    NotificationChannel(
+                        CHANNEL_ID,
+                        "تذكيرات الفواتير",
+                        NotificationManager.IMPORTANCE_DEFAULT
+                    ).apply { description = "تنبيهات مواعيد الفواتير في مالك فاينانس" }
+                )
+            }
+
+            val openApp = PendingIntent.getActivity(
+                applicationContext,
+                billId.hashCode(),
+                Intent(applicationContext, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val isDue = System.currentTimeMillis() >= bill.nextDueAt
+            val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+                .setSmallIcon(android.R.drawable.ic_dialog_info)
+                .setContentTitle(if (isDue) "فاتورة مستحقة" else "تذكير بموعد فاتورة")
+                .setContentText(bill.title + if (isDue) " — حان موعد الاستحقاق" else " — موعد الاستحقاق خلال 24 ساعة")
+                .setContentIntent(openApp)
+                .setAutoCancel(true)
+                .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+                .build()
+
+            NotificationManagerCompat.from(applicationContext).notify(billId.hashCode(), notification)
+            db.billDao().update(bill.copy(lastReminderOccurrenceKey = occurrenceKey))
+            return Result.success()
+        } catch (_: SecurityException) {
+            return Result.success()
         } catch (_: Exception) {
             return Result.retry()
         } finally {
             db.close()
-        }
-
-        if (bill == null || !bill.isActive || bill.nextDueAt != scheduledDueAt) return Result.success()
-        if (Build.VERSION.SDK_INT >= 33 &&
-            ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
-        ) return Result.success()
-
-        val manager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            manager.createNotificationChannel(
-                NotificationChannel(
-                    CHANNEL_ID,
-                    "تذكيرات الفواتير",
-                    NotificationManager.IMPORTANCE_DEFAULT
-                ).apply { description = "تنبيهات مواعيد الفواتير في مالك فاينانس" }
-            )
-        }
-
-        val openApp = PendingIntent.getActivity(
-            applicationContext,
-            billId.toInt(),
-            Intent(applicationContext, MainActivity::class.java),
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-        val isDue = System.currentTimeMillis() >= bill.nextDueAt
-        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-            .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle(if (isDue) "فاتورة مستحقة" else "تذكير بموعد فاتورة")
-            .setContentText(bill.title + if (isDue) " — حان موعد الاستحقاق" else " — موعد الاستحقاق خلال 24 ساعة")
-            .setContentIntent(openApp)
-            .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
-            .build()
-
-        return try {
-            NotificationManagerCompat.from(applicationContext).notify(billId.toInt(), notification)
-            Result.success()
-        } catch (_: SecurityException) {
-            Result.success()
         }
     }
 
