@@ -104,6 +104,30 @@ class FinanceRecurringIncomePolicyTest {
     }
 
     @Test
+    fun safeRuleEditPreservesScheduleIdentityAndCreationHistory() {
+        val original = FinanceRecurringIncomeRule(
+            id = 17,
+            title = "الراتب",
+            incomeType = "SALARY",
+            amountMinor = 100_000,
+            currencyCode = "YER",
+            walletId = 3,
+            frequency = "MONTHLY",
+            anchorDay = 28,
+            nextDueAt = date(2025, 8, 28),
+            createdAt = date(2025, 1, 1)
+        )
+        val edited = original.copy(title = "راتب العمل", amountMinor = 125_000)
+        assertEquals(original.id, edited.id)
+        assertEquals(original.walletId, edited.walletId)
+        assertEquals(original.currencyCode, edited.currencyCode)
+        assertEquals(original.frequency, edited.frequency)
+        assertEquals(original.anchorDay, edited.anchorDay)
+        assertEquals(original.nextDueAt, edited.nextDueAt)
+        assertEquals(original.createdAt, edited.createdAt)
+    }
+
+    @Test
     fun unsupportedFrequencyIsRejected() {
         assertNull(FinanceRecurringIncomePolicy.nextDueAt(date(2025, 1, 1), "DAILY", 1))
     }
