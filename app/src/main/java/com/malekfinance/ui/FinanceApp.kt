@@ -991,35 +991,15 @@ private fun DebtManagementSection(
                             if (busy) return@launch
                             busy = true
                             try {
-                                db.withTransaction {
-                                    val currentWallet = db.walletDao().findById(wallet.id) ?: error("Wallet not found")
-                                    check(currentWallet.currencyCode == wallet.currencyCode)
-                                    if (shouldRecordCashMovement && selectedDebtType == "OWED_TO_ME") {
-                                        val currentTransactions = db.dao().forWallet(currentWallet.id)
-                                        val currentTransfers = db.transferDao().forWallet(currentWallet.id)
-                                        if (!com.malekfinance.FinanceLedger.hasSufficientFunds(currentWallet, amountMinor, currentTransactions, currentTransfers)) {
-                                            throw com.malekfinance.InsufficientWalletFundsException()
-                                        }
-                                    }
-                                    val debtId = db.debtDao().insert(com.malekfinance.FinanceDebt(
-                                        personName = cleanName,
-                                        description = cleanDescription,
-                                        debtType = selectedDebtType,
-                                        principalMinor = amountMinor,
-                                        currencyCode = wallet.currencyCode,
-                                        walletId = wallet.id,
-                                        cashMovementRecorded = shouldRecordCashMovement
-                                    ))
-                                    if (recordCashMovement) db.dao().insert(FinanceTransaction(
-                                        amountMinor = amountMinor,
-                                        kind = if (selectedDebtType == "OWED_BY_ME") "DEBT_RECEIVED" else "DEBT_ISSUED",
-                                        note = (if (selectedDebtType == "OWED_BY_ME") "استلام قرض من: " else "إقراض سلفة إلى: ") + cleanName,
-                                        category = if (selectedDebtType == "OWED_BY_ME") "قرض مستلم" else "سلفة ممنوحة",
-                                        walletId = wallet.id,
-                                        currencyCode = wallet.currencyCode,
-                                        debtId = debtId
-                                    ))
-                                }
+                                com.malekfinance.FinanceDebtOperations.create(
+                                    db = db,
+                                    personName = cleanName,
+                                    description = cleanDescription,
+                                    debtType = selectedDebtType,
+                                    principalMinor = amountMinor,
+                                    walletId = wallet.id,
+                                    recordCashMovement = shouldRecordCashMovement
+                                )
                                 person = ""
                                 description = ""
                                 principal = ""
