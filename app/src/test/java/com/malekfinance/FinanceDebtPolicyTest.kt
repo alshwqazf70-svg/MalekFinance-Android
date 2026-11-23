@@ -65,4 +65,34 @@ class FinanceDebtPolicyTest {
         assertEquals(7L, repayment.debtId)
         assertEquals(8L, collection.debtId)
     }
+    @Test
+    fun receivingBorrowedMoneyAndIssuingAnAdvanceChangeCashButNotIncomeExpenseTotals() {
+        val wallet = FinanceWallet(id = 1, name = "نقدية", currencyCode = "YER", openingBalanceMinor = 10_000)
+        val principalMovements = listOf(
+            FinanceTransaction(
+                amountMinor = 5_000,
+                kind = "DEBT_RECEIVED",
+                note = "استلام قرض",
+                category = "قرض مستلم",
+                walletId = 1,
+                currencyCode = "YER",
+                debtId = 20
+            ),
+            FinanceTransaction(
+                amountMinor = 2_000,
+                kind = "DEBT_ISSUED",
+                note = "إقراض سلفة",
+                category = "سلفة ممنوحة",
+                walletId = 1,
+                currencyCode = "YER",
+                debtId = 21
+            )
+        )
+        assertEquals(
+            BigInteger.valueOf(13_000),
+            FinanceLedger.calculateBalance(wallet, principalMovements, emptyList())
+        )
+        assertEquals(0, principalMovements.count { it.kind == "INCOME" || it.kind == "EXPENSE" })
+    }
+
 }
