@@ -51,6 +51,8 @@ fun FinanceApp(db: FinanceDb) {
     val debtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
     val savingsGoals by db.savingsGoalDao().observeAll().collectAsState(initial = emptyList())
     val savingsEntries by db.savingsEntryDao().observeAll().collectAsState(initial = emptyList())
+    val recurringIncomeRules by db.recurringIncomeRuleDao().observeAll().collectAsState(initial = emptyList())
+    val recurringIncomeEntries by db.recurringIncomeEntryDao().observeAll().collectAsState(initial = emptyList())
     // Never combine different currencies into one misleading total.
     val yerTransactions = transactions.filter { it.currencyCode == "YER" }
     val income = yerTransactions.filter { it.kind == "INCOME" }
@@ -105,7 +107,7 @@ fun FinanceApp(db: FinanceDb) {
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(income, expenses, transactions.size, Modifier.padding(padding))
-                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, debts, debtPayments, savingsGoals, savingsEntries, Modifier.padding(padding))
+                    FinanceSection.MONEY -> MoneyLandingScreen(db, wallets, transactions, transfers, categories, budgets, debts, debtPayments, savingsGoals, savingsEntries, recurringIncomeRules, recurringIncomeEntries, Modifier.padding(padding))
             }
         }
         }
@@ -338,7 +340,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                if (row.debtId == null && row.savingsGoalId == null) {
+                                if (row.debtId == null && row.savingsGoalId == null && row.recurringIncomeRuleId == null) {
                                     Column {
                                         TextButton(onClick = {
                                             editingId = row.id
@@ -358,7 +360,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                     }
                                 } else {
                                     Text(
-                                        if (row.debtId != null) "مرتبطة بدين؛ تُدار من قسم الديون" else "مرتبطة بهدف ادخار؛ تُدار من قسم الادخار",
+                                        when { row.debtId != null -> "مرتبطة بدين؛ تُدار من قسم الديون"; row.savingsGoalId != null -> "مرتبطة بهدف ادخار؛ تُدار من قسم الادخار"; else -> "دخل دوري؛ يُدار من قسم الرواتب" },
                                         color = FinanceColors.TextSecondary,
                                         style = MaterialTheme.typography.labelSmall
                                     )
@@ -830,6 +832,8 @@ private fun MoneyLandingScreen(
     debtPayments: List<com.malekfinance.FinanceDebtPayment>,
     savingsGoals: List<com.malekfinance.FinanceSavingsGoal>,
     savingsEntries: List<com.malekfinance.FinanceSavingsEntry>,
+    recurringIncomeRules: List<com.malekfinance.FinanceRecurringIncomeRule>,
+    recurringIncomeEntries: List<com.malekfinance.FinanceRecurringIncomeEntry>,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -1204,7 +1208,8 @@ private fun MoneyLandingScreen(
             }
         }
         item { SavingsManagementSection(db, wallets, savingsGoals, savingsEntries) }
-        item { SectionCard("الرواتب والفواتير", "الدخل المتكرر والاستحقاقات — لم تُفعّل بعد.") }
+        item { RecurringIncomeSection(db, wallets, recurringIncomeRules, recurringIncomeEntries) }
+        item { SectionCard("الفواتير والتذكيرات", "إدارة الفواتير والتنبيهات الدورية ستكون المرحلة التالية.") }
     }
 }
 
