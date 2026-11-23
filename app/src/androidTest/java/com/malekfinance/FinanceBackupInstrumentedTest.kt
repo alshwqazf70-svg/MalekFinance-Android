@@ -139,4 +139,23 @@ class FinanceBackupInstrumentedTest {
         assertTrue(failed)
         assertEquals("محفوظ", db.dao().forWallet(walletId).single().note)
     }
+    @Test
+    fun rejectedShortBackupPasswordsAreClearedFromMemory() = runBlocking {
+        val exportPassword = "short".toCharArray()
+        try {
+            FinanceBackupManager.export(db, ByteArrayOutputStream(), exportPassword)
+            throw AssertionError("Expected short export password to be rejected")
+        } catch (_: IllegalArgumentException) {
+            assertTrue(exportPassword.all { it == '\u0000' })
+        }
+
+        val restorePassword = "short".toCharArray()
+        try {
+            FinanceBackupManager.restore(db, ByteArrayInputStream(byteArrayOf()), restorePassword)
+            throw AssertionError("Expected short restore password to be rejected")
+        } catch (_: IllegalArgumentException) {
+            assertTrue(restorePassword.all { it == '\u0000' })
+        }
+    }
+
 }
