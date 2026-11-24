@@ -17,7 +17,7 @@ object VoiceRecognitionIntentFactory {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "ar")
             putExtra(RecognizerIntent.EXTRA_ONLY_RETURN_LANGUAGE_PREFERENCE, false)
             // Allow online recognition when no compatible offline Arabic model is installed.
-            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false)
+            putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_PROMPT, "مثال: صرفت خمسة آلاف ريال بنزين")
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
         }
