@@ -467,6 +467,13 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 
     val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        if (result.resultCode != android.app.Activity.RESULT_OK) {
+            status = if (result.resultCode == android.app.Activity.RESULT_CANCELED) {
+                "تم إغلاق نافذة التعرف الصوتي أو لم تتوفر نتيجة. تحقق من اتصال الإنترنت أو جرّب مرة أخرى، ويمكنك الكتابة يدوياً."
+            } else {
+                "تعذر إكمال التعرف الصوتي. تحقق من خدمة التعرف واتصال الإنترنت، أو أدخل العملية يدوياً."
+            }
+        } else {
         val alternatives = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty()
         val confidence = result.data?.getFloatArrayExtra(RecognizerIntent.EXTRA_CONFIDENCE_SCORES)
         val bestIndex = if (confidence != null && confidence.size == alternatives.size) confidence.indices.maxByOrNull { confidence[it] } ?: 0 else 0
@@ -783,6 +790,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                     else -> "راجع المبلغ والنوع والوصف والتصنيف. لن تُحفظ العملية قبل تأكيدك."
                 }
             }
+        }
         }
     }
     val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
