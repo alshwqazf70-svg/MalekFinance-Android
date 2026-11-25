@@ -42,11 +42,19 @@ jobs:
         run: gradle --no-daemon :app:testDebugUnitTest 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
+      - name: Record APK checksum and test build identity
+        run: |
+          cd app/build/outputs/apk/debug
+          sha256sum app-debug.apk > app-debug.apk.sha256
+          printf 'MK Finance Debug test build\nSource commit: %s\nNot a production release. Back up existing data before updating.\n' "$GITHUB_SHA" > BUILD-INFO.txt
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: MK-Finance-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          path: |
+            app/build/outputs/apk/debug/app-debug.apk
+            app/build/outputs/apk/debug/app-debug.apk.sha256
+            app/build/outputs/apk/debug/BUILD-INFO.txt
           if-no-files-found: error
           retention-days: 14
       - name: Prepare protected release signing key
@@ -95,7 +103,9 @@ jobs:
           disable-animations: true
           disable-linux-hw-accel: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          script: gradle --no-daemon :app:connectedDebugAndroidTest
+          script: |
+            set -o pipefail
+            gradle --no-daemon :app:connectedDebugAndroidTest 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
 
       - name: Upload verification reports
         if: ${{ always() }}
@@ -105,6 +115,7 @@ jobs:
           path: |
             app/build/reports/
             app/build/test-results/
+            app/build/outputs/androidTest-results/
           if-no-files-found: ignore
           retention-days: 14
       - name: Expose failure diagnostics in check annotations
@@ -112,7 +123,18 @@ jobs:
         run: |
           python3 - <<'PYCODE'
           import os
+          import xml.etree.ElementTree as ET
           from pathlib import Path
+          for report in Path('app/build').rglob('TEST-*.xml'):
+              try:
+                  tree = ET.parse(report)
+                  for case in tree.iter('testcase'):
+                      for failure in list(case.findall('failure')) + list(case.findall('error')):
+                          message = (case.get('classname', '') + '.' + case.get('name', '') + ': ' + (failure.text or failure.get('message', '')))[:5000]
+                          message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                          print('::error title=Test failure::' + message)
+              except ET.ParseError:
+                  pass
           path = Path(os.environ['RUNNER_TEMP']) / 'finance-gradle.log'
           if path.exists():
               lines = path.read_text(errors='replace').splitlines()
