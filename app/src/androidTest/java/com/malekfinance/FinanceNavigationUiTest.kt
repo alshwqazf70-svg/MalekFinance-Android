@@ -53,7 +53,7 @@ class FinanceNavigationUiTest {
     @Test
     fun voiceScreenOpensAndShowsManualFallback() {
         composeRule.onNodeWithText("المساعد").performClick()
-        composeRule.onNodeWithText("مساعدك المالي النصي").assertIsDisplayed()
+        composeRule.onNodeWithText("مساعدك المالي الصوتي").assertIsDisplayed()
         composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
         composeRule.onNodeWithText("إدخال يدوي بديل").assertExists()
     }
@@ -69,9 +69,9 @@ class FinanceNavigationUiTest {
     }
 
     @Test
-    fun lightweightAssistantHasNoModelImport() {
+    fun systemVoiceOffersSpeechAndTypingWithoutModelImport() {
         composeRule.onNodeWithText("المساعد").performClick()
-        composeRule.onNodeWithText("التعرف الصوتي غير مفعّل في هذه النسخة.").assertExists()
+        composeRule.onNodeWithText("ابدأ التحدث").assertExists()
         composeRule.onNodeWithText("تثبيت نموذج عربي من ملف ZIP").assertDoesNotExist()
         composeRule.onNodeWithText("اكتب العملية أو السؤال").assertExists()
     }
