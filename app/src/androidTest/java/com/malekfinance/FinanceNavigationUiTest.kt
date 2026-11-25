@@ -52,8 +52,8 @@ class FinanceNavigationUiTest {
 
     @Test
     fun voiceScreenOpensAndShowsManualFallback() {
-        composeRule.onNodeWithText("الصوت").performClick()
-        composeRule.onNodeWithText("مساعدك المالي الصوتي").assertIsDisplayed()
+        composeRule.onNodeWithText("المساعد").performClick()
+        composeRule.onNodeWithText("مساعدك المالي النصي").assertIsDisplayed()
         composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
         composeRule.onNodeWithText("إدخال يدوي بديل").assertExists()
     }
@@ -61,7 +61,7 @@ class FinanceNavigationUiTest {
     @Test
     fun homePrivacySurvivesTabNavigation() {
         composeRule.onNodeWithContentDescription("إخفاء مبالغ الرئيسية").performClick()
-        composeRule.onNodeWithText("الصوت").performClick()
+        composeRule.onNodeWithText("المساعد").performClick()
         composeRule.onNodeWithText("الرئيسية").performClick()
         composeRule.onNodeWithContentDescription("إظهار مبالغ الرئيسية").assertIsDisplayed()
         composeRule.onNodeWithContentDescription("إظهار مبالغ الرئيسية").performClick()
@@ -69,11 +69,11 @@ class FinanceNavigationUiTest {
     }
 
     @Test
-    fun offlineVoiceOffersModelImportWithoutSystemService() {
-        composeRule.onNodeWithText("الصوت").performClick()
-        composeRule.onNodeWithText("صوتك يبقى على جهازك.").assertExists()
-        composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("تثبيت نموذج عربي من ملف ZIP"))
-        composeRule.onNodeWithText("تثبيت نموذج عربي من ملف ZIP").assertExists()
+    fun lightweightAssistantHasNoModelImport() {
+        composeRule.onNodeWithText("المساعد").performClick()
+        composeRule.onNodeWithText("التعرف الصوتي غير مفعّل في هذه النسخة.").assertExists()
+        composeRule.onNodeWithText("تثبيت نموذج عربي من ملف ZIP").assertDoesNotExist()
+        composeRule.onNodeWithText("اكتب العملية أو السؤال").assertExists()
     }
 
     @Test
@@ -100,7 +100,7 @@ class FinanceNavigationUiTest {
     @Test
     fun manualVoiceReviewSavePersistsTransactionToRoom() = runBlocking {
         val walletId = db.walletDao().insert(FinanceWallet(name = "اختبار", currencyCode = "YER"))
-        composeRule.onNodeWithText("الصوت").performClick()
+        composeRule.onNodeWithText("المساعد").performClick()
         composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("اختبار (YER)").fetchSemanticsNodes().isNotEmpty()
@@ -122,7 +122,7 @@ class FinanceNavigationUiTest {
     @Test
     fun voiceReviewSaveUsesCategoryWhenDescriptionIsEmpty() = runBlocking {
         val walletId = db.walletDao().insert(FinanceWallet(name = "اختبار", currencyCode = "YER"))
-        composeRule.onNodeWithText("الصوت").performClick()
+        composeRule.onNodeWithText("المساعد").performClick()
         composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("اختبار (YER)").fetchSemanticsNodes().isNotEmpty()
@@ -142,7 +142,7 @@ class FinanceNavigationUiTest {
 
 
     @Test fun manuallyEnteredVoiceDraftSurvivesSavedStateRestoration() {
-        composeRule.onNodeWithText("الصوت").performClick()
+        composeRule.onNodeWithText("المساعد").performClick()
         composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
         composeRule.onNodeWithTag("manual-amount").performScrollTo().performTextInput("1500")
         restoration.emulateSavedInstanceStateRestore()

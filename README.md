@@ -65,7 +65,7 @@ These items still require source review and successful CI/device verification be
 
 ## Build and verification
 
-GitHub Actions is configured to run JVM unit tests, Room/Compose instrumentation tests on an Android emulator, and assemble a debug APK. It can also build a signed release APK when the owner supplies all signing credentials through GitHub Secrets. A successful build and its artifact must be confirmed from the relevant workflow run; configuration alone is not proof of success.
+GitHub Actions runs JVM unit tests, builds the app and instrumentation-test APK, and runs Android lint. Android emulator execution and system-image setup are removed by owner request; Room/Compose instrumentation execution is now a real-device verification step. It can also build a signed release APK when the owner supplies all signing credentials through GitHub Secrets. A successful build and its artifact must be confirmed from the relevant workflow run; configuration alone is not proof of success.
 
 Speech recognition now uses the embedded Vosk runtime, not the system recognition service. A compatible Arabic Vosk ZIP model must be imported first. No Arabic acoustic model is bundled or trained by this project yet; dialect accuracy, native-library compatibility and device performance remain unverified. See [offline voice setup and limitations](docs/OFFLINE_VOICE.md).
 
@@ -93,9 +93,9 @@ Work incrementally: review the existing source, implement one roadmap phase at a
 - رصيد المحافظ الفعلي لكل عملة، ملخص الشهر، إخفاء تفاصيل الرئيسية، مخطط إنفاق سبعة أيام، وبصيرة مالية حتمية على الجهاز.
 - مختبر «ماذا لو» لخفض الإنفاق افتراضياً بناء على متوسط الشهر؛ لا يكتب عمليات مالية.
 - تقسيم «مالي» إلى أدوات مختارة بدلاً من تكديس جميع النماذج في صفحة واحدة.
-- محرك Vosk مدمج واستيراد نموذج عربي محلي مع حماية مسارات ZIP وحدود الحجم، دون رجوع إلى خدمة النظام أو السحابة.
+- **تحديث لاحق:** أُلغي محرك Vosk والاستيراد لصالح حد APK البالغ 30 MB؛ المساعد نصي فقط.
 - لم يُضمّن نموذج صوتي في APK؛ لا تدّعي هذه الدفعة تدريب نموذج عربي من الصفر أو اعتماد دقته.
-- أضيفت اختبارات للحسابات الجديدة وأرشيف النموذج والتنقل. نجاح Gradle وAPK واختبارات الجهاز ما زال مطلوباً. راجع [نظام التصميم](docs/DESIGN_SYSTEM.md) و[الصوت المحلي](docs/OFFLINE_VOICE.md).
+- أضيفت اختبارات للحسابات الجديدة والتنقل. يلزم قياس APK الجديد والتحقق من البناء بعد إزالة الصوت. راجع [نظام التصميم](docs/DESIGN_SYSTEM.md) و[الصوت المحلي](docs/OFFLINE_VOICE.md).
 
 ## معاينة التصميم في المتصفح
 
@@ -108,3 +108,12 @@ npm run dev
 ```
 
 افتح نافذة Live Preview. يمكنك تجربة التنقل، عرض الهاتف، العمليات والمحافظ والتحويلات التجريبية والتقارير. البيانات معزولة في المتصفح وليست بيانات هاتفك. **هذه ليست نسخة Android أو محاكياً، والصوت الأصلي غير مفعّل هنا.** الميزانيات والادخار والفواتير أمثلة بصرية موسومة فقط. راجع [دليل معاينة المتصفح](docs/BROWSER_PREVIEW.md) للتشغيل وحدود التجربة وسير اعتماد التصميم.
+
+
+### حد الحجم وإلغاء نماذج الصوت — القرار الحالي
+
+بناءً على طلب المالك: **الحد الأقصى لملف APK هو 30 MB (30,000,000 بايت)**. أُلغيت خطة تضمين النموذج العربي، وأُزيلت مكتبات Vosk/JNA واستيراد ZIP وإذن الميكروفون. لم يُضف أي نموذج عربي إلى APK أصلاً. المساعد يقبل الآن العبارة المكتوبة ويعرض مسودة للمراجعة؛ التعرف الصوتي غير متاح، ولا يوجد بديل سحابي أو تنزيل لاحق.
+
+يفحص CI حجم APK قبل نشره، ويفشل إذا تجاوزه. هذا حد قبول وليس قياساً لحجم ملف مبني بعد التغيير. لا يشمل حد APK حجم التثبيت أو البيانات المالية التي تنمو مع الاستخدام. راجع [حالة الصوت والحجم](docs/OFFLINE_VOICE.md).
+
+أُلغي تشغيل محاكيات Android؛ تبقى فحوص البناء وlint واختبارات الوحدة وبناء حزمة اختبارات الهاتف. فحص `scripts/check-no-emulators.py` يمنع إعداد جهاز افتراضي في workflows.

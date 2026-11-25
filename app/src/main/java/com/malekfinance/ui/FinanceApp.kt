@@ -13,7 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -45,7 +45,7 @@ import com.malekfinance.voice.VoiceQueryEngine
 import androidx.room.withTransaction
 
 private enum class FinanceSection(val title: String) {
-    HOME("الرئيسية"), TRANSACTIONS("العمليات"), VOICE("الصوت"), REPORTS("التقارير"), MONEY("مالي")
+    HOME("الرئيسية"), TRANSACTIONS("العمليات"), VOICE("المساعد"), REPORTS("التقارير"), MONEY("مالي")
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -101,7 +101,7 @@ fun FinanceApp(db: FinanceDb) {
                         val icon = when (item) {
                             FinanceSection.HOME -> Icons.Default.Home
                             FinanceSection.TRANSACTIONS -> Icons.Default.ReceiptLong
-                            FinanceSection.VOICE -> Icons.Default.Mic
+                            FinanceSection.VOICE -> Icons.Default.EditNote
                             FinanceSection.REPORTS -> Icons.Default.BarChart
                             FinanceSection.MONEY -> Icons.Default.AccountBalanceWallet
                         }
@@ -334,7 +334,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     var description by rememberSaveable { mutableStateOf("") }
     var category by rememberSaveable { mutableStateOf("عام") }
     var kind by rememberSaveable { mutableStateOf<String?>(null) }
-    var status by remember { mutableStateOf("تحدث عن العملية، ثم راجع كل التفاصيل قبل الحفظ.") }
+    var status by remember { mutableStateOf("اكتب العملية، ثم راجع كل التفاصيل قبل الحفظ.") }
     var hasDraft by rememberSaveable { mutableStateOf(false) }
     var isSavingDraft by remember { mutableStateOf(false) }
     var draftCreatedAt by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
@@ -1019,14 +1019,14 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
 
     LazyColumn(modifier.testTag("voice-workspace").fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            LocalVoicePanel(
+            TextCommandPanel(
                 enabled = !isSavingDraft && !isTransferSaving && !isDebtSaving && !isDebtPaymentSaving && !isSavingsSaving && !isBillSaving,
-                onTranscript = ::processRecognizedText
+                onCommand = ::processRecognizedText
             )
         }
         if (transcript.isNotBlank()) {
             item {
-                SectionCard("العبارة التي سمعتها", transcript, "مسودة للمراجعة فقط")
+                SectionCard("العبارة المدخلة", transcript, "مسودة للمراجعة فقط")
             }
         }
         if (hasDebtPaymentDraft) {
