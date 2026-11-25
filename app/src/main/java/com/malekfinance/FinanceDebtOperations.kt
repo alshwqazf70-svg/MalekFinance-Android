@@ -1,6 +1,7 @@
 package com.malekfinance
 
 import androidx.room.withTransaction
+import kotlinx.coroutines.flow.first
 
 /** Atomic debt creation shared by manual and voice-assisted flows. */
 object FinanceDebtOperations {
@@ -11,9 +12,12 @@ object FinanceDebtOperations {
         debtType: String,
         principalMinor: Long,
         walletId: Long,
-        recordCashMovement: Boolean = true
+        recordCashMovement: Boolean = true,
+        createdAt: Long = System.currentTimeMillis()
     ): Long = db.withTransaction {
-        val cleanName = personName.trim()
+        val cleanName = FinancePersonStatements.normalizePerson(personName)
+        require(createdAt in 0..System.currentTimeMillis()) { "Debt date cannot be in the future" }
+        require(cleanName.length <= 120)
         require(cleanName.isNotBlank()) { "Person name is required" }
         require(debtType == "OWED_BY_ME" || debtType == "OWED_TO_ME") { "Invalid debt direction" }
         require(principalMinor > 0L) { "Debt amount must be positive" }
@@ -35,7 +39,8 @@ object FinanceDebtOperations {
                 principalMinor = principalMinor,
                 currencyCode = wallet.currencyCode,
                 walletId = wallet.id,
-                cashMovementRecorded = recordCashMovement
+                cashMovementRecorded = recordCashMovement,
+                createdAt = createdAt
             )
         )
         if (recordCashMovement) {
@@ -47,7 +52,8 @@ object FinanceDebtOperations {
                     category = if (debtType == "OWED_BY_ME") "قرض مستلم" else "سلفة ممنوحة",
                     walletId = wallet.id,
                     currencyCode = wallet.currencyCode,
-                    debtId = debtId
+                    debtId = debtId,
+                    createdAt = createdAt
                 )
             )
         }
@@ -79,6 +85,8 @@ object FinanceDebtPaymentOperations {
             }
         }
 
+        val now = System.currentTimeMillis()
+        require(now >= debt.createdAt) { "Payment precedes debt" }
         val transactionId = db.dao().insert(
             FinanceTransaction(
                 amountMinor = amountMinor,
@@ -87,16 +95,45 @@ object FinanceDebtPaymentOperations {
                 category = if (debt.debtType == "OWED_BY_ME") "سداد دين" else "تحصيل دين",
                 walletId = wallet.id,
                 currencyCode = wallet.currencyCode,
-                debtId = debt.id
+                debtId = debt.id,
+                createdAt = now
             )
         )
         db.debtPaymentDao().insert(
             FinanceDebtPayment(
                 debtId = debt.id,
                 transactionId = transactionId,
-                amountMinor = amountMinor
+                amountMinor = amountMinor,
+                createdAt = now
             )
         )
         transactionId
+    }
+}
+
+
+/** Explicit account repayment, allocated oldest debt first; every write rolls back together. */
+object FinancePersonSettlementOperations {
+    suspend fun pay(
+        db: FinanceDb, personName: String, currencyCode: String, walletId: Long, amountMinor: Long
+    ) = db.withTransaction {
+        val now = System.currentTimeMillis()
+        val debts = db.debtDao().observeAll().first()
+        val payments = db.debtPaymentDao().observeAll().first()
+        val plan = FinancePersonStatements.settlementPlan(personName, currencyCode, debts, payments, amountMinor, now)
+        val wallet = db.walletDao().findById(walletId) ?: error("Wallet not found")
+        require(wallet.currencyCode == currencyCode)
+        if (!FinanceLedger.hasSufficientFunds(wallet, amountMinor, db.dao().forWallet(wallet.id), db.transferDao().forWallet(wallet.id))) {
+            throw InsufficientWalletFundsException()
+        }
+        plan.forEach { (debtId, amount) ->
+            val transactionId = db.dao().insert(FinanceTransaction(
+                amountMinor = amount, kind = "EXPENSE", note = "سداد حساب: " + FinancePersonStatements.normalizePerson(personName),
+                category = "سداد دين", walletId = wallet.id, currencyCode = currencyCode, debtId = debtId, createdAt = now
+            ))
+            db.debtPaymentDao().insert(FinanceDebtPayment(
+                debtId = debtId, transactionId = transactionId, amountMinor = amount, createdAt = now
+            ))
+        }
     }
 }

@@ -1,0 +1,8 @@
+node_modules/
+dist/
+exports/
+.vite/
+test-results/
+playwright-report/
+.env.local
+.env.*.local

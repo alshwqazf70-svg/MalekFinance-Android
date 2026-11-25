@@ -1,0 +1,21 @@
+# Local Android/Gradle output
+.gradle/
+.kotlin/
+**/build/
+local.properties
+*.iml
+.idea/
+
+# Signing material, local configuration and financial exports
+*.jks
+*.keystore
+.env
+.env.*
+!.env.example
+*.malekbackup
+*.malekfinance
+
+# Host/editor caches
+__pycache__/
+*.pyc
+.DS_Store

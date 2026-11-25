@@ -182,4 +182,20 @@ class FinanceBackupInstrumentedTest {
         assertEquals("البيانات الحالية", db.dao().forWallet(walletId).single().note)
     }
 
+
+    @Test fun authenticatedButOrphanedBackupIsRejectedAndCurrentDataSurvives() = runBlocking {
+        val walletId = db.walletDao().insert(FinanceWallet(name = "نقد"))
+        // Authentication proves the file was not modified, not that its contents are valid.
+        val invalid = FinanceTransaction(amountMinor = 100, kind = "EXPENSE", note = "يتيم", walletId = walletId, debtId = 999L)
+        val invalidId = db.dao().insert(invalid)
+        val backup = ByteArrayOutputStream()
+        FinanceBackupManager.export(db, backup, "semantic-pass".toCharArray())
+        db.dao().delete(invalid.copy(id = invalidId))
+        db.dao().insert(FinanceTransaction(amountMinor = 300, kind = "INCOME", note = "بيانات سليمة حالية", walletId = walletId))
+        var rejected = false
+        try { FinanceBackupManager.restore(db, backup.toByteArray().inputStream(), "semantic-pass".toCharArray()) }
+        catch (_: Exception) { rejected = true }
+        assertTrue(rejected)
+        assertEquals("بيانات سليمة حالية", db.dao().forWallet(walletId).single().note)
+    }
 }

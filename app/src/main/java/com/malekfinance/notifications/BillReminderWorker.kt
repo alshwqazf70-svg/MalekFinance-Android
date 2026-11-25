@@ -11,7 +11,7 @@ import android.os.Build
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
-import androidx.room.Room
+import com.malekfinance.FinanceDatabaseProvider
 import androidx.work.CoroutineWorker
 import androidx.work.ExistingWorkPolicy
 import androidx.work.OneTimeWorkRequestBuilder
@@ -86,9 +86,7 @@ class BillReminderWorker(
         if (billId <= 0L || scheduledDueAt <= 0L) return Result.failure()
 
         val db = try {
-            Room.databaseBuilder(applicationContext, FinanceDb::class.java, "malek-finance.db")
-                .addMigrations(*FinanceDb.ALL_MIGRATIONS)
-                .build()
+            FinanceDatabaseProvider.get(applicationContext)
         } catch (_: Exception) {
             return Result.retry()
         }
@@ -130,8 +128,6 @@ class BillReminderWorker(
             return Result.success()
         } catch (_: Exception) {
             return Result.retry()
-        } finally {
-            db.close()
         }
     }
 }

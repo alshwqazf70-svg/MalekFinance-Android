@@ -18,7 +18,7 @@ data class FinanceCategory(
     val name: String,
     /** INCOME, EXPENSE, or BOTH. */
     val kind: String,
-    val colorHex: String = "#A855F7",
+    val colorHex: String = "#E3C68D",
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis()
 )

@@ -61,6 +61,9 @@ dependencies {
     implementation("androidx.room:room-ktx:2.7.1")
     implementation("androidx.sqlite:sqlite-ktx:2.5.1")
     implementation("androidx.work:work-runtime-ktx:2.10.1")
+    // Embedded offline speech runtime. Models are imported once into private app storage.
+    implementation("com.alphacephei:vosk-android:0.3.47@aar")
+    implementation("net.java.dev.jna:jna:5.13.0@aar")
     ksp("androidx.room:room-compiler:2.7.1")
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")

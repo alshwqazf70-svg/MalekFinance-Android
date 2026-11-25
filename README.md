@@ -4,17 +4,17 @@
 
 إدارة ذكية لأموالك، بصوتك وبسهولة.
 
-An independent Arabic-first Android personal finance manager. The approved product name is MK Finance — إدارة أموالك. The product direction is a complete personal finance manager with a purple dark visual identity and voice-first interaction. Only features present in the source and verified by appropriate tests should be considered implemented.
+An independent Arabic-first Android personal finance manager. The approved product name is MK Finance — إدارة أموالك. The product direction is a complete personal finance manager with a obsidian, champagne-gold and emerald visual identity and voice-first interaction. Only features present in the source and verified by appropriate tests should be considered implemented.
 
 ## Product direction
 
 - **Product level:** Complete personal finance manager.
-- **Visual identity:** Dark interface with Neon Purple accents.
+- **Visual identity:** Obsidian dark interface with champagne-gold actions and emerald insights.
 - **Interaction:** Voice is primary; touch and text remain fully supported alternatives.
 - **Language and locale:** Arabic-first, right-to-left (RTL).
 - **Default currency:** Yemeni rial (YER); the current wallet screen supports YER, USD, SAR and AED with separate balances.
 - **Platform:** Native Android; minimum Android 6.0 (API 23).
-- **Offline-first:** Core financial records, calculations and local reports work on-device. Speech recognition availability/offline behavior depends on the device's recognition service.
+- **Offline-first:** Core financial records, calculations and local reports work on-device. Embedded Vosk recognition works locally after importing a compatible Arabic model once. No model is bundled yet; manual entry needs no model.
 
 ## Product capabilities in the approved plan
 
@@ -35,6 +35,7 @@ The `docs/` directory is the canonical reference for product scope and engineeri
 - [Voice system](docs/VOICE_SYSTEM.md) — intents, Arabic/Yemeni language handling, review and confirmation.
 - [Architecture](docs/ARCHITECTURE.md) — app layers, data model, money precision, privacy and tests.
 - [Roadmap](docs/ROADMAP.md) — phases and verified implementation status.
+- [Deep audit — 2026-11-25](docs/PROJECT_AUDIT_2026-11-25.md) — confirmed fixes, remaining risks, actual test results and release gates.
 - [Decision log](docs/DECISIONS.md) — approved decisions and future changes.
 
 **Documentation rule:** Any approved change to product scope, UI, voice behavior, data handling or architecture must update the relevant document in the same development task. The repository documentation is the source of truth; chat discussions alone do not change the specification.
@@ -66,11 +67,11 @@ These items still require source review and successful CI/device verification be
 
 GitHub Actions is configured to run JVM unit tests, Room/Compose instrumentation tests on an Android emulator, and assemble a debug APK. It can also build a signed release APK when the owner supplies all signing credentials through GitHub Secrets. A successful build and its artifact must be confirmed from the relevant workflow run; configuration alone is not proof of success.
 
-Speech recognition depends on the recognition app/service available on the device and may require an internet connection. Offline speech recognition is not guaranteed across devices.
+Speech recognition now uses the embedded Vosk runtime, not the system recognition service. A compatible Arabic Vosk ZIP model must be imported first. No Arabic acoustic model is bundled or trained by this project yet; dialect accuracy, native-library compatibility and device performance remain unverified. See [offline voice setup and limitations](docs/OFFLINE_VOICE.md).
 
 ## Development
 
-Active development branch: `feature/voice-finance`.
+Current redesign working branch: `arena/92bb740d-malekfinance-android` (based on `feature/voice-finance`).
 
 Work incrementally: review the existing source, implement one roadmap phase at a time, update documentation with each change, run relevant tests, then verify the debug build.
 
@@ -84,3 +85,26 @@ Work incrementally: review the existing source, implement one roadmap phase at a
 
 - يدعم مساعد الصوت الآن تصفية سؤال المصروف حسب التصنيف عند ذكره صراحةً.
 - إعداد توقيع Release جاهز لاستقبال Keystore عبر GitHub Secrets؛ لم يُضمّن مفتاح توقيع في المستودع.
+
+## إعادة التصميم والمحرك المحلي — 2026-11-25
+
+تنفيذ أولي جديد، وليس إصداراً معتمداً بعد:
+- هوية حبرية/ذهبية/زمردية تشمل الألوان والمكونات والتنقل والأيقونة؛ إعادة بناء الرئيسية وبطاقة الصوت.
+- رصيد المحافظ الفعلي لكل عملة، ملخص الشهر، إخفاء تفاصيل الرئيسية، مخطط إنفاق سبعة أيام، وبصيرة مالية حتمية على الجهاز.
+- مختبر «ماذا لو» لخفض الإنفاق افتراضياً بناء على متوسط الشهر؛ لا يكتب عمليات مالية.
+- تقسيم «مالي» إلى أدوات مختارة بدلاً من تكديس جميع النماذج في صفحة واحدة.
+- محرك Vosk مدمج واستيراد نموذج عربي محلي مع حماية مسارات ZIP وحدود الحجم، دون رجوع إلى خدمة النظام أو السحابة.
+- لم يُضمّن نموذج صوتي في APK؛ لا تدّعي هذه الدفعة تدريب نموذج عربي من الصفر أو اعتماد دقته.
+- أضيفت اختبارات للحسابات الجديدة وأرشيف النموذج والتنقل. نجاح Gradle وAPK واختبارات الجهاز ما زال مطلوباً. راجع [نظام التصميم](docs/DESIGN_SYSTEM.md) و[الصوت المحلي](docs/OFFLINE_VOICE.md).
+
+## معاينة التصميم في المتصفح
+
+توجد معاينة تفاعلية مستقلة في `web-preview/` لمراجعة التصميم دون تنزيل APK لكل تعديل:
+
+```sh
+cd web-preview
+npm ci
+npm run dev
+```
+
+افتح نافذة Live Preview. يمكنك تجربة التنقل، عرض الهاتف، العمليات والمحافظ والتحويلات التجريبية والتقارير. البيانات معزولة في المتصفح وليست بيانات هاتفك. **هذه ليست نسخة Android أو محاكياً، والصوت الأصلي غير مفعّل هنا.** الميزانيات والادخار والفواتير أمثلة بصرية موسومة فقط. راجع [دليل معاينة المتصفح](docs/BROWSER_PREVIEW.md) للتشغيل وحدود التجربة وسير اعتماد التصميم.

@@ -1,9 +1,5 @@
 package com.malekfinance.ui
 
-import android.Manifest
-import android.content.Intent
-import android.content.pm.PackageManager
-import android.speech.RecognizerIntent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -21,9 +17,13 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,14 +36,12 @@ import com.malekfinance.FinanceReportRange
 import com.malekfinance.FinanceReportExporter
 import com.malekfinance.FinanceBackupManager
 import com.malekfinance.voice.VoiceTransactionParser
-import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import com.malekfinance.voice.VoiceCommandType
 import com.malekfinance.voice.VoiceQueryEngine
-import com.malekfinance.voice.VoiceRecognitionIntentFactory
 import androidx.room.withTransaction
 
 private enum class FinanceSection(val title: String) {
@@ -53,29 +51,23 @@ private enum class FinanceSection(val title: String) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FinanceApp(db: FinanceDb) {
-    var section by remember { mutableStateOf(FinanceSection.HOME) }
-    val transactions by db.dao().observe().collectAsState(initial = emptyList())
-    val wallets by db.walletDao().observe().collectAsState(initial = emptyList())
-    val transfers by db.transferDao().observe().collectAsState(initial = emptyList())
-    val categories by db.categoryDao().observeAll().collectAsState(initial = emptyList())
-    val budgets by db.budgetDao().observeAll().collectAsState(initial = emptyList())
-    val debts by db.debtDao().observeAll().collectAsState(initial = emptyList())
-    val debtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
-    val savingsGoals by db.savingsGoalDao().observeAll().collectAsState(initial = emptyList())
-    val savingsEntries by db.savingsEntryDao().observeAll().collectAsState(initial = emptyList())
-    val recurringIncomeRules by db.recurringIncomeRuleDao().observeAll().collectAsState(initial = emptyList())
-    val recurringIncomeEntries by db.recurringIncomeEntryDao().observeAll().collectAsState(initial = emptyList())
-val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAsState(initial = emptyList())
-    val recurringExpenseEntries by db.recurringExpenseEntryDao().observeAll().collectAsState(initial = emptyList())
-    val bills by db.billDao().observeAll().collectAsState(initial = emptyList())
-    val billPayments by db.billPaymentDao().observeAll().collectAsState(initial = emptyList())
-    // Never combine different currencies into one misleading total.
-    val yerTransactions = transactions.filter { it.currencyCode == "YER" }
-    val income = yerTransactions.filter { it.kind == "INCOME" }
-        .fold(java.math.BigInteger.ZERO) { total, row -> total.add(java.math.BigInteger.valueOf(row.amountMinor)) }
-    val expenses = yerTransactions.filter { it.kind == "EXPENSE" }
-        .fold(java.math.BigInteger.ZERO) { total, row -> total.add(java.math.BigInteger.valueOf(row.amountMinor)) }
-
+    var section by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(FinanceSection.HOME) }
+    var homeAmountsHidden by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+    val transactions by db.dao().observe().collectAsStateWithLifecycle(initialValue = emptyList())
+    val wallets by db.walletDao().observe().collectAsStateWithLifecycle(initialValue = emptyList())
+    val transfers by db.transferDao().observe().collectAsStateWithLifecycle(initialValue = emptyList())
+    val categories by db.categoryDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val budgets by db.budgetDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val debts by db.debtDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val debtPayments by db.debtPaymentDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val savingsGoals by db.savingsGoalDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val savingsEntries by db.savingsEntryDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val recurringIncomeRules by db.recurringIncomeRuleDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val recurringIncomeEntries by db.recurringIncomeEntryDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val recurringExpenseEntries by db.recurringExpenseEntryDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val bills by db.billDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val billPayments by db.billPaymentDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
     FinanceTheme {
         CompositionLocalProvider(androidx.compose.ui.platform.LocalLayoutDirection provides androidx.compose.ui.unit.LayoutDirection.Rtl) {
         Scaffold(
@@ -84,9 +76,14 @@ val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAs
                 TopAppBar(
                     title = {
                         Column {
-                            Text("MK Finance", fontWeight = FontWeight.Bold)
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                                Surface(shape = RoundedCornerShape(12.dp), color = FinanceColors.Primary) {
+                                    Text("MK", Modifier.padding(horizontal = 10.dp, vertical = 8.dp), color = FinanceColors.Background, fontWeight = FontWeight.Black)
+                                }
+                                Text("MK Finance", fontWeight = FontWeight.Bold)
+                            }
                             Text(
-                                if (section == FinanceSection.HOME) "إدارة أموالك" else "إدارة أموالك • ${section.title}",
+                                if (section == FinanceSection.HOME) "مساحة خاصة لطموحك" else "إدارة أموالك • ${section.title}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = FinanceColors.TextSecondary
                             )
@@ -96,7 +93,10 @@ val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAs
                 )
             },
             bottomBar = {
-                NavigationBar(containerColor = FinanceColors.Surface) {
+                NavigationBar(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp).clip(RoundedCornerShape(26.dp)),
+                    containerColor = FinanceColors.Surface, tonalElevation = 0.dp
+                ) {
                     FinanceSection.values().forEach { item ->
                         val icon = when (item) {
                             FinanceSection.HOME -> Icons.Default.Home
@@ -123,7 +123,7 @@ val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAs
             }
         ) { padding ->
             when (section) {
-                    FinanceSection.HOME -> HomeDashboard(income, expenses, transactions, Modifier.padding(padding), onVoice = { section = FinanceSection.VOICE }, onTransactions = { section = FinanceSection.TRANSACTIONS })
+                    FinanceSection.HOME -> PremiumDashboard(transactions, wallets, transfers, Modifier.padding(padding), hidden = homeAmountsHidden, onHiddenChange = { homeAmountsHidden = it }, onVoice = { section = FinanceSection.VOICE }, onTransactions = { section = FinanceSection.TRANSACTIONS }, onReports = { section = FinanceSection.REPORTS }, onMoney = { section = FinanceSection.MONEY })
                     FinanceSection.TRANSACTIONS -> TransactionListScreen(db, transactions, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.VOICE -> VoiceLandingScreen(db, wallets, categories.filter { it.isActive }, Modifier.padding(padding))
                     FinanceSection.REPORTS -> ReportsLandingScreen(db, transactions, wallets, Modifier.padding(padding))
@@ -135,101 +135,43 @@ val recurringExpenseRules by db.recurringExpenseRuleDao().observeAll().collectAs
 }
 
 @Composable
-private fun HomeDashboard(
-    income: java.math.BigInteger,
-    expenses: java.math.BigInteger,
-    transactions: List<FinanceTransaction>,
-    modifier: Modifier = Modifier,
-    onVoice: () -> Unit,
-    onTransactions: () -> Unit
-) {
-    LazyColumn(
-        modifier.fillMaxSize(),
-        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text("مرحباً بك 👋", color = FinanceColors.TextSecondary)
-                Text("مالك فاينانس", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("أموالك تحت سيطرتك، بصوتك فقط", color = FinanceColors.TextSecondary)
-            }
-        }
-        item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(26.dp),
-                colors = CardDefaults.cardColors(containerColor = FinanceColors.SurfaceElevated)
-            ) {
-                Column(Modifier.fillMaxWidth().padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text("صافي العمليات المسجلة بالريال اليمني", color = FinanceColors.TextSecondary)
-                    Text(formatMoney(income.subtract(expenses)), style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = FinanceColors.TextPrimary)
-                    HorizontalDivider(color = FinanceColors.Divider)
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("إجمالي الدخل", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.labelMedium)
-                            Text(formatMoney(income), color = FinanceColors.Income, fontWeight = FontWeight.Bold)
-                        }
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("إجمالي المصروفات", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.labelMedium)
-                            Text(formatMoney(expenses), color = FinanceColors.Expense, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-        item {
-            Button(
-                onClick = onVoice,
-                modifier = Modifier.fillMaxWidth().height(60.dp),
-                shape = RoundedCornerShape(18.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
-            ) {
-                Icon(Icons.Default.Mic, contentDescription = null)
-                Spacer(Modifier.width(10.dp))
-                Text("سجّل عملية بصوتك", fontWeight = FontWeight.Bold)
-            }
-        }
-        item {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text("آخر العمليات", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                TextButton(onClick = onTransactions) { Text("عرض الكل", color = FinanceColors.PrimaryLight) }
-            }
-        }
-        if (transactions.isEmpty()) {
-            item { SectionCard("لا توجد عمليات حتى الآن", "ابدأ بإضافة أول دخل أو مصروف، وستظهر ملخصاتك هنا.") }
-        } else {
-            items(transactions.take(5), key = { it.id }) { row ->
-                Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(16.dp)) {
-                    Row(Modifier.fillMaxWidth().padding(14.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Column(Modifier.weight(1f)) {
-                            Text(row.note, fontWeight = FontWeight.SemiBold)
-                            Text(row.category + " • " + when (row.kind) { "INCOME" -> "دخل"; "EXPENSE" -> "مصروف"; "DEBT_RECEIVED" -> "استلام قرض"; "DEBT_ISSUED" -> "إقراض سلفة"; "SAVINGS_CONTRIBUTION" -> "مساهمة ادخار"; "SAVINGS_WITHDRAWAL" -> "سحب ادخار"; else -> "عملية" }, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
-                        }
-                        Text(
-                            (if (row.kind == "INCOME" || row.kind == "DEBT_RECEIVED" || row.kind == "SAVINGS_WITHDRAWAL") "+" else "−") + formatCurrencyMoney(row.amountMinor, row.currencyCode),
-                            color = if (row.kind == "INCOME" || row.kind == "DEBT_RECEIVED" || row.kind == "SAVINGS_WITHDRAWAL") FinanceColors.Income else FinanceColors.Expense,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>, activeCategories: List<com.malekfinance.FinanceCategory>, modifier: Modifier = Modifier) {
     val scope = rememberCoroutineScope()
-    var search by remember { mutableStateOf("") }
-    var kindFilter by remember { mutableStateOf("ALL") }
-    var categoryFilter by remember { mutableStateOf("الكل") }
-    var editingId by remember { mutableStateOf<Long?>(null) }
-    var editAmount by remember { mutableStateOf("") }
-    var editNote by remember { mutableStateOf("") }
-    var editCategory by remember { mutableStateOf("") }
-    var editKind by remember { mutableStateOf("EXPENSE") }
+    var search by rememberSaveable { mutableStateOf("") }
+    var kindFilter by rememberSaveable { mutableStateOf("ALL") }
+    var categoryFilter by rememberSaveable { mutableStateOf("الكل") }
+    var editingId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var editAmount by rememberSaveable { mutableStateOf("") }
+    var editNote by rememberSaveable { mutableStateOf("") }
+    var editCategory by rememberSaveable { mutableStateOf("") }
+    var editKind by rememberSaveable { mutableStateOf("EXPENSE") }
     var status by remember { mutableStateOf<String?>(null) }
+
+    var pendingDeleteId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var deleting by remember { mutableStateOf(false) }
+    val pendingDelete = rows.firstOrNull { it.id == pendingDeleteId }
+    if (pendingDelete != null) AlertDialog(
+        onDismissRequest = { if (!deleting) pendingDeleteId = null },
+        title = { Text("تأكيد حذف العملية") },
+        text = { Text("حذف «${pendingDelete.note}» بقيمة ${formatCurrencyMoney(pendingDelete.amountMinor, pendingDelete.currencyCode)}؟ سيتغير رصيد المحفظة. لا يمكن التراجع عن الحذف من هذه الشاشة.") },
+        confirmButton = { TextButton(enabled = !deleting, onClick = {
+            deleting = true
+            scope.launch {
+                try {
+                    com.malekfinance.FinanceTransactionOperations.delete(db, pendingDelete)
+                    status = "تم حذف العملية."
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (_: Exception) {
+                    status = "تعذر الحذف؛ ربما تغيرت العملية أو أصبحت مرتبطة بسجل آخر."
+                } finally {
+                    deleting = false
+                    pendingDeleteId = null
+                }
+            }
+        }) { Text(if (deleting) "جارٍ الحذف…" else "تأكيد الحذف") } },
+        dismissButton = { TextButton(enabled = !deleting, onClick = { pendingDeleteId = null }) { Text("إلغاء") } }
+    )
 
     val categories = rows.map { it.category }.distinct().sorted()
     val filteredRows = rows.filter { row ->
@@ -332,12 +274,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                         activeCategories.none { it.name == editCategory && com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, editKind) } -> status = "اختر تصنيفاً يناسب نوع العملية."
                                         else -> scope.launch {
                                             runCatching {
-                                                db.dao().update(row.copy(
-                                                    amountMinor = amountMinor,
-                                                    kind = editKind,
-                                                    note = editNote.trim(),
-                                                    category = editCategory.trim()
-                                                ))
+                                                com.malekfinance.FinanceTransactionOperations.update(db, row, amountMinor, editKind, editNote, editCategory.trim())
                                             }.onSuccess {
                                                 editingId = null
                                                 status = "تم تحديث العملية."
@@ -370,13 +307,7 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
                                             editKind = row.kind
                                             status = null
                                         }) { Text("تعديل", color = FinanceColors.PrimaryLight) }
-                                        TextButton(onClick = {
-                                            scope.launch {
-                                                runCatching { db.dao().delete(row) }
-                                                    .onSuccess { status = "تم حذف العملية." }
-                                                    .onFailure { status = "تعذر حذف العملية. حاول مرة أخرى." }
-                                            }
-                                        }) { Text("حذف", color = FinanceColors.Expense) }
+                                        TextButton(onClick = { pendingDeleteId = row.id }, enabled = !deleting) { Text("حذف", color = FinanceColors.Expense) }
                                     }
                                 } else {
                                     Text(
@@ -398,47 +329,50 @@ private fun TransactionListScreen(db: FinanceDb, rows: List<FinanceTransaction>,
 private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, activeCategories: List<com.malekfinance.FinanceCategory>, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    var transcript by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var category by remember { mutableStateOf("عام") }
-    var kind by remember { mutableStateOf<String?>(null) }
+    var transcript by rememberSaveable { mutableStateOf("") }
+    var amount by rememberSaveable { mutableStateOf("") }
+    var description by rememberSaveable { mutableStateOf("") }
+    var category by rememberSaveable { mutableStateOf("عام") }
+    var kind by rememberSaveable { mutableStateOf<String?>(null) }
     var status by remember { mutableStateOf("تحدث عن العملية، ثم راجع كل التفاصيل قبل الحفظ.") }
-    var hasDraft by remember { mutableStateOf(false) }
+    var hasDraft by rememberSaveable { mutableStateOf(false) }
     var isSavingDraft by remember { mutableStateOf(false) }
-    var draftCreatedAt by remember { mutableStateOf(System.currentTimeMillis()) }
-    var hasTransferDraft by remember { mutableStateOf(false) }
-    var transferAmountText by remember { mutableStateOf("") }
-    var transferNote by remember { mutableStateOf("") }
-    var transferFromWalletId by remember { mutableStateOf<Long?>(null) }
-    var transferToWalletId by remember { mutableStateOf<Long?>(null) }
+    var draftCreatedAt by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
+    var hasTransferDraft by rememberSaveable { mutableStateOf(false) }
+    var transferAmountText by rememberSaveable { mutableStateOf("") }
+    var transferNote by rememberSaveable { mutableStateOf("") }
+    var transferFromWalletId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var transferToWalletId by rememberSaveable { mutableStateOf<Long?>(null) }
     var isTransferSaving by remember { mutableStateOf(false) }
-    var hasDebtDraft by remember { mutableStateOf(false) }
-    var debtPersonDraft by remember { mutableStateOf("") }
-    var debtDescriptionDraft by remember { mutableStateOf("") }
-    var debtAmountDraft by remember { mutableStateOf("") }
-    var debtTypeDraft by remember { mutableStateOf("OWED_BY_ME") }
-    var debtWalletDraftId by remember { mutableStateOf<Long?>(null) }
-    var debtRecordCashMovement by remember { mutableStateOf(true) }
+    var hasDebtDraft by rememberSaveable { mutableStateOf(false) }
+    var debtPersonDraft by rememberSaveable { mutableStateOf("") }
+    var debtDescriptionDraft by rememberSaveable { mutableStateOf("") }
+    var debtAmountDraft by rememberSaveable { mutableStateOf("") }
+    var debtTypeDraft by rememberSaveable { mutableStateOf("OWED_BY_ME") }
+    var debtWalletDraftId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var debtRecordCashMovement by rememberSaveable { mutableStateOf(true) }
+    var debtIsCreditPurchase by rememberSaveable { mutableStateOf(false) }
+    var debtCreditConfirmed by rememberSaveable { mutableStateOf(true) }
+    var debtCreatedAt by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
     var isDebtSaving by remember { mutableStateOf(false) }
-    var hasDebtPaymentDraft by remember { mutableStateOf(false) }
-    var debtPaymentDirection by remember { mutableStateOf("OWED_BY_ME") }
-    var debtPaymentAmountDraft by remember { mutableStateOf("") }
-    var debtPaymentDebtId by remember { mutableStateOf<Long?>(null) }
+    var hasDebtPaymentDraft by rememberSaveable { mutableStateOf(false) }
+    var debtPaymentDirection by rememberSaveable { mutableStateOf("OWED_BY_ME") }
+    var debtPaymentAmountDraft by rememberSaveable { mutableStateOf("") }
+    var debtPaymentDebtId by rememberSaveable { mutableStateOf<Long?>(null) }
     var isDebtPaymentSaving by remember { mutableStateOf(false) }
-    var hasSavingsDraft by remember { mutableStateOf(false) }
-    var savingsAmountDraft by remember { mutableStateOf("") }
-    var savingsGoalDraftId by remember { mutableStateOf<Long?>(null) }
-    var savingsDraftType by remember { mutableStateOf("CONTRIBUTION") }
+    var hasSavingsDraft by rememberSaveable { mutableStateOf(false) }
+    var savingsAmountDraft by rememberSaveable { mutableStateOf("") }
+    var savingsGoalDraftId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var savingsDraftType by rememberSaveable { mutableStateOf("CONTRIBUTION") }
     var isSavingsSaving by remember { mutableStateOf(false) }
-    var hasBillDraft by remember { mutableStateOf(false) }
-    var billDraftId by remember { mutableStateOf<Long?>(null) }
+    var hasBillDraft by rememberSaveable { mutableStateOf(false) }
+    var billDraftId by rememberSaveable { mutableStateOf<Long?>(null) }
     var isBillSaving by remember { mutableStateOf(false) }
-    val voiceDebts by db.debtDao().observeAll().collectAsState(initial = emptyList())
-    val voiceDebtPayments by db.debtPaymentDao().observeAll().collectAsState(initial = emptyList())
-    val voiceBills by db.billDao().observeAll().collectAsState(initial = emptyList())
-    val voiceSavingsGoals by db.savingsGoalDao().observeAll().collectAsState(initial = emptyList())
-    var selectedWalletId by remember { mutableStateOf<Long?>(null) }
+    val voiceDebts by db.debtDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val voiceDebtPayments by db.debtPaymentDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val voiceBills by db.billDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val voiceSavingsGoals by db.savingsGoalDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    var selectedWalletId by rememberSaveable { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
     val compatibleCategories = activeCategories.filter {
         kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, kind!!)
@@ -466,343 +400,319 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         debtPaymentDebtId = null
     }
 
-    val speechLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        if (result.resultCode != android.app.Activity.RESULT_OK) {
-            status = if (result.resultCode == android.app.Activity.RESULT_CANCELED) {
-                "تم إغلاق نافذة التعرف الصوتي أو لم تتوفر نتيجة. تحقق من اتصال الإنترنت أو جرّب مرة أخرى، ويمكنك الكتابة يدوياً."
-            } else {
-                "تعذر إكمال التعرف الصوتي. تحقق من خدمة التعرف واتصال الإنترنت، أو أدخل العملية يدوياً."
+    fun processRecognizedText(spoken: String) {
+        val parsed = VoiceTransactionParser.parse(spoken)
+        transcript = spoken
+        if (parsed.command == VoiceCommandType.CANCEL_DRAFT) {
+            transcript = ""
+            amount = ""
+            description = ""
+            kind = null
+            category = "عام"
+            hasDraft = false
+            hasTransferDraft = false
+            hasDebtDraft = false
+            clearDebtPaymentDraft()
+            hasSavingsDraft = false
+            savingsAmountDraft = ""
+            savingsGoalDraftId = null
+            transferFromWalletId = null
+            transferToWalletId = null
+            debtWalletDraftId = null
+            debtPersonDraft = ""
+            debtDescriptionDraft = ""
+            debtAmountDraft = ""
+            transferAmountText = ""
+            transferNote = ""
+            status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
+        } else if (parsed.command == VoiceCommandType.CORRECT_AMOUNT) {
+            val corrected = parsed.amount?.let { raw ->
+                runCatching {
+                    normalizeFinanceAmount(raw).replace('٫', '.').replace(',', '.').toBigDecimalOrNull()
+                }.getOrNull()
             }
-        } else {
-        val alternatives = result.data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS).orEmpty()
-        val confidence = result.data?.getFloatArrayExtra(RecognizerIntent.EXTRA_CONFIDENCE_SCORES)
-        val bestIndex = if (confidence != null && confidence.size == alternatives.size) confidence.indices.maxByOrNull { confidence[it] } ?: 0 else 0
-        val spoken = alternatives.getOrNull(bestIndex)
-        if (spoken.isNullOrBlank()) {
-            status = "لم يتم التقاط كلام واضح. يمكنك إعادة المحاولة أو الكتابة يدوياً."
-        } else {
-            val parsed = VoiceTransactionParser.parse(spoken)
-            transcript = spoken
-            if (parsed.command == VoiceCommandType.CANCEL_DRAFT) {
-                transcript = ""
-                amount = ""
-                description = ""
-                kind = null
-                category = "عام"
-                hasDraft = false
-                hasTransferDraft = false
-                hasDebtDraft = false
-                clearDebtPaymentDraft()
-                hasSavingsDraft = false
-                savingsAmountDraft = ""
-                savingsGoalDraftId = null
-                transferFromWalletId = null
-                transferToWalletId = null
-                debtWalletDraftId = null
-                debtPersonDraft = ""
-                debtDescriptionDraft = ""
-                debtAmountDraft = ""
-                transferAmountText = ""
-                transferNote = ""
-                status = "تم إلغاء المسودة بأمرك الصوتي دون حفظ أي عملية."
-            } else if (parsed.command == VoiceCommandType.CORRECT_AMOUNT) {
-                val corrected = parsed.amount?.let { raw ->
-                    runCatching {
-                        normalizeFinanceAmount(raw).replace('٫', '.').replace(',', '.').toBigDecimalOrNull()
-                    }.getOrNull()
+            if (corrected == null || corrected <= java.math.BigDecimal.ZERO) {
+                status = "لم أتعرف على مبلغ تصحيح صحيح أكبر من صفر."
+            } else {
+                val normalizedCorrection = corrected.stripTrailingZeros().toPlainString()
+                when {
+                    hasDraft -> amount = normalizedCorrection
+                    hasTransferDraft -> transferAmountText = normalizedCorrection
+                    hasDebtDraft -> debtAmountDraft = normalizedCorrection
+                    hasDebtPaymentDraft -> debtPaymentAmountDraft = normalizedCorrection
+                    hasSavingsDraft -> savingsAmountDraft = normalizedCorrection
+                    hasBillDraft -> status = "مبلغ الفاتورة محفوظ في سجلها. عدّل الفاتورة من قسم الفواتير قبل الدفع."
+                    else -> status = "لا توجد مسودة حالية لتصحيح مبلغها. ابدأ بإدخال عملية أولاً."
                 }
-                if (corrected == null || corrected <= java.math.BigDecimal.ZERO) {
-                    status = "لم أتعرف على مبلغ تصحيح صحيح أكبر من صفر."
+                if (!hasBillDraft && (hasDraft || hasTransferDraft || hasDebtDraft || hasDebtPaymentDraft || hasSavingsDraft)) {
+                    status = "تم تحديث مبلغ المسودة إلى " + normalizedCorrection + ". راجع بقية التفاصيل قبل التأكيد."
+                }
+            }
+        } else if (parsed.command == VoiceCommandType.DEBT_PAYMENT_DRAFT) {
+            hasDraft = false
+            hasTransferDraft = false
+            hasDebtDraft = false
+            hasSavingsDraft = false
+            clearDebtPaymentDraft()
+            hasBillDraft = false
+            amount = ""
+            description = ""
+            kind = null
+            hasDebtPaymentDraft = true
+            debtPaymentDirection = parsed.debtPaymentDirection ?: "OWED_BY_ME"
+            debtPaymentAmountDraft = parsed.amount.orEmpty()
+            debtPaymentDebtId = voiceDebts.firstOrNull { debt ->
+                debt.debtType == debtPaymentDirection && spoken.contains(debt.personName, ignoreCase = true) &&
+                    com.malekfinance.FinanceDebtPolicy.outstanding(debt.principalMinor, voiceDebtPayments.filter { it.debtId == debt.id }).signum() > 0
+            }?.id
+            status = "اختر الدين الصحيح وراجع مبلغ الدفعة. لن يتم السداد أو التحصيل إلا بعد التأكيد."
+        } else if (parsed.command == VoiceCommandType.BILL_PAYMENT_DRAFT) {
+            hasDraft = false
+            hasTransferDraft = false
+            hasDebtDraft = false
+            hasSavingsDraft = false
+            amount = ""
+            clearDebtPaymentDraft()
+            description = ""
+            kind = null
+            hasBillDraft = true
+            billDraftId = voiceBills.firstOrNull {
+                it.isActive && com.malekfinance.FinanceBillPolicy.isDue(it.nextDueAt, System.currentTimeMillis()) &&
+                    spoken.contains(it.title, ignoreCase = true)
+            }?.id
+            status = "اختر الفاتورة وراجع المبلغ وموعد الاستحقاق. لن يتم تسجيل الدفع إلا بعد التأكيد."
+        } else if (parsed.command == VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT ||
+            parsed.command == VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT) {
+            hasDraft = false
+            hasTransferDraft = false
+            hasDebtDraft = false
+            transferAmountText = ""
+            clearDebtPaymentDraft()
+            transferNote = ""
+            transferFromWalletId = null
+            transferToWalletId = null
+            debtPersonDraft = ""
+            debtDescriptionDraft = ""
+            debtAmountDraft = ""
+            debtWalletDraftId = null
+            amount = ""
+            description = ""
+            kind = null
+            hasSavingsDraft = true
+            savingsDraftType = if (parsed.command == VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT) "CONTRIBUTION" else "WITHDRAWAL"
+            savingsAmountDraft = parsed.amount.orEmpty()
+            savingsGoalDraftId = voiceSavingsGoals.firstOrNull { spoken.contains(it.name, ignoreCase = true) }?.id
+            status = "راجع هدف الادخار والمبلغ. لن يتم تسجيل المساهمة أو السحب إلا بعد التأكيد."
+        } else if (parsed.command == VoiceCommandType.DEBT_CREATE_DRAFT) {
+            hasDraft = false
+            hasTransferDraft = false
+            hasSavingsDraft = false
+            clearDebtPaymentDraft()
+            savingsAmountDraft = ""
+            savingsGoalDraftId = null
+            transferAmountText = ""
+            transferNote = ""
+            transferFromWalletId = null
+            transferToWalletId = null
+            amount = ""
+            description = ""
+            kind = null
+            hasDebtDraft = true
+            debtPersonDraft = parsed.debtPersonName.orEmpty()
+            debtDescriptionDraft = parsed.description
+            debtAmountDraft = parsed.amount.orEmpty()
+            debtTypeDraft = parsed.debtType ?: "OWED_BY_ME"
+            debtWalletDraftId = selectedWallet?.id
+            debtIsCreditPurchase = parsed.isCreditPurchase
+            debtCreditConfirmed = !parsed.requiresDebtClarification
+            debtRecordCashMovement = !parsed.isCreditPurchase
+            debtCreatedAt = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Aden")).apply { add(java.util.Calendar.DAY_OF_YEAR, parsed.relativeDayOffset ?: 0) }.timeInMillis
+            status = if (parsed.isCreditPurchase) "راجع الاسم الكامل والمبلغ واليوم والوقت. هذه مسودة شراء بالدين دون حركة نقدية؛ الوقت الافتراضي وقت إدخال العبارة." else "راجع اسم الشخص واتجاه الدين والمبلغ والمحفظة. لن يُسجّل الدين إلا بعد التأكيد."
+        } else if (parsed.command == VoiceCommandType.TRANSFER_DRAFT) {
+            hasDraft = false
+            clearDebtPaymentDraft()
+            amount = ""
+            description = ""
+            kind = null
+            hasDebtDraft = false
+            hasSavingsDraft = false
+            savingsAmountDraft = ""
+            savingsGoalDraftId = null
+            debtPersonDraft = ""
+            debtDescriptionDraft = ""
+            debtAmountDraft = ""
+            hasTransferDraft = true
+            transferAmountText = parsed.amount.orEmpty()
+            transferNote = spoken
+            val mentionedWallets = wallets.filter { spoken.contains(it.name, ignoreCase = true) }
+            transferFromWalletId = mentionedWallets.getOrNull(0)?.id
+            transferToWalletId = mentionedWallets.getOrNull(1)?.id
+            status = "راجع محفظة المصدر والوجهة والمبلغ. لن يتم التحويل إلا بعد ضغط زر التأكيد."
+        } else if (parsed.command != VoiceCommandType.TRANSACTION) {
+            // Read-only voice queries must not silently discard an unconfirmed draft.
+            scope.launch {
+                val wallet = selectedWallet
+                if (wallet == null) {
+                    status = "أنشئ محفظة أولاً حتى أستطيع قراءة بياناتك المالية."
                 } else {
-                    val normalizedCorrection = corrected.stripTrailingZeros().toPlainString()
-                    when {
-                        hasDraft -> amount = normalizedCorrection
-                        hasTransferDraft -> transferAmountText = normalizedCorrection
-                        hasDebtDraft -> debtAmountDraft = normalizedCorrection
-                        hasDebtPaymentDraft -> debtPaymentAmountDraft = normalizedCorrection
-                        hasSavingsDraft -> savingsAmountDraft = normalizedCorrection
-                        hasBillDraft -> status = "مبلغ الفاتورة محفوظ في سجلها. عدّل الفاتورة من قسم الفواتير قبل الدفع."
-                        else -> status = "لا توجد مسودة حالية لتصحيح مبلغها. ابدأ بإدخال عملية أولاً."
-                    }
-                    if (!hasBillDraft && (hasDraft || hasTransferDraft || hasDebtDraft || hasDebtPaymentDraft || hasSavingsDraft)) {
-                        status = "تم تحديث مبلغ المسودة إلى " + normalizedCorrection + ". راجع بقية التفاصيل قبل التأكيد."
-                    }
-                }
-            } else if (parsed.command == VoiceCommandType.DEBT_PAYMENT_DRAFT) {
-                hasDraft = false
-                hasTransferDraft = false
-                hasDebtDraft = false
-                hasSavingsDraft = false
-                clearDebtPaymentDraft()
-                hasBillDraft = false
-                amount = ""
-                description = ""
-                kind = null
-                hasDebtPaymentDraft = true
-                debtPaymentDirection = parsed.debtPaymentDirection ?: "OWED_BY_ME"
-                debtPaymentAmountDraft = parsed.amount.orEmpty()
-                debtPaymentDebtId = voiceDebts.firstOrNull { debt ->
-                    debt.debtType == debtPaymentDirection && spoken.contains(debt.personName, ignoreCase = true) &&
-                        com.malekfinance.FinanceDebtPolicy.outstanding(debt.principalMinor, voiceDebtPayments.filter { it.debtId == debt.id }).signum() > 0
-                }?.id
-                status = "اختر الدين الصحيح وراجع مبلغ الدفعة. لن يتم السداد أو التحصيل إلا بعد التأكيد."
-            } else if (parsed.command == VoiceCommandType.BILL_PAYMENT_DRAFT) {
-                hasDraft = false
-                hasTransferDraft = false
-                hasDebtDraft = false
-                hasSavingsDraft = false
-                amount = ""
-                clearDebtPaymentDraft()
-                description = ""
-                kind = null
-                hasBillDraft = true
-                billDraftId = voiceBills.firstOrNull {
-                    it.isActive && com.malekfinance.FinanceBillPolicy.isDue(it.nextDueAt, System.currentTimeMillis()) &&
-                        spoken.contains(it.title, ignoreCase = true)
-                }?.id
-                status = "اختر الفاتورة وراجع المبلغ وموعد الاستحقاق. لن يتم تسجيل الدفع إلا بعد التأكيد."
-            } else if (parsed.command == VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT ||
-                parsed.command == VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT) {
-                hasDraft = false
-                hasTransferDraft = false
-                hasDebtDraft = false
-                transferAmountText = ""
-                clearDebtPaymentDraft()
-                transferNote = ""
-                transferFromWalletId = null
-                transferToWalletId = null
-                debtPersonDraft = ""
-                debtDescriptionDraft = ""
-                debtAmountDraft = ""
-                debtWalletDraftId = null
-                amount = ""
-                description = ""
-                kind = null
-                hasSavingsDraft = true
-                savingsDraftType = if (parsed.command == VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT) "CONTRIBUTION" else "WITHDRAWAL"
-                savingsAmountDraft = parsed.amount.orEmpty()
-                savingsGoalDraftId = voiceSavingsGoals.firstOrNull { spoken.contains(it.name, ignoreCase = true) }?.id
-                status = "راجع هدف الادخار والمبلغ. لن يتم تسجيل المساهمة أو السحب إلا بعد التأكيد."
-            } else if (parsed.command == VoiceCommandType.DEBT_CREATE_DRAFT) {
-                hasDraft = false
-                hasTransferDraft = false
-                hasSavingsDraft = false
-                clearDebtPaymentDraft()
-                savingsAmountDraft = ""
-                savingsGoalDraftId = null
-                transferAmountText = ""
-                transferNote = ""
-                transferFromWalletId = null
-                transferToWalletId = null
-                amount = ""
-                description = ""
-                kind = null
-                hasDebtDraft = true
-                debtPersonDraft = parsed.debtPersonName.orEmpty()
-                debtDescriptionDraft = parsed.description
-                debtAmountDraft = parsed.amount.orEmpty()
-                debtTypeDraft = parsed.debtType ?: "OWED_BY_ME"
-                debtWalletDraftId = selectedWallet?.id
-                debtRecordCashMovement = true
-                status = "راجع اسم الشخص واتجاه الدين والمبلغ والمحفظة. لن يُسجّل الدين إلا بعد التأكيد."
-            } else if (parsed.command == VoiceCommandType.TRANSFER_DRAFT) {
-                hasDraft = false
-                clearDebtPaymentDraft()
-                amount = ""
-                description = ""
-                kind = null
-                hasDebtDraft = false
-                hasSavingsDraft = false
-                savingsAmountDraft = ""
-                savingsGoalDraftId = null
-                debtPersonDraft = ""
-                debtDescriptionDraft = ""
-                debtAmountDraft = ""
-                hasTransferDraft = true
-                transferAmountText = parsed.amount.orEmpty()
-                transferNote = spoken
-                val mentionedWallets = wallets.filter { spoken.contains(it.name, ignoreCase = true) }
-                transferFromWalletId = mentionedWallets.getOrNull(0)?.id
-                transferToWalletId = mentionedWallets.getOrNull(1)?.id
-                status = "راجع محفظة المصدر والوجهة والمبلغ. لن يتم التحويل إلا بعد ضغط زر التأكيد."
-            } else if (parsed.command != VoiceCommandType.TRANSACTION) {
-                // Read-only voice queries must not silently discard an unconfirmed draft.
-                scope.launch {
-                    val wallet = selectedWallet
-                    if (wallet == null) {
-                        status = "أنشئ محفظة أولاً حتى أستطيع قراءة بياناتك المالية."
-                    } else {
-                        runCatching {
-                            val walletTransactions = db.dao().forWallet(wallet.id)
-                            val transfers = db.transferDao().forWallet(wallet.id)
-                            when (parsed.command) {
-                                VoiceCommandType.BALANCE_QUERY -> {
-                                    val balance = com.malekfinance.FinanceLedger.calculateBalance(wallet, walletTransactions, transfers)
-                                    val major = balance.divide(java.math.BigInteger.valueOf(100))
-                                    val minor = balance.remainder(java.math.BigInteger.valueOf(100)).abs()
-                                    "رصيد " + wallet.name + ": " + String.format(java.util.Locale.ROOT, "%s.%02d %s", major.toString(), minor.toInt(), wallet.currencyCode)
-                                }
-                                VoiceCommandType.SPENDING_QUERY -> {
-                                    val result = VoiceQueryEngine.calculate(
-                                        walletTransactions, "EXPENSE", wallet.id, wallet.currencyCode,
-                                        parsed.queryPeriod, category = parsed.category.takeIf { it != "عام" }
-                                    )
-                                    "مصروفات " + (parsed.category.takeIf { it != "عام" }?.let { "تصنيف " + it + " في " } ?: "في ") +
-                                        wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
-                                }
-                                VoiceCommandType.INCOME_QUERY -> {
-                                    val result = VoiceQueryEngine.calculate(
-                                        walletTransactions, "INCOME", wallet.id, wallet.currencyCode,
-                                        parsed.queryPeriod, category = parsed.category.takeIf { it != "عام" }
-                                    )
-                                    "الدخل " + (parsed.category.takeIf { it != "عام" }?.let { "من تصنيف " + it + " في " } ?: "في ") +
-                                        wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
-                                }
-                                VoiceCommandType.SUMMARY_QUERY -> {
-                                    val income = VoiceQueryEngine.calculate(walletTransactions, "INCOME", wallet.id, wallet.currencyCode, parsed.queryPeriod)
-                                    val expense = VoiceQueryEngine.calculate(walletTransactions, "EXPENSE", wallet.id, wallet.currencyCode, parsed.queryPeriod)
-                                    "ملخص " + wallet.name + ": الدخل " + VoiceQueryEngine.formatAmount(income) + "، المصروف " + VoiceQueryEngine.formatAmount(expense)
-                                }
-                                VoiceCommandType.RECENT_TRANSACTIONS_QUERY -> {
-                                    val transactionItems = walletTransactions.map { item ->
-                                        item.createdAt to run {
-                                            val kindLabel = when (item.kind) {
-                                                "INCOME" -> "دخل"
-                                                "EXPENSE" -> "مصروف"
-                                                "DEBT_ISSUED" -> "إقراض"
-                                                "DEBT_RECEIVED" -> "قرض مستلم"
-                                                "SAVINGS_CONTRIBUTION" -> "ادخار"
-                                                "SAVINGS_WITHDRAWAL" -> "سحب من الادخار"
-                                                else -> item.kind
-                                            }
-                                            kindLabel + " " + java.math.BigDecimal.valueOf(item.amountMinor, 2).toPlainString() +
-                                                " " + item.currencyCode + " — " + item.note
-                                        }
-                                    }
-                                    val transferItems = transfers.map { transfer ->
-                                        transfer.createdAt to run {
-                                            val outgoing = transfer.fromWalletId == wallet.id
-                                            val otherWalletId = if (outgoing) transfer.toWalletId else transfer.fromWalletId
-                                            val otherWalletName = wallets.firstOrNull { it.id == otherWalletId }?.name ?: "محفظة أخرى"
-                                            (if (outgoing) "تحويل صادر إلى " else "تحويل وارد من ") + otherWalletName +
-                                                " بمبلغ " + java.math.BigDecimal.valueOf(transfer.amountMinor, 2).toPlainString() +
-                                                " " + transfer.currencyCode
-                                        }
-                                    }
-                                    val recent = (transactionItems + transferItems).sortedByDescending { it.first }.take(5)
-                                    if (recent.isEmpty()) "لا توجد عمليات مسجلة في " + wallet.name + "."
-                                    else "آخر العمليات في " + wallet.name + ": " + recent.joinToString("؛ ") { it.second }
-                                }
-                                VoiceCommandType.DEBT_OWED_BY_ME_QUERY, VoiceCommandType.DEBT_OWED_TO_ME_QUERY -> {
-                                    val debtType = if (parsed.command == VoiceCommandType.DEBT_OWED_BY_ME_QUERY) "OWED_BY_ME" else "OWED_TO_ME"
-                                    val allDebts = db.debtDao().observeAll().first()
-                                    val allPayments = db.debtPaymentDao().observeAll().first()
-                                    val outstanding = allDebts.filter {
-                                        it.walletId == wallet.id && it.currencyCode == wallet.currencyCode && it.debtType == debtType &&
-                                            (parsed.debtPersonName == null || it.personName.contains(parsed.debtPersonName, ignoreCase = true))
-                                    }.fold(java.math.BigInteger.ZERO) { sum, debt ->
-                                        sum.add(com.malekfinance.FinanceDebtPolicy.outstanding(
-                                            debt.principalMinor, allPayments.filter { it.debtId == debt.id }
-                                        ))
-                                    }
-                                    val amountText = java.math.BigDecimal(outstanding, 2).toPlainString() + " " + wallet.currencyCode
-                                    if (debtType == "OWED_BY_ME") "المتبقي عليك من الديون" + (parsed.debtPersonName?.let { " لـ " + it } ?: "") + " في " + wallet.name + ": " + amountText
-                                    else "المبالغ المستحقة لك" + (parsed.debtPersonName?.let { " لدى " + it } ?: "") + " في " + wallet.name + ": " + amountText
-                                }
-                                VoiceCommandType.SAVINGS_BALANCE_QUERY -> {
-                                    val goals = db.savingsGoalDao().observeAll().first()
-                                    val entries = db.savingsEntryDao().observeAll().first()
-                                    val saved = goals.filter { it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
-                                        .fold(java.math.BigInteger.ZERO) { sum, goal ->
-                                            sum.add(com.malekfinance.FinanceSavingsPolicy.balance(entries.filter { it.goalId == goal.id }).max(java.math.BigInteger.ZERO))
-                                        }
-                                    "إجمالي مدخراتك في " + wallet.name + ": " + java.math.BigDecimal(saved, 2).toPlainString() + " " + wallet.currencyCode
-                                }
-                                VoiceCommandType.UPCOMING_BILLS_QUERY -> {
-                                    val bills = db.billDao().observeAll().first()
-                                        .filter { it.isActive && it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
-                                        .sortedBy { it.nextDueAt }
-                                        .take(5)
-                                    if (bills.isEmpty()) "لا توجد فواتير نشطة في " + wallet.name + "."
-                                    else "الفواتير القادمة في " + wallet.name + ": " + bills.joinToString("؛ ") {
-                                        it.title + "، " + java.math.BigDecimal.valueOf(it.amountMinor, 2).toPlainString() + " " +
-                                            it.currencyCode + "، الاستحقاق " + com.malekfinance.FinanceBillPolicy.formatLocalDate(it.nextDueAt)
-                                    }
-                                }
-                                VoiceCommandType.BUDGET_STATUS_QUERY -> {
-                                    val window = com.malekfinance.FinanceBudgetPolicy.monthWindow(System.currentTimeMillis())
-                                    val budgets = db.budgetDao().observeAll().first()
-                                        .filter { it.currencyCode == wallet.currencyCode && it.periodKey == window.periodKey }
-                                    val allTransactions = db.dao().observe().first()
-                                    if (budgets.isEmpty()) "لا توجد ميزانيات شهرية نشطة بعملة " + wallet.currencyCode + "."
-                                    else budgets.joinToString("؛ ") { budget ->
-                                        val spent = com.malekfinance.FinanceBudgetPolicy.calculateSpent(
-                                            budget, allTransactions, window.startMillis, window.endExclusiveMillis
-                                        )
-                                        val remaining = java.math.BigInteger.valueOf(budget.limitMinor).subtract(spent)
-                                        budget.categoryName + ": صُرف " + java.math.BigDecimal(spent, 2).toPlainString() +
-                                            "، المتبقي " + java.math.BigDecimal(remaining, 2).toPlainString() + " " + wallet.currencyCode
-                                    }
-                                }
-                                VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.CORRECT_AMOUNT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT -> ""
+                    runCatching {
+                        val walletTransactions = db.dao().forWallet(wallet.id)
+                        val transfers = db.transferDao().forWallet(wallet.id)
+                        when (parsed.command) {
+                            VoiceCommandType.BALANCE_QUERY -> {
+                                val balance = com.malekfinance.FinanceLedger.calculateBalance(wallet, walletTransactions, transfers)
+                                val major = balance.divide(java.math.BigInteger.valueOf(100))
+                                val minor = balance.remainder(java.math.BigInteger.valueOf(100)).abs()
+                                "رصيد " + wallet.name + ": " + String.format(java.util.Locale.ROOT, "%s.%02d %s", major.toString(), minor.toInt(), wallet.currencyCode)
                             }
-                        }.onSuccess { status = it }
-                            .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
-                    }
-                }
-            } else {
-                // A newly parsed transaction replaces any older, unconfirmed special draft.
-                clearDebtPaymentDraft()
-                hasTransferDraft = false
-                hasDebtDraft = false
-                hasDebtPaymentDraft = false
-                debtPaymentAmountDraft = ""
-                debtPaymentDebtId = null
-                hasSavingsDraft = false
-                savingsAmountDraft = ""
-                savingsGoalDraftId = null
-                transferAmountText = ""
-                transferNote = ""
-                transferFromWalletId = null
-                transferToWalletId = null
-                debtPersonDraft = ""
-                debtDescriptionDraft = ""
-                debtAmountDraft = ""
-                debtWalletDraftId = null
-                amount = parsed.amount.orEmpty()
-                description = parsed.description
-                kind = parsed.kind
-                draftCreatedAt = parsed.relativeDayOffset?.let { offset ->
-                    java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, offset) }.timeInMillis
-                } ?: System.currentTimeMillis()
-                category = activeCategories.firstOrNull {
-                    it.name == parsed.category && (parsed.kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, parsed.kind))
-                }?.name ?: activeCategories.firstOrNull {
-                    it.name == "عام" && (parsed.kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, parsed.kind))
-                }?.name ?: activeCategories.firstOrNull {
-                    parsed.kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, parsed.kind)
-                }?.name ?: "عام"
-                hasDraft = true
-                status = when {
-                    parsed.amount == null && parsed.kind == null -> "لم أتعرف على المبلغ أو نوع العملية. أكمل البيانات وحدد دخل أو مصروف."
-                    parsed.amount == null -> "حدد المبلغ قبل الحفظ."
-                    parsed.kind == null -> "لم يتضح هل هي عملية دخل أم مصروف. اختر النوع بنفسك."
-                    else -> "راجع المبلغ والنوع والوصف والتصنيف. لن تُحفظ العملية قبل تأكيدك."
+                            VoiceCommandType.SPENDING_QUERY -> {
+                                val result = VoiceQueryEngine.calculate(
+                                    walletTransactions, "EXPENSE", wallet.id, wallet.currencyCode,
+                                    parsed.queryPeriod, category = parsed.category.takeIf { it != "عام" }
+                                )
+                                "مصروفات " + (parsed.category.takeIf { it != "عام" }?.let { "تصنيف " + it + " في " } ?: "في ") +
+                                    wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
+                            }
+                            VoiceCommandType.INCOME_QUERY -> {
+                                val result = VoiceQueryEngine.calculate(
+                                    walletTransactions, "INCOME", wallet.id, wallet.currencyCode,
+                                    parsed.queryPeriod, category = parsed.category.takeIf { it != "عام" }
+                                )
+                                "الدخل " + (parsed.category.takeIf { it != "عام" }?.let { "من تصنيف " + it + " في " } ?: "في ") +
+                                    wallet.name + " خلال الفترة المطلوبة: " + VoiceQueryEngine.formatAmount(result)
+                            }
+                            VoiceCommandType.SUMMARY_QUERY -> {
+                                val income = VoiceQueryEngine.calculate(walletTransactions, "INCOME", wallet.id, wallet.currencyCode, parsed.queryPeriod)
+                                val expense = VoiceQueryEngine.calculate(walletTransactions, "EXPENSE", wallet.id, wallet.currencyCode, parsed.queryPeriod)
+                                "ملخص " + wallet.name + ": الدخل " + VoiceQueryEngine.formatAmount(income) + "، المصروف " + VoiceQueryEngine.formatAmount(expense)
+                            }
+                            VoiceCommandType.RECENT_TRANSACTIONS_QUERY -> {
+                                val transactionItems = walletTransactions.map { item ->
+                                    item.createdAt to run {
+                                        val kindLabel = when (item.kind) {
+                                            "INCOME" -> "دخل"
+                                            "EXPENSE" -> "مصروف"
+                                            "DEBT_ISSUED" -> "إقراض"
+                                            "DEBT_RECEIVED" -> "قرض مستلم"
+                                            "SAVINGS_CONTRIBUTION" -> "ادخار"
+                                            "SAVINGS_WITHDRAWAL" -> "سحب من الادخار"
+                                            else -> item.kind
+                                        }
+                                        kindLabel + " " + java.math.BigDecimal.valueOf(item.amountMinor, 2).toPlainString() +
+                                            " " + item.currencyCode + " — " + item.note
+                                    }
+                                }
+                                val transferItems = transfers.map { transfer ->
+                                    transfer.createdAt to run {
+                                        val outgoing = transfer.fromWalletId == wallet.id
+                                        val otherWalletId = if (outgoing) transfer.toWalletId else transfer.fromWalletId
+                                        val otherWalletName = wallets.firstOrNull { it.id == otherWalletId }?.name ?: "محفظة أخرى"
+                                        (if (outgoing) "تحويل صادر إلى " else "تحويل وارد من ") + otherWalletName +
+                                            " بمبلغ " + java.math.BigDecimal.valueOf(transfer.amountMinor, 2).toPlainString() +
+                                            " " + transfer.currencyCode
+                                    }
+                                }
+                                val recent = (transactionItems + transferItems).sortedByDescending { it.first }.take(5)
+                                if (recent.isEmpty()) "لا توجد عمليات مسجلة في " + wallet.name + "."
+                                else "آخر العمليات في " + wallet.name + ": " + recent.joinToString("؛ ") { it.second }
+                            }
+                            VoiceCommandType.DEBT_OWED_BY_ME_QUERY, VoiceCommandType.DEBT_OWED_TO_ME_QUERY -> {
+                                val debtType = if (parsed.command == VoiceCommandType.DEBT_OWED_BY_ME_QUERY) "OWED_BY_ME" else "OWED_TO_ME"
+                                val allDebts = db.debtDao().observeAll().first()
+                                val allPayments = db.debtPaymentDao().observeAll().first()
+                                val outstanding = allDebts.filter {
+                                    it.walletId == wallet.id && it.currencyCode == wallet.currencyCode && it.debtType == debtType &&
+                                        (parsed.debtPersonName == null || it.personName.contains(parsed.debtPersonName, ignoreCase = true))
+                                }.fold(java.math.BigInteger.ZERO) { sum, debt ->
+                                    sum.add(com.malekfinance.FinanceDebtPolicy.outstanding(
+                                        debt.principalMinor, allPayments.filter { it.debtId == debt.id }
+                                    ))
+                                }
+                                val amountText = java.math.BigDecimal(outstanding, 2).toPlainString() + " " + wallet.currencyCode
+                                if (debtType == "OWED_BY_ME") "المتبقي عليك من الديون" + (parsed.debtPersonName?.let { " لـ " + it } ?: "") + " في " + wallet.name + ": " + amountText
+                                else "المبالغ المستحقة لك" + (parsed.debtPersonName?.let { " لدى " + it } ?: "") + " في " + wallet.name + ": " + amountText
+                            }
+                            VoiceCommandType.SAVINGS_BALANCE_QUERY -> {
+                                val goals = db.savingsGoalDao().observeAll().first()
+                                val entries = db.savingsEntryDao().observeAll().first()
+                                val saved = goals.filter { it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
+                                    .fold(java.math.BigInteger.ZERO) { sum, goal ->
+                                        sum.add(com.malekfinance.FinanceSavingsPolicy.balance(entries.filter { it.goalId == goal.id }).max(java.math.BigInteger.ZERO))
+                                    }
+                                "إجمالي مدخراتك في " + wallet.name + ": " + java.math.BigDecimal(saved, 2).toPlainString() + " " + wallet.currencyCode
+                            }
+                            VoiceCommandType.UPCOMING_BILLS_QUERY -> {
+                                val bills = db.billDao().observeAll().first()
+                                    .filter { it.isActive && it.walletId == wallet.id && it.currencyCode == wallet.currencyCode }
+                                    .sortedBy { it.nextDueAt }
+                                    .take(5)
+                                if (bills.isEmpty()) "لا توجد فواتير نشطة في " + wallet.name + "."
+                                else "الفواتير القادمة في " + wallet.name + ": " + bills.joinToString("؛ ") {
+                                    it.title + "، " + java.math.BigDecimal.valueOf(it.amountMinor, 2).toPlainString() + " " +
+                                        it.currencyCode + "، الاستحقاق " + com.malekfinance.FinanceBillPolicy.formatLocalDate(it.nextDueAt)
+                                }
+                            }
+                            VoiceCommandType.BUDGET_STATUS_QUERY -> {
+                                val window = com.malekfinance.FinanceBudgetPolicy.monthWindow(System.currentTimeMillis())
+                                val budgets = db.budgetDao().observeAll().first()
+                                    .filter { it.currencyCode == wallet.currencyCode && it.periodKey == window.periodKey }
+                                val allTransactions = db.dao().observe().first()
+                                if (budgets.isEmpty()) "لا توجد ميزانيات شهرية نشطة بعملة " + wallet.currencyCode + "."
+                                else budgets.joinToString("؛ ") { budget ->
+                                    val spent = com.malekfinance.FinanceBudgetPolicy.calculateSpent(
+                                        budget, allTransactions, window.startMillis, window.endExclusiveMillis
+                                    )
+                                    val remaining = java.math.BigInteger.valueOf(budget.limitMinor).subtract(spent)
+                                    budget.categoryName + ": صُرف " + java.math.BigDecimal(spent, 2).toPlainString() +
+                                        "، المتبقي " + java.math.BigDecimal(remaining, 2).toPlainString() + " " + wallet.currencyCode
+                                }
+                            }
+                            VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT, VoiceCommandType.CORRECT_AMOUNT, VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT -> ""
+                        }
+                    }.onSuccess { status = it }
+                        .onFailure { status = "تعذر قراءة الملخص المالي من قاعدة البيانات. حاول مرة أخرى." }
                 }
             }
+        } else {
+            // A newly parsed transaction replaces any older, unconfirmed special draft.
+            clearDebtPaymentDraft()
+            hasTransferDraft = false
+            hasDebtDraft = false
+            hasDebtPaymentDraft = false
+            debtPaymentAmountDraft = ""
+            debtPaymentDebtId = null
+            hasSavingsDraft = false
+            savingsAmountDraft = ""
+            savingsGoalDraftId = null
+            transferAmountText = ""
+            transferNote = ""
+            transferFromWalletId = null
+            transferToWalletId = null
+            debtPersonDraft = ""
+            debtDescriptionDraft = ""
+            debtAmountDraft = ""
+            debtWalletDraftId = null
+            amount = parsed.amount.orEmpty()
+            description = parsed.description
+            kind = parsed.kind
+            draftCreatedAt = parsed.relativeDayOffset?.let { offset ->
+                java.util.Calendar.getInstance().apply { add(java.util.Calendar.DAY_OF_YEAR, offset) }.timeInMillis
+            } ?: System.currentTimeMillis()
+            category = activeCategories.firstOrNull {
+                it.name == parsed.category && (parsed.kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, parsed.kind))
+            }?.name ?: activeCategories.firstOrNull {
+                it.name == "عام" && (parsed.kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, parsed.kind))
+            }?.name ?: activeCategories.firstOrNull {
+                parsed.kind == null || com.malekfinance.FinanceCategoryPolicy.isCompatible(it.kind, parsed.kind)
+            }?.name ?: "عام"
+            hasDraft = true
+            status = when {
+                parsed.amount == null && parsed.kind == null -> "لم أتعرف على المبلغ أو نوع العملية. أكمل البيانات وحدد دخل أو مصروف."
+                parsed.amount == null -> "حدد المبلغ قبل الحفظ."
+                parsed.kind == null -> "لم يتضح هل هي عملية دخل أم مصروف. اختر النوع بنفسك."
+                else -> "راجع المبلغ والنوع والوصف والتصنيف. لن تُحفظ العملية قبل تأكيدك."
+            }
         }
-        }
-    }
-    val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) {
-            if (!launchFinanceRecognition(context, speechLauncher)) status = "خدمة التعرف الصوتي غير متاحة على هذا الجهاز. يمكنك الكتابة يدوياً."
-        } else status = "إذن الميكروفون مرفوض. يمكنك إدخال العملية يدوياً."
-    }
-
-    fun startListening() {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            if (!launchFinanceRecognition(context, speechLauncher)) status = "خدمة التعرف الصوتي غير متاحة على هذا الجهاز. يمكنك الكتابة يدوياً."
-        } else permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
     }
 
     fun cancelVoiceDraft() {
@@ -942,7 +852,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 
     fun confirmVoiceDebt() {
-        if (isDebtSaving) return
+        if (isDebtSaving || (debtIsCreditPurchase && !debtCreditConfirmed)) return
         val person = debtPersonDraft.trim()
         val wallet = wallets.firstOrNull { it.id == debtWalletDraftId }
         val minor = runCatching {
@@ -961,10 +871,11 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                             db = db,
                             personName = person,
                             description = debtDescriptionDraft,
-                            debtType = debtTypeDraft,
+                            debtType = if (debtIsCreditPurchase) "OWED_BY_ME" else debtTypeDraft,
                             principalMinor = minor,
                             walletId = wallet.id,
-                            recordCashMovement = debtRecordCashMovement
+                            recordCashMovement = if (debtIsCreditPurchase) false else debtRecordCashMovement,
+                            createdAt = debtCreatedAt
                         )
                     }.onSuccess {
                         hasDebtDraft = false
@@ -1106,43 +1017,12 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         }
     }
 
-    LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+    LazyColumn(modifier.testTag("voice-workspace").fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(26.dp),
-                colors = CardDefaults.cardColors(containerColor = FinanceColors.SurfaceElevated)
-            ) {
-                Column(Modifier.fillMaxWidth().padding(22.dp), horizontalAlignment = androidx.compose.ui.Alignment.CenterHorizontally) {
-                    Surface(
-                        shape = androidx.compose.foundation.shape.CircleShape,
-                        color = FinanceColors.PrimaryTint,
-                        modifier = Modifier.size(84.dp)
-                    ) {
-                        Box(contentAlignment = androidx.compose.ui.Alignment.Center) {
-                            Icon(Icons.Default.Mic, contentDescription = "الميكروفون", tint = FinanceColors.PrimaryLight, modifier = Modifier.size(38.dp))
-                        }
-                    }
-                    Spacer(Modifier.height(12.dp))
-                    Text("مساعدك المالي الصوتي", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                    Text("مثال: صرفت ١٥٠٠ ريال بنزين", color = FinanceColors.TextSecondary)
-                    Text(
-                        "قد تعالج خدمة التعرف الموجودة على جهازك الصوت وقد تحتاج إلى الإنترنت. لا يرسل التطبيق سجل معاملاتك المالية إلى خدمة التعرف.",
-                        color = FinanceColors.TextSecondary,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                    Spacer(Modifier.height(14.dp))
-                    Button(
-                        onClick = ::startListening,
-                        modifier = Modifier.fillMaxWidth().height(54.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
-                    ) {
-                        Icon(Icons.Default.Mic, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text("ابدأ التحدث")
-                    }
-                }
-            }
+            LocalVoicePanel(
+                enabled = !isSavingDraft && !isTransferSaving && !isDebtSaving && !isDebtPaymentSaving && !isSavingsSaving && !isBillSaving,
+                onTranscript = ::processRecognizedText
+            )
         }
         if (transcript.isNotBlank()) {
             item {
@@ -1179,7 +1059,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text("مراجعة الدين الصوتي", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(if (debtIsCreditPurchase) "مراجعة شراء بالدين" else "مراجعة الدين الصوتي", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         OutlinedTextField(
                             value = debtPersonDraft,
                             onValueChange = { debtPersonDraft = it },
@@ -1192,13 +1072,13 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                             FilterChip(
                                 selected = debtTypeDraft == "OWED_BY_ME",
                                 onClick = { debtTypeDraft = "OWED_BY_ME" },
-                                enabled = !isDebtSaving,
+                                enabled = !isDebtSaving && !debtIsCreditPurchase,
                                 label = { Text("أنا مدين") }
                             )
                             FilterChip(
                                 selected = debtTypeDraft == "OWED_TO_ME",
                                 onClick = { debtTypeDraft = "OWED_TO_ME" },
-                                enabled = !isDebtSaving,
+                                enabled = !isDebtSaving && !debtIsCreditPurchase,
                                 label = { Text("لي عنده") }
                             )
                         }
@@ -1234,15 +1114,35 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                             Checkbox(
                                 checked = debtRecordCashMovement,
                                 onCheckedChange = { debtRecordCashMovement = it },
-                                enabled = !isDebtSaving
+                                enabled = !isDebtSaving && !debtIsCreditPurchase
                             )
                             Text("تحديث رصيد المحفظة بأصل الدين", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Text("اليوم والتاريخ والوقت: " + com.malekfinance.FinancePersonStatements.dateTime(debtCreatedAt) + " (عدن)", color = FinanceColors.Accent, style = MaterialTheme.typography.bodySmall)
+                        TextButton(enabled = !isDebtSaving, onClick = {
+                            val cal = java.util.Calendar.getInstance(java.util.TimeZone.getTimeZone("Asia/Aden")).apply { timeInMillis = debtCreatedAt }
+                            android.app.DatePickerDialog(context, { _, year, month, day ->
+                                cal.set(year, month, day)
+                                android.app.TimePickerDialog(context, { _, hour, minute ->
+                                    cal.set(java.util.Calendar.HOUR_OF_DAY, hour)
+                                    cal.set(java.util.Calendar.MINUTE, minute)
+                                    cal.set(java.util.Calendar.SECOND, 0)
+                                    cal.set(java.util.Calendar.MILLISECOND, 0)
+                                    debtCreatedAt = cal.timeInMillis
+                                }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), true).show()
+                            }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH), cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+                        }) { Text("تعديل يوم ووقت العملية (توقيت عدن)") }
+                        if (debtIsCreditPurchase) {
+                            Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                                Checkbox(checked = debtCreditConfirmed, onCheckedChange = { debtCreditConfirmed = it }, enabled = !isDebtSaving)
+                                Text("أؤكد أنه شراء بالدين من هذا الشخص، وليس دفعاً نقدياً أو استلام قرض.", style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                         Text(status, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                         Button(
                             onClick = ::confirmVoiceDebt,
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = !isDebtSaving,
+                            enabled = !isDebtSaving && (!debtIsCreditPurchase || debtCreditConfirmed),
                             colors = ButtonDefaults.buttonColors(containerColor = FinanceColors.Primary)
                         ) { Text(if (isDebtSaving) "جارٍ تسجيل الدين..." else "مراجعة وتأكيد تسجيل الدين") }
                         TextButton(
@@ -1384,14 +1284,6 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     }
 }
 
-private fun launchFinanceRecognition(
-    context: android.content.Context,
-    launcher: androidx.activity.result.ActivityResultLauncher<Intent>
-): Boolean {
-    val intent = VoiceRecognitionIntentFactory.create(context) ?: return false
-    return runCatching { launcher.launch(intent) }.isSuccess
-}
-
 private fun normalizeFinanceAmount(value: String): String {
     val arabic = "٠١٢٣٤٥٦٧٨٩"
     val persian = "۰۱۲۳۴۵۶۷۸۹"
@@ -1412,12 +1304,12 @@ private fun DebtManagementSection(
     debtPayments: List<com.malekfinance.FinanceDebtPayment>
 ) {
     val scope = rememberCoroutineScope()
-    var person by remember { mutableStateOf("") }
-    var description by remember { mutableStateOf("") }
-    var principal by remember { mutableStateOf("") }
-    var debtType by remember { mutableStateOf("OWED_BY_ME") }
-    var recordCashMovement by remember { mutableStateOf(true) }
-    var walletId by remember { mutableStateOf<Long?>(null) }
+    var person by rememberSaveable { mutableStateOf("") }
+    var description by rememberSaveable { mutableStateOf("") }
+    var principal by rememberSaveable { mutableStateOf("") }
+    var debtType by rememberSaveable { mutableStateOf("OWED_BY_ME") }
+    var recordCashMovement by rememberSaveable { mutableStateOf(true) }
+    var walletId by rememberSaveable { mutableStateOf<Long?>(null) }
     var paymentInputs by remember { mutableStateOf<Map<Long, String>>(emptyMap()) }
     var busy by remember { mutableStateOf(false) }
     var status by remember { mutableStateOf<String?>(null) }
@@ -1428,6 +1320,8 @@ private fun DebtManagementSection(
 
     Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            PersonCreditSection(db, wallets, debts)
+            HorizontalDivider(color = FinanceColors.Divider)
             Text("الديون والسلف", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("سجّل الدين أولاً، ثم أضف السداد أو التحصيل على دفعات. كل دفعة تُسجّل كعملية دخل أو مصروف مرتبطة بالدين، حتى يبقى رصيد المحفظة صحيحاً.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
             OutlinedTextField(value = person, onValueChange = { person = it }, modifier = Modifier.fillMaxWidth(), label = { Text("اسم الشخص أو الجهة") }, singleLine = true)
@@ -1513,6 +1407,7 @@ private fun DebtManagementSection(
                             Text(debt.personName, fontWeight = FontWeight.Bold)
                             Text(if (iOwe) "أنا مدين" else "لي عنده", color = FinanceColors.PrimaryLight, style = MaterialTheme.typography.labelMedium)
                         }
+                        Text("تاريخ العملية: " + com.malekfinance.FinancePersonStatements.dateTime(debt.createdAt) + " (عدن)", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                         if (debt.description.isNotBlank()) Text(debt.description, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                         Text("الأصل: " + formatCurrencyMoney(debt.principalMinor, debt.currencyCode) + " • المدفوع: " + formatCurrencyMoney(paid, debt.currencyCode), color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
                         Text(
@@ -1577,36 +1472,49 @@ private fun ReportsLandingScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var exportStatus by remember { mutableStateOf("") }
+    var reportBusy by remember { mutableStateOf(false) }
     var backupPassword by remember { mutableStateOf("") }
     var backupPasswordConfirm by remember { mutableStateOf("") }
     var backupBusy by remember { mutableStateOf(false) }
     var showRestoreConfirmation by remember { mutableStateOf(false) }
-    var customStartText by remember { mutableStateOf("") }
-    var customEndText by remember { mutableStateOf("") }
-    var customStartMillis by remember { mutableStateOf<Long?>(null) }
-    var customEndExclusive by remember { mutableStateOf<Long?>(null) }
+    var customStartText by rememberSaveable { mutableStateOf("") }
+    var customEndText by rememberSaveable { mutableStateOf("") }
+    var customStartMillis by rememberSaveable { mutableStateOf<Long?>(null) }
+    var customEndExclusive by rememberSaveable { mutableStateOf<Long?>(null) }
     var customRangeStatus by remember { mutableStateOf("") }
-    var selectedWalletId by remember { mutableStateOf<Long?>(null) }
+    var selectedWalletId by rememberSaveable { mutableStateOf<Long?>(null) }
     var selectedRange by remember { mutableStateOf(FinanceReportRange.MONTHLY) }
     LaunchedEffect(wallets) {
         if (selectedWalletId == null && wallets.isNotEmpty()) selectedWalletId = wallets.first().id
     }
     val wallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
-    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { uri ->
-        if (uri != null && wallet != null) runCatching {
-            context.contentResolver.openOutputStream(uri)?.use { FinanceReportExporter.writeCsv(it, wallet, transactions) } ?: error("Unable to open output")
-        }.onSuccess { exportStatus = "تم تصدير ملف CSV." }.onFailure { exportStatus = "تعذر تصدير CSV." }
+    fun exportReport(uri: android.net.Uri?, format: String) {
+        val selected = wallet ?: return
+        if (uri == null || reportBusy) return
+        val rows = transactions.toList()
+        reportBusy = true
+        scope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        when (format) {
+                            "CSV" -> FinanceReportExporter.writeCsv(output, selected, rows)
+                            "Excel" -> FinanceReportExporter.writeXlsx(output, selected, rows)
+                            "PDF" -> FinanceReportExporter.writePdf(output, selected, rows)
+                        }
+                    } ?: error("Unable to open output")
+                }
+                exportStatus = "تم تصدير ملف $format."
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                throw cancelled
+            } catch (_: Exception) {
+                exportStatus = "تعذر تصدير $format؛ قد يكون الملف الناتج غير مكتمل."
+            } finally { reportBusy = false }
+        }
     }
-    val xlsxLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) { uri ->
-        if (uri != null && wallet != null) runCatching {
-            context.contentResolver.openOutputStream(uri)?.use { FinanceReportExporter.writeXlsx(it, wallet, transactions) } ?: error("Unable to open output")
-        }.onSuccess { exportStatus = "تم تصدير ملف Excel." }.onFailure { exportStatus = "تعذر تصدير Excel." }
-    }
-    val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
-        if (uri != null && wallet != null) runCatching {
-            context.contentResolver.openOutputStream(uri)?.use { FinanceReportExporter.writePdf(it, wallet, transactions) } ?: error("Unable to open output")
-        }.onSuccess { exportStatus = "تم تصدير ملف PDF." }.onFailure { exportStatus = "تعذر تصدير PDF." }
-    }
+    val csvLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) { exportReport(it, "CSV") }
+    val xlsxLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")) { exportReport(it, "Excel") }
+    val pdfLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { exportReport(it, "PDF") }
     val backupLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
         if (uri != null && backupPassword.length >= 8 && backupPassword == backupPasswordConfirm && !backupBusy) {
             backupBusy = true
@@ -1617,7 +1525,8 @@ private fun ReportsLandingScreen(
                         context.contentResolver.openOutputStream(uri)?.use { FinanceBackupManager.export(db, it, password) }
                             ?: error("Unable to open backup destination")
                     }
-                }.onSuccess { exportStatus = "تم إنشاء نسخة احتياطية مشفرة." }
+                }.also { password.fill('\u0000') }
+                    .onSuccess { exportStatus = "تم إنشاء نسخة احتياطية مشفرة." }
                     .onFailure { exportStatus = "تعذر إنشاء النسخة الاحتياطية: " + (it.message ?: "خطأ غير معروف") }
                 backupPassword = ""
                 backupPasswordConfirm = ""
@@ -1636,7 +1545,8 @@ private fun ReportsLandingScreen(
                         val stream = context.contentResolver.openInputStream(uri) ?: error("Unable to open backup")
                         FinanceBackupManager.restore(db, stream, password)
                     }
-                }.onSuccess { exportStatus = "تمت استعادة النسخة الاحتياطية. أُعيد تحميل بيانات الحساب." }
+                }.also { password.fill('\u0000') }
+                    .onSuccess { exportStatus = "تمت استعادة النسخة الاحتياطية. أُعيد تحميل بيانات الحساب." }
                     .onFailure { exportStatus = "فشلت الاستعادة ولم تُعتمد بيانات جزئية: " + (it.message ?: "تحقق من الملف وكلمة المرور") }
                 backupPassword = ""
                 backupPasswordConfirm = ""
@@ -1644,12 +1554,13 @@ private fun ReportsLandingScreen(
             }
         } else if (backupPassword.length < 8) exportStatus = "أدخل كلمة مرور النسخة الاحتياطية أولاً."
     }
+    val reportNow = rememberFinanceClock()
     val timeline = wallet?.let {
-        FinanceReportAnalytics.timeline(transactions, it.id, it.currencyCode, selectedRange)
+        FinanceReportAnalytics.timeline(transactions, it.id, it.currencyCode, selectedRange, reportNow)
     }.orEmpty()
     val current = timeline.lastOrNull()
     val categories = wallet?.let {
-        FinanceReportAnalytics.categoryBreakdown(transactions, it.id, it.currencyCode, selectedRange)
+        FinanceReportAnalytics.categoryBreakdown(transactions, it.id, it.currencyCode, selectedRange, reportNow)
     }.orEmpty()
     val maximum = timeline.flatMap { listOf(it.incomeMinor, it.expenseMinor) }
         .maxOrNull()?.coerceAtLeast(java.math.BigInteger.ONE) ?: java.math.BigInteger.ONE
@@ -1709,9 +1620,9 @@ private fun ReportsLandingScreen(
         item {
             Text("تصدير التقارير", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                TextButton(onClick = { csvLauncher.launch("malek-finance-report.csv") }, enabled = wallet != null) { Text("CSV") }
-                TextButton(onClick = { xlsxLauncher.launch("malek-finance-report.xlsx") }, enabled = wallet != null) { Text("Excel") }
-                TextButton(onClick = { pdfLauncher.launch("malek-finance-report.pdf") }, enabled = wallet != null) { Text("PDF") }
+                TextButton(onClick = { csvLauncher.launch("malek-finance-report.csv") }, enabled = wallet != null && !reportBusy && !backupBusy) { Text("CSV") }
+                TextButton(onClick = { xlsxLauncher.launch("malek-finance-report.xlsx") }, enabled = wallet != null && !reportBusy && !backupBusy) { Text("Excel") }
+                TextButton(onClick = { pdfLauncher.launch("malek-finance-report.pdf") }, enabled = wallet != null && !reportBusy && !backupBusy) { Text("PDF") }
             }
             if (exportStatus.isNotBlank()) Text(exportStatus, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
         }
@@ -1872,27 +1783,31 @@ private fun MoneyLandingScreen(
     billPayments: List<com.malekfinance.FinanceBillPayment>,
     modifier: Modifier = Modifier
 ) {
+    var tool by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf("المحافظ") }
+    val tools = listOf("المحافظ", "التحويلات", "الميزانيات", "الديون", "الادخار", "الفواتير", "الدخل المتكرر", "المصروف المتكرر", "التصنيفات")
     val scope = rememberCoroutineScope()
-    var walletName by remember { mutableStateOf("") }
-    var openingBalance by remember { mutableStateOf("0") }
-    var walletCurrency by remember { mutableStateOf("YER") }
-    var walletType by remember { mutableStateOf("CASH") }
-    var fromWalletId by remember { mutableStateOf<Long?>(null) }
-    var toWalletId by remember { mutableStateOf<Long?>(null) }
-    var transferAmount by remember { mutableStateOf("") }
-    var transferNote by remember { mutableStateOf("تحويل داخلي") }
+    var walletName by rememberSaveable { mutableStateOf("") }
+    var openingBalance by rememberSaveable { mutableStateOf("0") }
+    var walletCurrency by rememberSaveable { mutableStateOf("YER") }
+    var walletType by rememberSaveable { mutableStateOf("CASH") }
+    var fromWalletId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var toWalletId by rememberSaveable { mutableStateOf<Long?>(null) }
+    var transferAmount by rememberSaveable { mutableStateOf("") }
+    var transferNote by rememberSaveable { mutableStateOf("تحويل داخلي") }
     var status by remember { mutableStateOf<String?>(null) }
     var isCreatingWallet by remember { mutableStateOf(false) }
     var isCreatingCategory by remember { mutableStateOf(false) }
-    var categoryName by remember { mutableStateOf("") }
-    var categoryKind by remember { mutableStateOf("EXPENSE") }
+    var categoryName by rememberSaveable { mutableStateOf("") }
+    var categoryKind by rememberSaveable { mutableStateOf("EXPENSE") }
     var isTransferring by remember { mutableStateOf(false) }
-    var budgetCategoryName by remember { mutableStateOf("") }
-    var budgetCurrency by remember { mutableStateOf("YER") }
-    var budgetLimit by remember { mutableStateOf("") }
-    var editingBudgetId by remember { mutableStateOf<Long?>(null) }
+    var budgetCategoryName by rememberSaveable { mutableStateOf("") }
+    var budgetCurrency by rememberSaveable { mutableStateOf("YER") }
+    var budgetLimit by rememberSaveable { mutableStateOf("") }
+    var editingBudgetId by rememberSaveable { mutableStateOf<Long?>(null) }
     var isCreatingBudget by remember { mutableStateOf(false) }
-    val budgetMonth = remember { com.malekfinance.FinanceBudgetPolicy.monthWindow(System.currentTimeMillis()) }
+    val budgetNow = rememberFinanceClock()
+    val budgetMonth = com.malekfinance.FinanceBudgetPolicy.monthWindow(budgetNow)
+    LaunchedEffect(budgetMonth.periodKey) { editingBudgetId = null }
     val budgetCategories = categories.filter { it.isActive && (it.kind == "EXPENSE" || it.kind == "BOTH") }
 
     LaunchedEffect(budgetCategories) {
@@ -1911,12 +1826,18 @@ private fun MoneyLandingScreen(
 
     LazyColumn(modifier.fillMaxSize(), contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         item {
-            Text("محافظك وأرصدتك", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-            Text("كل محفظة تحتفظ برصيدها وعملتها بشكل مستقل؛ لا نجمع عملات مختلفة في رصيد واحد.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+            Text(if (tool == "المحافظ") "محافظك وأرصدتك" else tool, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text("مساحة واحدة لتنظيم ثروتك. اختر الأداة التي تحتاجها.", color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(12.dp))
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(tools) { title ->
+                    FilterChip(selected = tool == title, onClick = { tool = title; status = null }, label = { Text(title) })
+                }
+            }
         }
-        if (wallets.isEmpty()) {
+        if (tool == "المحافظ" && wallets.isEmpty()) {
             item { SectionCard("لم تُنشأ محفظة بعد", "ابدأ بإنشاء محفظتك الرئيسية لتسجيل الدخل والمصروفات.") }
-        } else {
+        } else if (tool == "المحافظ") {
             items(wallets, key = { it.id }) { wallet ->
                 val balance = com.malekfinance.FinanceLedger.calculateBalance(wallet, transactions, transfers)
                 Card(
@@ -1935,7 +1856,7 @@ private fun MoneyLandingScreen(
                 }
             }
         }
-        item {
+        if (tool == "التصنيفات") item {
             Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("إدارة التصنيفات", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2008,7 +1929,7 @@ private fun MoneyLandingScreen(
                 }
             }
         }
-        item {
+        if (tool == "المحافظ") item {
             Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("إنشاء محفظة جديدة", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2065,7 +1986,7 @@ private fun MoneyLandingScreen(
                 }
             }
         }
-        item {
+        if (tool == "التحويلات") item {
             Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("تحويل بين محافظك", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2128,8 +2049,8 @@ private fun MoneyLandingScreen(
             }
         }
         if (status != null) item { Text(status!!, color = FinanceColors.TextSecondary, style = MaterialTheme.typography.bodySmall) }
-        item { DebtManagementSection(db, wallets, debts, debtPayments) }
-        item {
+        if (tool == "الديون") item { DebtManagementSection(db, wallets, debts, debtPayments) }
+        if (tool == "الميزانيات") item {
             Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(20.dp)) {
                 Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("الميزانيات الشهرية", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -2182,6 +2103,7 @@ private fun MoneyLandingScreen(
                                         if (isCreatingBudget) return@launch
                                         isCreatingBudget = true
                                         try {
+                                            check(com.malekfinance.FinanceBudgetPolicy.monthWindow(System.currentTimeMillis()).periodKey == budgetMonth.periodKey) { "Month changed; refresh the screen" }
                                             if (editingBudget != null) {
                                                 val latest = budgets.firstOrNull { it.id == editingBudget.id } ?: error("Budget not found")
                                                 val changed = db.budgetDao().update(latest.copy(limitMinor = limitMinor))
@@ -2276,10 +2198,10 @@ private fun MoneyLandingScreen(
                 }
             }
         }
-        item { SavingsManagementSection(db, wallets, savingsGoals, savingsEntries) }
-        item { RecurringIncomeSection(db, wallets, recurringIncomeRules, recurringIncomeEntries) }
-        item { RecurringExpenseSection(db, wallets, budgetCategories, recurringExpenseRules, recurringExpenseEntries) }
-        item { BillManagementSection(db, wallets, categories, bills, billPayments) }
+        if (tool == "الادخار") item { SavingsManagementSection(db, wallets, savingsGoals, savingsEntries) }
+        if (tool == "الدخل المتكرر") item { RecurringIncomeSection(db, wallets, recurringIncomeRules, recurringIncomeEntries) }
+        if (tool == "المصروف المتكرر") item { RecurringExpenseSection(db, wallets, budgetCategories, recurringExpenseRules, recurringExpenseEntries) }
+        if (tool == "الفواتير") item { BillManagementSection(db, wallets, categories, bills, billPayments) }
     }
 }
 
@@ -2321,9 +2243,4 @@ private fun SectionCard(title: String, subtitle: String, trailing: String? = nul
             if (trailing != null) Text(trailing, color = FinanceColors.PrimaryLight, fontWeight = FontWeight.Bold)
         }
     }
-}
-
-private fun formatMoney(minor: java.math.BigInteger): String {
-    val value = java.math.BigDecimal(minor, 2)
-    return java.text.NumberFormat.getNumberInstance(java.util.Locale("ar")).format(value) + " ر.ي"
 }

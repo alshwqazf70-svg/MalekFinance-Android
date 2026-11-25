@@ -68,4 +68,12 @@ class VoiceQueryEngineTest {
         assertEquals("400", VoiceQueryEngine.calculate(rows, "EXPENSE", 1, "YER", "LAST_MONTH", now).amountMinor.toString())
     }
 
+
+    @Test fun currentPeriodNeverIncludesFutureDatedTransactions() {
+        val rows = listOf(
+            FinanceTransaction(amountMinor = 100, kind = "EXPENSE", note = "past", createdAt = date(8)),
+            FinanceTransaction(amountMinor = 999, kind = "EXPENSE", note = "future", createdAt = date(25))
+        )
+        assertEquals("100", VoiceQueryEngine.calculate(rows, "EXPENSE", 1, "YER", "MONTH", date(20)).amountMinor.toString())
+    }
 }

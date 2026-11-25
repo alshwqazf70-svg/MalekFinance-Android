@@ -12,7 +12,9 @@ data class ParsedTransaction(
     val relativeDayOffset: Int? = null,
     val debtPersonName: String? = null,
     val debtType: String? = null,
-    val debtPaymentDirection: String? = null
+    val debtPaymentDirection: String? = null,
+    val isCreditPurchase: Boolean = false,
+    val requiresDebtClarification: Boolean = false
 )
 
 /**
@@ -57,7 +59,14 @@ object VoiceTransactionParser {
             .replace(Regex("""\s+"""), " ")
             .trim()
         val lower = normalized.lowercase()
-        val command = detectCommand(lower)
+        val detected = detectCommand(lower)
+        val negated = creditNegated(lower)
+        val command = if (negated && detected in setOf(
+            VoiceCommandType.DEBT_CREATE_DRAFT, VoiceCommandType.DEBT_PAYMENT_DRAFT,
+            VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT,
+            VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT
+        )) VoiceCommandType.TRANSACTION else detected
+        val creditPurchase = command == VoiceCommandType.DEBT_CREATE_DRAFT && (isExplicitCreditPurchase(lower) || isShortCreditPurchase(lower))
         val amount = extractAmount(normalized)
         val incomeIntent = containsAny(lower, listOf(
             "دخل", "استلمت", "قبضت", "إيراد", "ايراد", "حول لي", "حوّل لي",
@@ -76,13 +85,14 @@ object VoiceTransactionParser {
         ))
         val kind = when {
             command != VoiceCommandType.TRANSACTION -> null
-            negatedExpense || negatedIncome -> null
+            negated || negatedExpense || negatedIncome -> null
             incomeIntent && !expenseIntent -> "INCOME"
             expenseIntent && !incomeIntent -> "EXPENSE"
             else -> null
         }
 
         val category = when {
+            Regex("""(?<![\p{L}])قات(?![\p{L}])""").containsMatchIn(lower) -> "قات"
             containsAny(lower, listOf("بقالة", "سوبر", "مواد غذائية", "تموين", "مقاضي")) -> "بقالة"
             containsAny(lower, listOf("مطعم", "مطاعم", "وجبة", "غداء", "عشاء", "فطور")) -> "مطاعم"
             containsAny(lower, listOf("بنزين", "وقود", "ديزل", "بترول")) -> "بنزين"
@@ -104,17 +114,20 @@ object VoiceTransactionParser {
             amount = amount,
             kind = kind,
             category = category,
-            description = description,
+            description = if (creditPurchase) "شراء آجل: قات" else description,
             command = command,
             queryPeriod = detectPeriod(lower),
             relativeDayOffset = detectRelativeDay(lower),
-            debtPersonName = extractDebtPersonName(normalized),
-            debtType = detectDebtType(lower),
-            debtPaymentDirection = detectDebtPaymentDirection(lower)
+            debtPersonName = if (creditPurchase) extractCreditPersonName(normalized) else extractDebtPersonName(normalized),
+            debtType = if (creditPurchase) "OWED_BY_ME" else detectDebtType(lower),
+            debtPaymentDirection = detectDebtPaymentDirection(lower),
+            isCreditPurchase = creditPurchase,
+            requiresDebtClarification = creditPurchase && !isExplicitCreditPurchase(lower)
         )
     }
 
     private fun detectCommand(text: String): VoiceCommandType = when {
+        containsAny(text, listOf("ألغ المسودة", "الغ المسودة", "إلغاء المسودة", "الغِ العملية", "ألغ العملية", "لا تسجلها")) -> VoiceCommandType.CANCEL_DRAFT
         containsAny(text, listOf("صحح المبلغ", "صحح لي المبلغ", "عدل المبلغ", "عدّل المبلغ", "غير المبلغ", "غيّر المبلغ", "لا المبلغ", "المبلغ الصحيح")) -> VoiceCommandType.CORRECT_AMOUNT
         containsAny(text, listOf("كم باقي في الميزانية", "كم تبقى من الميزانية", "هل تجاوزت الميزانية", "حالة الميزانية", "وضع الميزانية", "قديش باقي في الميزانية")) -> VoiceCommandType.BUDGET_STATUS_QUERY
         containsAny(text, listOf(
@@ -122,6 +135,7 @@ object VoiceTransactionParser {
             "حصلت دين", "حصلت دين من", "حصّلت الدين", "تحصيل دين", "تحصيل دين من", "استلمت سداد الدين", "استلمت سداد من"
         )) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
         containsAny(text, listOf("حوّل", "حول", "تحويل", "انقل")) && containsAny(text, listOf("من")) && containsAny(text, listOf("إلى", "الى")) -> VoiceCommandType.TRANSFER_DRAFT
+        isExplicitCreditPurchase(text) || isShortCreditPurchase(text) -> VoiceCommandType.DEBT_CREATE_DRAFT
         containsAny(text, listOf("أعطيت", "اعطيت", "أقرضت", "اقرضت", "سلفت", "استلفت", "اقترضت", "أخذت قرض", "اخذت قرض")) -> VoiceCommandType.DEBT_CREATE_DRAFT
         containsAny(text, listOf("ما الفواتير المستحقة", "ما علي من فواتير", "الفواتير القادمة", "متى الفاتورة القادمة", "ما هي الفواتير")) -> VoiceCommandType.UPCOMING_BILLS_QUERY
         containsAny(text, listOf("سدد فاتورة", "سدد الفاتورة", "ادفع فاتورة", "ادفع الفاتورة", "دفع فاتورة", "دفع الفاتورة")) -> VoiceCommandType.BILL_PAYMENT_DRAFT
@@ -140,6 +154,29 @@ object VoiceTransactionParser {
     }
 
 
+    private fun creditNegated(text: String) = Regex("""(?:^|\s)(?:ما|لم|لا)\s""").containsMatchIn(text)
+    private fun isExplicitCreditPurchase(text: String): Boolean =
+        !creditNegated(text) && Regex("""(?<![\p{L}])قات(?![\p{L}])""").containsMatchIn(text) &&
+            containsAny(text, listOf("بالدين", "على الحساب", "عالحساب", "آجل", "اجل", "تدينت", "تديّنت", "سجل علي", "سجّل علي")) &&
+            !containsAny(text, listOf("استلفت", "اقترضت", "قرض", "سلفت"))
+
+    private fun isShortCreditPurchase(text: String): Boolean =
+        !creditNegated(text) && Regex("""^.+?\s+حق\s+قات\s+.+$""").matches(text) &&
+            !containsAny(text, listOf("صرفت", "دفعت", "اشتريت", "شريت", "استلفت", "اقترضت", "سلفت", "قرض", "سدد", "سداد", "حصلت", "استلمت"))
+
+    private fun extractCreditPersonName(text: String): String? {
+        val tail = Regex("""(?:من|عند)\s+(.+)$""").find(text)?.groupValues?.get(1)
+            ?: Regex("""حق\s+قات\s+(.+)$""").find(text)?.groupValues?.get(1)
+            ?: return null
+        val stops = listOfNotNull(
+            digitAmount.find(tail)?.range?.first,
+            spokenNumberPattern.find(tail)?.range?.first,
+            Regex("""(?:^|\s)(?:قات|حق|بألف|بالف|ريال|بالدين|اليوم|أمس|امس|اول|أول)(?:\s|$)""").find(tail)?.range?.first
+        )
+        return tail.take(stops.minOrNull() ?: tail.length).trim().trim('،', ',', '.', '؟', '?')
+            .replace(Regex("""\s+"""), " ").ifBlank { null }
+    }
+
     private fun detectDebtPaymentDirection(text: String): String? = when {
         containsAny(text, listOf("سدد دين", "سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "ادفع دين", "ادفع الدين", "أدفع الدين")) -> "OWED_BY_ME"
         containsAny(text, listOf("حصلت دين", "حصّلت الدين", "تحصيل دين", "استلمت سداد الدين")) -> "OWED_TO_ME"
@@ -155,12 +192,22 @@ object VoiceTransactionParser {
     private fun extractDebtPersonName(text: String): String? {
         val queryMatch = Regex("""(?:عند|لدى)\s+([^؟،,]+)""").find(text)
         if (queryMatch != null) return queryMatch.groupValues[1].trim().trimEnd('؟', '?', '.', '،', ',').ifBlank { null }
-        val loanMatch = Regex("""(?:استلفت|اقترضت|سلفت)\s+من\s+([^\s،؟,]+)""").find(text)
-            ?: Regex("""(?:أعطيت|اعطيت|أقرضت|اقرضت|سلفت)\s+(?:لـ)?([^\s،؟,]+)""").find(text)
-            ?: Regex("""(?:سدد دين|سداد دين|سددت دين|تحصيل دين|حصلت من)\s+([^\s،؟,]+)""").find(text)
-            ?: Regex("""(?:سددت دين|سدد الدين|دفعت دين)\s+(?:لـ|ل)?([^\s،؟,]+)""").find(text)
-            ?: Regex("""(?:حصلت دين|حصلت دين من|تحصيل دين من|استلمت سداد من)\s+([^\s،؟,]+)""").find(text)
-        return loanMatch?.groupValues?.get(1)?.trim()?.trimStart('ل')?.trimEnd('؟', '?', '.', '،', ',')?.ifBlank { null }
+        // Capture the full name, not its first token. Never strip an actual initial ل (لؤي).
+        val tail = Regex("""(?:استلفت|اقترضت|سلفت)\s+من\s+(.+)$""").find(text)?.groupValues?.get(1)
+            ?: Regex("""(?:أعطيت|اعطيت|أقرضت|اقرضت|سلفت)\s+(?:لـ)?(.+)$""").find(text)?.groupValues?.get(1)
+            ?: Regex("""(?:حصلت دين من|تحصيل دين من|استلمت سداد من|حصلت دين|تحصيل دين|سددت دين|سدد الدين|سدد دين|سداد دين|دفعت دين)\s+(.+)$""").find(text)?.groupValues?.get(1)
+            ?: return null
+        return personBeforeAmount(tail)
+    }
+
+    private fun personBeforeAmount(tail: String): String? {
+        val stops = listOfNotNull(
+            digitAmount.find(tail)?.range?.first,
+            spokenNumberPattern.find(tail)?.range?.first,
+            Regex("""(?:^|\s)(?:ريال|سلفة|قرض|اليوم|أمس|امس|بالدين|حق)(?:\s|$)""").find(tail)?.range?.first
+        )
+        return tail.take(stops.minOrNull() ?: tail.length).trim().trim('؟', '?', '.', '،', ',')
+            .replace(Regex("""\s+"""), " ").ifBlank { null }
     }
 
     private fun detectRelativeDay(text: String): Int? = when {
@@ -184,7 +231,19 @@ object VoiceTransactionParser {
     }
 
     private fun extractAmount(text: String): String? {
-        digitAmount.find(text)?.value?.replace('٫', '.')?.replace(',', '.')?.let { return it }
+        // A single complete numeric token only: never turn -100 into 100, truncate
+        // 123.456, select one of several amounts, or misread 2 ألف as 2.
+        if (Regex("""[+\-−]\s*\d""").containsMatchIn(text)) return null
+        val numericTokens = Regex("""[+\-−]?\d+(?:[.,٫٬]\d+)*""").findAll(text).toList()
+        if (numericTokens.isNotEmpty()) {
+            if (numericTokens.size != 1 || spokenNumberPattern.containsMatchIn(text)) return null
+            val value = numericTokens.single().value.replace('٫', '.').replace(',', '.')
+            return value.takeIf { Regex("""\d+(?:\.\d{1,2})?""").matches(it) }
+        }
+        val spokenParts = spokenNumberPattern.findAll(text).toList()
+        if (spokenParts.zipWithNext().any { (a, b) ->
+                text.substring(a.range.last + 1, b.range.first).any { !it.isWhitespace() && it != 'و' }
+            }) return null
         val tokens = text.lowercase().replace(Regex("""[،,؟?.!]"""), " ").split(Regex("""\s+"""))
         var total = java.math.BigInteger.ZERO
         var group = java.math.BigInteger.ZERO

@@ -72,4 +72,31 @@ class FinanceReportExporterTest {
         assertTrue(sheet.contains("<v>123.45</v>"))
         assertTrue(!sheet.contains("محفظة أخرى"))
     }
+
+    @Test fun xlsxRemovesForbiddenXmlControlsFromUserText() {
+        val output = ByteArrayOutputStream()
+        FinanceReportExporter.writeXlsx(output, wallet, listOf(rows.first().copy(note = "a\u0000b\u000Bc & <d>")))
+        var sheet = ""
+        ZipInputStream(output.toByteArray().inputStream()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (entry.name == "xl/worksheets/sheet1.xml") sheet = zip.readBytes().toString(Charsets.UTF_8)
+            }
+        }
+        assertTrue(sheet.contains("abc &amp; &lt;d&gt;"))
+        javax.xml.parsers.DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(sheet.byteInputStream())
+    }
+
+    @Test fun xlsxPreservesAmountsBeyondExcelNumericPrecisionAsText() {
+        val output = ByteArrayOutputStream()
+        FinanceReportExporter.writeXlsx(output, wallet, listOf(rows.first().copy(amountMinor = Long.MAX_VALUE)))
+        var sheet = ""
+        ZipInputStream(output.toByteArray().inputStream()).use { zip ->
+            while (true) {
+                val entry = zip.nextEntry ?: break
+                if (entry.name == "xl/worksheets/sheet1.xml") sheet = zip.readBytes().toString(Charsets.UTF_8)
+            }
+        }
+        assertTrue(sheet.contains("<c r=\"C2\" t=\"inlineStr\"><is><t xml:space=\"preserve\">92233720368547758.07</t>"))
+    }
 }

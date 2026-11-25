@@ -1,6 +1,12 @@
 package com.malekfinance
 
 import android.content.Context
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.onNodeWithTag
+import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertExists
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -47,7 +53,34 @@ class FinanceNavigationUiTest {
     fun voiceScreenOpensAndShowsManualFallback() {
         composeRule.onNodeWithText("الصوت").performClick()
         composeRule.onNodeWithText("مساعدك المالي الصوتي").assertIsDisplayed()
+        composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
         composeRule.onNodeWithText("إدخال يدوي بديل").assertExists()
+    }
+
+    @Test
+    fun homePrivacySurvivesTabNavigation() {
+        composeRule.onNodeWithContentDescription("إخفاء مبالغ الرئيسية").performClick()
+        composeRule.onNodeWithText("الصوت").performClick()
+        composeRule.onNodeWithText("الرئيسية").performClick()
+        composeRule.onNodeWithContentDescription("إظهار مبالغ الرئيسية").assertIsDisplayed()
+        composeRule.onNodeWithContentDescription("إظهار مبالغ الرئيسية").performClick()
+        composeRule.onNodeWithContentDescription("إخفاء مبالغ الرئيسية").assertIsDisplayed()
+    }
+
+    @Test
+    fun offlineVoiceOffersModelImportWithoutSystemService() {
+        composeRule.onNodeWithText("الصوت").performClick()
+        composeRule.onNodeWithText("صوتك يبقى على جهازك.").assertExists()
+        composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("تثبيت نموذج عربي من ملف ZIP"))
+        composeRule.onNodeWithText("تثبيت نموذج عربي من ملف ZIP").assertExists()
+    }
+
+    @Test
+    fun moneyToolsDoNotStackUnrelatedForms() {
+        composeRule.onNodeWithText("مالي").performClick()
+        composeRule.onNodeWithText("التحويلات").performClick()
+        composeRule.onNodeWithText("تحويل بين محافظك").assertExists()
+        composeRule.onNodeWithText("اسم التصنيف الجديد").assertDoesNotExist()
     }
 
     @Test
@@ -67,13 +100,14 @@ class FinanceNavigationUiTest {
     fun manualVoiceReviewSavePersistsTransactionToRoom() = runBlocking {
         val walletId = db.walletDao().insert(FinanceWallet(name = "اختبار", currencyCode = "YER"))
         composeRule.onNodeWithText("الصوت").performClick()
+        composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("اختبار (YER)").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("مصروف").performClick()
-        composeRule.onNodeWithText("المبلغ بعملة YER").performTextInput("12.50")
-        composeRule.onNodeWithText("وصف العملية").performTextInput("اختبار الحفظ")
-        composeRule.onNodeWithText("تأكيد وحفظ العملية").performClick()
+        composeRule.onNodeWithText("مصروف").performScrollTo().performClick()
+        composeRule.onNodeWithText("المبلغ بعملة YER").performScrollTo().performTextInput("12.50")
+        composeRule.onNodeWithText("وصف العملية").performScrollTo().performTextInput("اختبار الحفظ")
+        composeRule.onNodeWithText("تأكيد وحفظ العملية").performScrollTo().performClick()
 
         composeRule.waitUntil(5_000) {
             runBlocking { db.dao().forWallet(walletId).isNotEmpty() }
@@ -88,12 +122,13 @@ class FinanceNavigationUiTest {
     fun voiceReviewSaveUsesCategoryWhenDescriptionIsEmpty() = runBlocking {
         val walletId = db.walletDao().insert(FinanceWallet(name = "اختبار", currencyCode = "YER"))
         composeRule.onNodeWithText("الصوت").performClick()
+        composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
         composeRule.waitUntil(5_000) {
             composeRule.onAllNodesWithText("اختبار (YER)").fetchSemanticsNodes().isNotEmpty()
         }
-        composeRule.onNodeWithText("مصروف").performClick()
-        composeRule.onNodeWithText("المبلغ بعملة YER").performTextInput("7.25")
-        composeRule.onNodeWithText("تأكيد وحفظ العملية").performClick()
+        composeRule.onNodeWithText("مصروف").performScrollTo().performClick()
+        composeRule.onNodeWithText("المبلغ بعملة YER").performScrollTo().performTextInput("7.25")
+        composeRule.onNodeWithText("تأكيد وحفظ العملية").performScrollTo().performClick()
 
         composeRule.waitUntil(5_000) {
             runBlocking { db.dao().forWallet(walletId).isNotEmpty() }

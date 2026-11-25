@@ -1,7 +1,7 @@
 name: Android build
 on:
   push:
-    branches: [main, "feature/**"]
+    branches: [main, "feature/**", "arena/**"]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -16,6 +16,10 @@ concurrency:
 jobs:
   verify-and-build:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     env:
       HAS_RELEASE_SIGNING: ${{ secrets.MALEK_FINANCE_KEYSTORE_BASE64 != '' && secrets.MALEK_FINANCE_KEYSTORE_PASSWORD != '' && secrets.MALEK_FINANCE_KEY_ALIAS != '' && secrets.MALEK_FINANCE_KEY_PASSWORD != '' }}
     steps:
@@ -35,9 +39,9 @@ jobs:
       - name: Install Android platform
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Run unit tests
-        run: gradle --no-daemon :app:testDebugUnitTest
+        run: gradle --no-daemon :app:testDebugUnitTest 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
       - name: Build debug APK
-        run: gradle --no-daemon :app:assembleDebug
+        run: gradle --no-daemon :app:assembleDebug 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
@@ -71,6 +75,10 @@ jobs:
           path: app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
+      - name: Compile instrumentation tests
+        run: gradle --no-daemon :app:assembleDebugAndroidTest 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
+      - name: Run Android lint
+        run: gradle --no-daemon :app:lintDebug 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
       # Run emulator-dependent checks after publishing build artifacts so a
       # transient hosted-emulator boot failure cannot prevent APK retrieval.
       - name: Run Room instrumentation tests
@@ -85,3 +93,28 @@ jobs:
           disable-linux-hw-accel: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: gradle --no-daemon :app:connectedDebugAndroidTest
+
+      - name: Upload verification reports
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: Android-verification-reports
+          path: |
+            app/build/reports/
+            app/build/test-results/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Expose failure diagnostics in check annotations
+        if: ${{ failure() }}
+        run: |
+          python3 - <<'PYCODE'
+          import os
+          from pathlib import Path
+          path = Path(os.environ['RUNNER_TEMP']) / 'finance-gradle.log'
+          if path.exists():
+              lines = path.read_text(errors='replace').splitlines()
+              for start in range(max(0, len(lines) - 90), len(lines), 15):
+                  text = '\n'.join(lines[start:start + 15])[:5000]
+                  text = text.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+                  print('::error title=Gradle diagnostics::' + text)
+          PYCODE

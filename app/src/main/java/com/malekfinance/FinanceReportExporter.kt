@@ -62,8 +62,11 @@ object FinanceReportExporter {
                     append("<row r=\"").append(rowIndex + 1).append("\">")
                     row.forEachIndexed { columnIndex, value ->
                         val cellRef = columnName(columnIndex + 1) + (rowIndex + 1)
-                        if (rowIndex > 0 && columnIndex == 2) {
-                            val numeric = value.toBigDecimalOrNull() ?: java.math.BigDecimal.ZERO
+                        // Excel stores numeric cells with only 15 significant digits.
+                        // Keep larger exact monetary values as text instead of rounding money.
+                        val numericAmount = if (rowIndex > 0 && columnIndex == 2) value.toBigDecimalOrNull() else null
+                        if (numericAmount != null && numericAmount.precision() <= 15) {
+                            val numeric = numericAmount
                             append("<c r=\"").append(cellRef).append("\"><v>")
                                 .append(numeric.toPlainString()).append("</v></c>")
                         } else {
@@ -104,17 +107,30 @@ object FinanceReportExporter {
                     .setTextDirection(TextDirectionHeuristics.RTL)
                     .setIncludePad(false)
                     .build()
-                if (y + layout.height > 800 && y > 40) {
-                    document.finishPage(page)
-                    pageNumber += 1
-                    page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNumber).create())
-                    y = 40
+                // A single long note may exceed a whole page. Split at actual layout
+                // line boundaries rather than moving it once and silently clipping it.
+                var firstLine = 0
+                while (firstLine < layout.lineCount) {
+                    val top = layout.getLineTop(firstLine)
+                    val firstHeight = layout.getLineBottom(firstLine) - top
+                    if (y + firstHeight > 800 && y > 40) {
+                        document.finishPage(page)
+                        pageNumber += 1
+                        page = document.startPage(PdfDocument.PageInfo.Builder(595, 842, pageNumber).create())
+                        y = 40
+                    }
+                    var lastLine = firstLine
+                    while (lastLine + 1 < layout.lineCount && layout.getLineBottom(lastLine + 1) - top <= 800 - y) lastLine++
+                    val height = layout.getLineBottom(lastLine) - top
+                    page.canvas.save()
+                    page.canvas.clipRect(30, y, 565, y + height)
+                    page.canvas.translate(30f, (y - top).toFloat())
+                    layout.draw(page.canvas)
+                    page.canvas.restore()
+                    y += height
+                    firstLine = lastLine + 1
                 }
-                page.canvas.save()
-                page.canvas.translate(30f, y.toFloat())
-                layout.draw(page.canvas)
-                page.canvas.restore()
-                y += layout.height + 8
+                y += 8
             }
             document.finishPage(page)
             document.writeTo(output)
@@ -138,7 +154,9 @@ object FinanceReportExporter {
     private fun dateText(timestamp: Long): String =
         SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.ROOT).format(Date(timestamp))
 
+    // XML 1.0 forbids these code points even inside an escaped text node.
     private fun xmlEscape(value: String): String = value
+        .replace(Regex("[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]"), "")
         .replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
         .replace("\"", "&quot;").replace("'", "&apos;")
 

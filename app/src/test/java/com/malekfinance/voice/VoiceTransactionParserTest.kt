@@ -286,4 +286,61 @@ class VoiceTransactionParserTest {
         assertEquals(null, VoiceTransactionParser.parse("ما جاني دخل").kind)
     }
 
+
+    @Test fun understandsExplicitQatPurchaseOnCreditAndFullSellerName() {
+        val parsed = VoiceTransactionParser.parse("أخذت قات بألف ريال بالدين من عبده مهدي")
+        assertEquals("1000", parsed.amount)
+        assertEquals(VoiceCommandType.DEBT_CREATE_DRAFT, parsed.command)
+        assertEquals("عبده مهدي", parsed.debtPersonName)
+        assertEquals("OWED_BY_ME", parsed.debtType)
+        assertEquals(true, parsed.isCreditPurchase)
+        assertEquals(false, parsed.requiresDebtClarification)
+        assertEquals("شراء آجل: قات", parsed.description)
+    }
+    @Test fun shortenedQatPhraseRequiresExplicitCreditAcknowledgement() {
+        val parsed = VoiceTransactionParser.parse("ألف حق قات عبده مهدي")
+        assertEquals("1000", parsed.amount)
+        assertEquals("عبده مهدي", parsed.debtPersonName)
+        assertEquals(true, parsed.isCreditPurchase)
+        assertEquals(true, parsed.requiresDebtClarification)
+    }
+    @Test fun creditorBeforeAmountAndRelativeDateArePreserved() {
+        val parsed = VoiceTransactionParser.parse("أخذت قات بالدين من عبده مهدي بألفين ريال أمس")
+        assertEquals("2000", parsed.amount)
+        assertEquals("عبده مهدي", parsed.debtPersonName)
+        assertEquals(-1, parsed.relativeDayOffset)
+    }
+    @Test fun qatCashExpenseOrBorrowedCashMustNotBecomeCreditPurchase() {
+        val expense = VoiceTransactionParser.parse("صرفت ألف حق قات عبده مهدي")
+        assertEquals(false, expense.isCreditPurchase)
+        assertEquals("EXPENSE", expense.kind)
+        val loan = VoiceTransactionParser.parse("استلفت من عبده ألف حق قات")
+        assertEquals(false, loan.isCreditPurchase)
+        assertEquals("OWED_BY_ME", loan.debtType)
+    }
+    @Test fun negationAndCancellationDoNotProduceCreditPurchase() {
+        assertEquals(false, VoiceTransactionParser.parse("ما أخذت قات بالدين من عبده مهدي بألف").isCreditPurchase)
+        assertEquals(VoiceCommandType.CANCEL_DRAFT, VoiceTransactionParser.parse("لا تسجلها ألف حق قات عبده مهدي").command)
+    }
+
+    @Test fun ambiguousNumericAmountsMustNotBeSilentlyTruncatedOrSelected() {
+        listOf("صرفت 100 و200 ريال", "صرفت -100 ريال", "صرفت 123.456 ريال", "صرفت ١٬٥٠٠ ريال", "صرفت 2 ألف ريال").forEach {
+            assertEquals(null, VoiceTransactionParser.parse(it).amount)
+        }
+    }
+    @Test fun negatedSpecialActionsDoNotOpenMoneyMutationDrafts() {
+        listOf("ما استلفت من أحمد ألف", "لا تسدد دين أحمد 100", "لم اقترضت من أحمد ألف").forEach {
+            val parsed = VoiceTransactionParser.parse(it)
+            assertEquals(VoiceCommandType.TRANSACTION, parsed.command)
+            assertEquals(null, parsed.kind)
+        }
+    }
+    @Test fun loanNamesKeepAllWordsAndNeverStripInitialLam() {
+        assertEquals("لؤي مهدي", VoiceTransactionParser.parse("استلفت من لؤي مهدي ألف ريال").debtPersonName)
+        assertEquals("عبده مهدي", VoiceTransactionParser.parse("أعطيت عبده مهدي ألف ريال").debtPersonName)
+        assertEquals("عبده مهدي", VoiceTransactionParser.parse("حصلت دين من عبده مهدي 500 ريال").debtPersonName)
+    }
+    @Test fun disconnectedSpokenAmountsAreNotAddedIntoOnePurchase() {
+        assertEquals(null, VoiceTransactionParser.parse("صرفت ألف بنزين وخمسمية بقالة").amount)
+    }
 }

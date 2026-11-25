@@ -539,6 +539,44 @@ class FinanceRoomIntegrityTest {
         assertEquals(true, db.billDao().findById(billId)!!.isActive)
     }
 
+    @Test
+    fun creditPurchaseHasTimestampAndNoCashMovementThenAccountSettlementUsesFundingWallet() = runBlocking {
+        val reference = db.walletDao().insert(FinanceWallet(name = "مرجعية", openingBalanceMinor = 0))
+        val funding = db.walletDao().insert(FinanceWallet(name = "الدفع", openingBalanceMinor = 500000))
+        val yesterday = System.currentTimeMillis() - 86400000
+        val first = FinanceDebtOperations.create(db, "عبده مهدي", "شراء آجل: قات", "OWED_BY_ME", 100000, reference, false, yesterday)
+        val second = FinanceDebtOperations.create(db, "عبده مهدي", "شراء آجل: قات", "OWED_BY_ME", 200000, reference, false)
+        assertEquals(yesterday, db.debtDao().findById(first)!!.createdAt)
+        assertEquals(0, rowCount("transactions"))
+        FinancePersonSettlementOperations.pay(db, "عبده مهدي", "YER", funding, 150000)
+        assertEquals(2, rowCount("debt_payments"))
+        assertEquals(0, db.dao().forWallet(reference).size)
+        assertEquals(150000L, db.dao().forWallet(funding).sumOf { it.amountMinor })
+        assertEquals(100000L, db.debtPaymentDao().forDebt(first).single().amountMinor)
+        assertEquals(50000L, db.debtPaymentDao().forDebt(second).single().amountMinor)
+    }
+
+    @Test
+    fun accountSettlementRollsBackEveryAllocationIfLaterPaymentFails() = runBlocking {
+        val wallet = db.walletDao().insert(FinanceWallet(name = "نقد", openingBalanceMinor = 500000))
+        FinanceDebtOperations.create(db, "عبده مهدي", "شراء آجل: قات", "OWED_BY_ME", 100000, wallet, false)
+        val second = FinanceDebtOperations.create(db, "عبده مهدي", "شراء آجل: قات", "OWED_BY_ME", 100000, wallet, false)
+        db.openHelper.writableDatabase.execSQL("CREATE TRIGGER reject_second_person_payment BEFORE INSERT ON debt_payments WHEN NEW.debtId = $second BEGIN SELECT RAISE(ABORT, 'injected failure'); END")
+        expectFailure { FinancePersonSettlementOperations.pay(db, "عبده مهدي", "YER", wallet, 150000) }
+        assertEquals(0, rowCount("transactions"))
+        assertEquals(0, rowCount("debt_payments"))
+    }
+
+    @Test
+    fun accountSettlementRejectsInsufficientBalanceAndOtherCurrencies() = runBlocking {
+        val wallet = db.walletDao().insert(FinanceWallet(name = "نقد", openingBalanceMinor = 10))
+        val usd = db.walletDao().insert(FinanceWallet(name = "دولار", currencyCode = "USD", openingBalanceMinor = 500000))
+        FinanceDebtOperations.create(db, "عبده مهدي", "شراء آجل: قات", "OWED_BY_ME", 100000, wallet, false)
+        expectFailure { FinancePersonSettlementOperations.pay(db, "عبده مهدي", "YER", wallet, 100000) }
+        expectFailure { FinancePersonSettlementOperations.pay(db, "عبده مهدي", "YER", usd, 100000) }
+        assertEquals(0, rowCount("transactions"))
+    }
+
     private suspend fun expectFailure(block: suspend () -> Unit) {
         var failed = false
         try {

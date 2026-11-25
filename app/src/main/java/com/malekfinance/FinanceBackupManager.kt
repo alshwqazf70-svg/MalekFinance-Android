@@ -26,13 +26,8 @@ object FinanceBackupManager {
     private const val ITERATIONS = 310_000
     private const val KEY_BITS = 256
     private const val MAX_BACKUP_BYTES = 64 * 1024 * 1024
-    private val tables = listOf(
-        "wallets", "categories", "transactions", "transfers", "budgets",
-        "debts", "debt_payments", "savings_goals", "savings_entries",
-        "recurring_income_rules", "recurring_income_entries",
-        "recurring_expense_rules", "recurring_expense_entries",
-        "bills", "bill_payments"
-    )
+    private const val MAX_ROWS = 100_000
+    private val tables = FinanceBackupIntegrity.tableNames
 
     suspend fun export(db: FinanceDb, output: OutputStream, password: CharArray) {
         if (password.size < 8) {
@@ -42,6 +37,8 @@ object FinanceBackupManager {
         val payload = try {
             db.withTransaction {
                 val database = db.openHelper.readableDatabase
+                var encodedBytes = 0L
+                var rowCount = 0
                 JSONObject()
                     .put("format", MAGIC)
                     .put("schemaVersion", 12)
@@ -50,7 +47,13 @@ object FinanceBackupManager {
                         tables.forEach { table ->
                             val rows = JSONArray()
                             database.query("SELECT * FROM $table").use { cursor ->
-                                while (cursor.moveToNext()) rows.put(encodeRow(cursor))
+                                while (cursor.moveToNext()) {
+                                    require(++rowCount <= MAX_ROWS) { "Too many backup rows" }
+                                    val encoded = encodeRow(cursor)
+                                    encodedBytes += encoded.toString().toByteArray(StandardCharsets.UTF_8).size
+                                    require(encodedBytes <= MAX_BACKUP_BYTES - 1024L) { "Backup exceeds size limit" }
+                                    rows.put(encoded)
+                                }
                             }
                             put(table, rows)
                         }
@@ -131,16 +134,23 @@ object FinanceBackupManager {
                     "Backup database version is not supported by this app version"
                 }
                 val tableData = json.getJSONObject("tables")
-                tables.forEach { require(tableData.has(it)) { "Backup is missing table: $it" } }
+                require(tableData.keys().asSequence().toSet() == tables.toSet()) { "Backup tables do not match schema v12" }
 
                 db.withTransaction {
                     val database = db.openHelper.writableDatabase
+                    require(tables.sumOf { tableData.getJSONArray(it).length().toLong() } <= MAX_ROWS) { "Too many backup rows" }
+                    val decoded = mutableMapOf<String, List<Map<String, Any?>>>()
                     tables.asReversed().forEach { database.execSQL("DELETE FROM $it") }
                     tables.forEach { table ->
                         val expectedColumns = tableData.getJSONArray(table)
                         val actualColumns = database.query("PRAGMA table_info($table)").use { cursor ->
-                            buildSet { while (cursor.moveToNext()) add(cursor.getString(cursor.getColumnIndexOrThrow("name"))) }
+                            buildMap {
+                                while (cursor.moveToNext()) put(cursor.getString(cursor.getColumnIndexOrThrow("name")),
+                                    cursor.getString(cursor.getColumnIndexOrThrow("type")) to (cursor.getInt(cursor.getColumnIndexOrThrow("notnull")) == 1))
+                            }
                         }
+                        val decodedRows = mutableListOf<Map<String, Any?>>()
+                        decoded[table] = decodedRows
                         for (index in 0 until expectedColumns.length()) {
                             val row = expectedColumns.getJSONObject(index)
                             val columns = row.getJSONArray("columns")
@@ -150,20 +160,35 @@ object FinanceBackupManager {
                                 for (columnIndex in 0 until columns.length()) add(columns.getString(columnIndex))
                             }
                             require(
-                                rowColumnNames.size == columns.length() && rowColumnNames == actualColumns
+                                rowColumnNames.size == columns.length() && rowColumnNames == actualColumns.keys
                             ) { "Backup row does not match the current $table schema" }
                             val content = ContentValues()
+                            val decodedRow = mutableMapOf<String, Any?>()
+                            decodedRows.add(decodedRow)
                             for (columnIndex in 0 until columns.length()) {
                                 val column = columns.getString(columnIndex)
                                 require(column in actualColumns) { "Unknown column $column in $table" }
                                 val cell = values.getJSONObject(columnIndex)
+                                val (sqlType, required) = actualColumns.getValue(column)
                                 when (cell.getInt("type")) {
-                                    Cursor.FIELD_TYPE_NULL -> content.putNull(column)
-                                    Cursor.FIELD_TYPE_INTEGER -> content.put(column, cell.getLong("value"))
-                                    Cursor.FIELD_TYPE_FLOAT -> content.put(column, cell.getDouble("value"))
-                                    Cursor.FIELD_TYPE_STRING -> content.put(column, cell.getString("value"))
-                                    Cursor.FIELD_TYPE_BLOB -> content.put(column, Base64.decode(cell.getString("value"), Base64.NO_WRAP))
-                                    else -> error("Unsupported cell type")
+                                    Cursor.FIELD_TYPE_NULL -> {
+                                        require(!required) { "Required column is null" }
+                                        content.putNull(column); decodedRow[column] = null
+                                    }
+                                    Cursor.FIELD_TYPE_INTEGER -> {
+                                        require(sqlType == "INTEGER") { "Backup column type mismatch" }
+                                        val value = cell.get("value")
+                                        require(value is Int || value is Long) { "Integer cannot be a string or floating point" }
+                                        val number = (value as Number).toLong()
+                                        content.put(column, number); decodedRow[column] = number
+                                    }
+                                    Cursor.FIELD_TYPE_STRING -> {
+                                        require(sqlType == "TEXT") { "Backup column type mismatch" }
+                                        val value = cell.get("value")
+                                        require(value is String) { "Text column contains a non-string" }
+                                        content.put(column, value); decodedRow[column] = value
+                                    }
+                                    else -> error("Unsupported backup cell type")
                                 }
                             }
                             val insertedRowId = database.insert(
@@ -174,6 +199,9 @@ object FinanceBackupManager {
                             check(insertedRowId != -1L) { "Could not restore a row in table $table" }
                         }
                     }
+                    // Still inside the same transaction: any semantic failure restores
+                    // every original table, not just the last invalid row.
+                    FinanceBackupIntegrity.validate(decoded)
                 }
             } finally {
                 salt.fill(0)
