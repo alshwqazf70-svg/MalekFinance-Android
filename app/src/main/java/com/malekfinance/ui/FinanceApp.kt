@@ -1240,7 +1240,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                     OutlinedTextField(
                         value = amount,
                         onValueChange = { amount = it },
-                        modifier = Modifier.fillMaxWidth(),
+                        modifier = Modifier.fillMaxWidth().testTag("manual-amount"),
                         label = { Text("المبلغ بعملة ${selectedWallet?.currencyCode ?: "YER"}") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true

@@ -8,6 +8,7 @@ import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performScrollToNode
 import androidx.compose.ui.test.assertDoesNotExist
 import androidx.compose.ui.test.assertExists
+import androidx.compose.ui.test.assertTextContains
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
@@ -30,6 +31,7 @@ class FinanceNavigationUiTest {
     val composeRule = createComposeRule()
 
     private lateinit var db: FinanceDb
+    private lateinit var restoration: androidx.compose.ui.test.junit4.StateRestorationTester
 
     @Before
     fun setUp() {
@@ -37,7 +39,8 @@ class FinanceNavigationUiTest {
         db = Room.inMemoryDatabaseBuilder(context, FinanceDb::class.java)
             .allowMainThreadQueries()
             .build()
-        composeRule.setContent {
+        restoration = androidx.compose.ui.test.junit4.StateRestorationTester(composeRule)
+        restoration.setContent {
             FinanceTheme {
                 FinanceApp(db)
             }
@@ -139,4 +142,13 @@ class FinanceNavigationUiTest {
         assertEquals("عام", saved.note)
     }
 
+
+    @Test fun manuallyEnteredVoiceDraftSurvivesSavedStateRestoration() {
+        composeRule.onNodeWithText("الصوت").performClick()
+        composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
+        composeRule.onNodeWithTag("manual-amount").performScrollTo().performTextInput("1500")
+        restoration.emulateSavedInstanceStateRestore()
+        composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
+        composeRule.onNodeWithTag("manual-amount").performScrollTo().assertTextContains("1500")
+    }
 }

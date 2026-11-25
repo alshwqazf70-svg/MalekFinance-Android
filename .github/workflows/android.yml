@@ -81,6 +81,9 @@ jobs:
         run: gradle --no-daemon :app:lintDebug 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
       # Run emulator-dependent checks after publishing build artifacts so a
       # transient hosted-emulator boot failure cannot prevent APK retrieval.
+      - name: Enable emulator hardware acceleration
+        run: |
+          if [ -e /dev/kvm ]; then sudo chmod a+rw /dev/kvm; fi
       - name: Run Room instrumentation tests
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -90,7 +93,7 @@ jobs:
           profile: pixel_2
           emulator-boot-timeout: 600
           disable-animations: true
-          disable-linux-hw-accel: true
+          disable-linux-hw-accel: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           script: gradle --no-daemon :app:connectedDebugAndroidTest
 

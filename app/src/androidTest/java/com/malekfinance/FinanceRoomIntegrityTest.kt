@@ -577,6 +577,24 @@ class FinanceRoomIntegrityTest {
         assertEquals(0, rowCount("transactions"))
     }
 
+    @Test fun ordinaryMutationServiceRejectsLinkedAndStaleRows() = runBlocking {
+        val wallet = db.walletDao().insert(FinanceWallet(name = "نقد"))
+        val original = FinanceTransaction(amountMinor = 100, kind = "EXPENSE", note = "عادية", walletId = wallet)
+        val id = db.dao().insert(original)
+        val expected = original.copy(id = id)
+        db.dao().update(expected.copy(note = "تغيرت"))
+        expectFailure { FinanceTransactionOperations.delete(db, expected) }
+        assertEquals("تغيرت", db.dao().findById(id)!!.note)
+        val linked = db.dao().findById(id)!!.copy(debtId = 1L)
+        db.dao().update(linked)
+        expectFailure { FinanceTransactionOperations.delete(db, linked) }
+        expectFailure { FinanceTransactionOperations.update(db, linked, 200, "INCOME", "محاولة تعديل", "عام") }
+        assertEquals(100L, db.dao().findById(id)!!.amountMinor)
+        db.dao().update(expected)
+        FinanceTransactionOperations.delete(db, expected)
+        assertEquals(0, rowCount("transactions"))
+    }
+
     private suspend fun expectFailure(block: suspend () -> Unit) {
         var failed = false
         try {
