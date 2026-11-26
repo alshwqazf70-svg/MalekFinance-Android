@@ -14,7 +14,7 @@ An independent Arabic-first Android personal finance manager. The approved produ
 - **Language and locale:** Arabic-first, right-to-left (RTL).
 - **Default currency:** Yemeni rial (YER); the current wallet screen supports YER, USD, SAR and AED with separate balances.
 - **Platform:** Native Android; minimum Android 6.0 (API 23).
-- **Offline-first:** Core financial records, calculations and local reports work on-device. Embedded Vosk recognition works locally after importing a compatible Arabic model once. No model is bundled yet; manual entry needs no model.
+- **Offline-first:** Core records, calculations and reports work on-device. Speech uses the installed system Activity (`ar-YE`) by default, with optional on-device recognition where supported. No model is bundled or imported; offline speech availability must be checked on the phone.
 
 ## Product capabilities in the approved plan
 
@@ -35,7 +35,7 @@ The `docs/` directory is the canonical reference for product scope and engineeri
 - [Voice system](docs/VOICE_SYSTEM.md) — intents, Arabic/Yemeni language handling, review and confirmation.
 - [Architecture](docs/ARCHITECTURE.md) — app layers, data model, money precision, privacy and tests.
 - [Roadmap](docs/ROADMAP.md) — phases and verified implementation status.
-- [Deep audit — 2026-11-25](docs/PROJECT_AUDIT_2026-11-25.md) — confirmed fixes, remaining risks, actual test results and release gates.
+- [Deep audit](docs/DEEP_PROJECT_AUDIT.md) and [remediation](docs/AUDIT_REMEDIATION.md) — findings, fixes, actual test results and remaining device gates.
 - [Decision log](docs/DECISIONS.md) — approved decisions and future changes.
 
 **Documentation rule:** Any approved change to product scope, UI, voice behavior, data handling or architecture must update the relevant document in the same development task. The repository documentation is the source of truth; chat discussions alone do not change the specification.
@@ -67,7 +67,7 @@ These items still require source review and successful CI/device verification be
 
 GitHub Actions runs JVM unit tests, builds the app and instrumentation-test APK, and runs Android lint. Android emulator execution and system-image setup are removed by owner request; Room/Compose instrumentation execution is now a real-device verification step. It can also build a signed release APK when the owner supplies all signing credentials through GitHub Secrets. A successful build and its artifact must be confirmed from the relevant workflow run; configuration alone is not proof of success.
 
-Speech recognition now uses the embedded Vosk runtime, not the system recognition service. A compatible Arabic Vosk ZIP model must be imported first. No Arabic acoustic model is bundled or trained by this project yet; dialect accuracy, native-library compatibility and device performance remain unverified. See [offline voice setup and limitations](docs/OFFLINE_VOICE.md).
+Speech opens the installed system recognition Activity with `ar-YE`; optional direct on-device recognition is available only when the phone reports support. No Vosk runtime, model ZIP import or automatic network fallback is present. Offline operation and dialect accuracy still require a physical-phone check. See [voice setup and limitations](docs/OFFLINE_VOICE.md).
 
 ## Development
 

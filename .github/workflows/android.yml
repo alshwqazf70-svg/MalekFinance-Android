@@ -126,7 +126,9 @@ jobs:
                   tree = ET.parse(report)
                   for case in tree.iter('testcase'):
                       for failure in list(case.findall('failure')) + list(case.findall('error')):
-                          message = (case.get('classname', '') + '.' + case.get('name', '') + ': ' + (failure.text or failure.get('message', '')))[:5000]
+                          details = failure.text or failure.get('message', '')
+                          causes = '\n'.join(line for line in details.splitlines() if 'Caused by:' in line or 'https://' in line)
+                          message = (case.get('classname', '') + '.' + case.get('name', '') + ': ' + details[:2200] + '\nRoot causes:\n' + causes[:2600])[:5000]
                           message = message.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
                           print('::error title=Test failure::' + message)
               except ET.ParseError:
