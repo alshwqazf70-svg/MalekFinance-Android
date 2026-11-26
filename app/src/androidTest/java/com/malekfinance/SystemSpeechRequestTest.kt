@@ -15,7 +15,7 @@ class SystemSpeechRequestTest {
     @Test fun requestUsesArabicAndPrefersOfflineWithoutFinancialContext() {
         val intent = SystemSpeechController.recognitionIntent()
         assertEquals(RecognizerIntent.ACTION_RECOGNIZE_SPEECH, intent.action)
-        assertEquals("ar", intent.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
+        assertEquals("ar-YE", intent.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
         assertEquals(RecognizerIntent.LANGUAGE_MODEL_FREE_FORM, intent.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL))
         assertTrue(intent.getBooleanExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false))
         assertTrue(intent.getBooleanExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, false))

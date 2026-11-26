@@ -44,6 +44,8 @@ jobs:
         run: gradle --no-daemon :app:testDebugUnitTest 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
+      - name: Record actual APK size and verify under 30 MB
+        run: python3 scripts/inspect-apk.py app/build/outputs/apk/debug/app-debug.apk
       - name: Record APK checksum and test build identity
         run: |
           cd app/build/outputs/apk/debug
@@ -57,6 +59,7 @@ jobs:
             app/build/outputs/apk/debug/app-debug.apk
             app/build/outputs/apk/debug/app-debug.apk.sha256
             app/build/outputs/apk/debug/BUILD-INFO.txt
+            app/build/outputs/apk/debug/APK-SIZE.txt
           if-no-files-found: error
           retention-days: 14
       - name: Prepare protected release signing key
@@ -77,6 +80,9 @@ jobs:
       - name: Build signed release APK
         if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
         run: gradle --no-daemon :app:assembleRelease
+      - name: Record signed release APK size
+        if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
+        run: python3 scripts/inspect-apk.py app/build/outputs/apk/release/app-release.apk
       - name: Upload signed release APK
         if: ${{ env.HAS_RELEASE_SIGNING == 'true' }}
         uses: actions/upload-artifact@v4

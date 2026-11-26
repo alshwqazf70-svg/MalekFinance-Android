@@ -141,6 +141,22 @@ class FinanceNavigationUiTest {
     }
 
 
+    @Test fun recognizedCommandReviewDoesNotWriteUntilExplicitConfirmation() = runBlocking {
+        val walletId = db.walletDao().insert(FinanceWallet(name = "اختبار صوت", currencyCode = "YER", openingBalanceMinor = 1_000_000))
+        composeRule.onNodeWithText("المساعد").performClick()
+        composeRule.onNodeWithTag("speech-command").performScrollTo().performTextInput("صرفت ألف وخمسمية ريال بنزين")
+        composeRule.onNodeWithText("مراجعة العبارة").performScrollTo().performClick()
+        composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))
+        composeRule.onNodeWithTag("manual-amount").performScrollTo().assertTextContains("1500")
+        assertEquals(0, db.dao().forWallet(walletId).size)
+        composeRule.onNodeWithText("تأكيد وحفظ العملية").performScrollTo().performClick()
+        composeRule.waitUntil(5_000) { runBlocking { db.dao().forWallet(walletId).isNotEmpty() } }
+        val saved = db.dao().forWallet(walletId).single()
+        assertEquals(150_000L, saved.amountMinor)
+        assertEquals("EXPENSE", saved.kind)
+        assertEquals("بنزين", saved.category)
+    }
+
     @Test fun manuallyEnteredVoiceDraftSurvivesSavedStateRestoration() {
         composeRule.onNodeWithText("المساعد").performClick()
         composeRule.onNodeWithTag("voice-workspace").performScrollToNode(hasText("إدخال يدوي بديل"))

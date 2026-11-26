@@ -19,7 +19,11 @@ internal class SystemSpeechController(
     private val onPartial: (String) -> Unit,
     private val onResult: (String) -> Unit,
     private val onMessage: (String) -> Unit,
-    private val onFinished: () -> Unit
+    private val onFinished: () -> Unit,
+    private val createRecognizer: (Context) -> SpeechRecognizer = { appContext ->
+        if (Build.VERSION.SDK_INT >= 31) SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext)
+        else throw UnsupportedOperationException("On-device recognition requires API31")
+    }
 ) {
     private val context = context.applicationContext
     private val handler = Handler(Looper.getMainLooper())
@@ -27,14 +31,8 @@ internal class SystemSpeechController(
     private var generation = 0
     private var timeout: Runnable? = null
 
-    fun hasOnDeviceService(): Boolean = Build.VERSION.SDK_INT >= 31 &&
-        runCatching { SpeechRecognizer.isOnDeviceRecognitionAvailable(context) }.getOrDefault(false)
-
-    fun hasSystemService(): Boolean =
-        runCatching { SpeechRecognizer.isRecognitionAvailable(context) }.getOrDefault(false)
-
-    /** Default providers may ignore PREFER_OFFLINE: callers must obtain informed consent. */
-    fun start(onDevice: Boolean) {
+    /** Optional on-device path only. Never bind the default service on Android 6–11. */
+    fun start() {
         cancel(notifyFinished = false)
         val session = generation
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -43,12 +41,7 @@ internal class SystemSpeechController(
             return
         }
         try {
-            val current = if (onDevice && Build.VERSION.SDK_INT >= 31) {
-                SpeechRecognizer.createOnDeviceSpeechRecognizer(context)
-            } else {
-                check(!onDevice)
-                SpeechRecognizer.createSpeechRecognizer(context)
-            }
+            val current = createRecognizer(context)
             recognizer = current
             current.setRecognitionListener(object : RecognitionListener {
                 private fun active() = generation == session && recognizer === current
@@ -74,7 +67,7 @@ internal class SystemSpeechController(
                     cancel()
                     if (text.isEmpty()) onMessage("لم تصل عبارة واضحة. أعد المحاولة أو اكتب يدوياً.")
                     else {
-                        onMessage("اكتمل التعرف. راجع النص ثم اضغط مراجعة العبارة؛ لم تُحفظ أي عملية.")
+                        onMessage("اكتمل التعرف وجرى تحليل النص. راجع المسودة قبل التأكيد؛ لم تُحفظ أي عملية.")
                         onResult(text)
                     }
                 }
@@ -110,7 +103,7 @@ internal class SystemSpeechController(
     companion object {
         fun recognitionIntent(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-            putExtra(RecognizerIntent.EXTRA_LANGUAGE, "ar")
+            putExtra(RecognizerIntent.EXTRA_LANGUAGE, VoiceRecognitionIntentFactory.LANGUAGE)
             putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
             putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)

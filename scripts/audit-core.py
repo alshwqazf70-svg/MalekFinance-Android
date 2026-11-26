@@ -61,12 +61,14 @@ object Assert {
     files.append(write('ModelsAndDb.kt', 'package com.malekfinance\nimport androidx.room.*\nimport kotlinx.coroutines.flow.Flow\n' + models + db + '}\n'))
     excluded = {'MainActivity.kt', 'FinanceBackupManager.kt', 'FinanceReportExporter.kt', 'FinanceDatabaseProvider.kt'}
     files += [str(p) for p in sorted(MAIN.glob('*.kt')) if p.name not in excluded]
-    files += [str(MAIN / 'voice' / name) for name in ['VoiceTransactionParser.kt', 'VoiceQueryEngine.kt']]
+    files += [str(MAIN / 'voice' / name) for name in ['VoiceTransactionParser.kt', 'VoiceQueryEngine.kt', 'SpeechCompatibility.kt']]
     exporter = (MAIN / 'FinanceReportExporter.kt').read_text()
     exporter = '\n'.join(line for line in exporter.splitlines() if not line.startswith('import android.'))
     a, b = exporter.index('    fun writePdf('), exporter.index('    private fun decimalAmount(')
     files.append(write('CsvXlsxExporter.kt', exporter[:a] + exporter[b:]))
-    tests = sorted(TEST.rglob('*Test.kt'))
+    # Android framework/shadow tests run in real Gradle/Robolectric, not this shim.
+    android_tests = {'SpeechIntentAndroidTest.kt', 'SystemSpeechLifecycleAndroidTest.kt'}
+    tests = [p for p in sorted(TEST.rglob('*Test.kt')) if p.name not in android_tests]
     classes = []
     for p in tests:
         source = p.read_text()
