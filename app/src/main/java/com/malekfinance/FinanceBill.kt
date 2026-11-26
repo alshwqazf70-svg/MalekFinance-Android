@@ -62,6 +62,9 @@ interface FinanceBillDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(bill: FinanceBill): Long
 
+    @Query("UPDATE bills SET isActive = :active WHERE id = :id")
+    suspend fun setActive(id: Long, active: Boolean): Int
+
     @Update
     suspend fun update(bill: FinanceBill)
 

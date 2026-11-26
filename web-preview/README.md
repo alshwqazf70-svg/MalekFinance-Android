@@ -20,7 +20,7 @@ npm run test:e2e
 
 - Working sandbox: navigation, responsive handset view, currency selection, privacy toggle, manual records and review drafts, search, wallets, same-currency transfers, computed reports and what-if saving scenarios.
 - Visual examples only: budget limits, savings goal and bill cards; explicitly labeled in the UI.
-- Android-only: embedded Vosk speech, Room, model installation, notifications, encrypted backups and native exports. No microphone or cloud speech fallback in this preview.
+- Android-only: installed system speech Activity (`ar-YE`) with optional on-device recognition when available, Room, notifications, encrypted backups and native exports. No speech model is bundled. No microphone or cloud speech fallback in this preview.
 - Demonstration data only. Changes use unencrypted browser `localStorage`, separate from phone data; never enter real financial information. Reset/empty actions require confirmation.
 - This is hand-authored JS/CSS, not compiled Compose. Approved visual changes need a separate Android implementation and device verification.
 

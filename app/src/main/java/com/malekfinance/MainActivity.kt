@@ -96,7 +96,7 @@ interface FinanceTransferDao {
 @Database(
     entities = [FinanceTransaction::class, FinanceWallet::class, FinanceTransfer::class, FinanceCategory::class, FinanceBudget::class, FinanceDebt::class, FinanceDebtPayment::class, FinanceSavingsGoal::class, FinanceSavingsEntry::class, FinanceRecurringIncomeRule::class, FinanceRecurringIncomeEntry::class, FinanceRecurringExpenseRule::class, FinanceRecurringExpenseEntry::class, FinanceBill::class, FinanceBillPayment::class],
     version = 12,
-    exportSchema = false
+    exportSchema = true
 )
 abstract class FinanceDb : RoomDatabase() {
     abstract fun dao(): FinanceDao

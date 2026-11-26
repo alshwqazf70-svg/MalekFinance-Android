@@ -372,6 +372,8 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
     val voiceDebtPayments by db.debtPaymentDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
     val voiceBills by db.billDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
     val voiceSavingsGoals by db.savingsGoalDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val voiceSavingsEntries by db.savingsEntryDao().observeAll().collectAsStateWithLifecycle(initialValue = emptyList())
+    val voiceNow = rememberFinanceClock()
     var selectedWalletId by rememberSaveable { mutableStateOf<Long?>(null) }
     val selectedWallet = wallets.firstOrNull { it.id == selectedWalletId } ?: wallets.firstOrNull()
     val compatibleCategories = activeCategories.filter {
@@ -400,8 +402,27 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
         debtPaymentDebtId = null
     }
 
+    // A new mutation replaces the previous draft; read-only queries and amount
+    // correction intentionally preserve it. Keep the reset shared by every route.
+    fun clearDraftSelection() {
+        hasDraft = false
+        hasTransferDraft = false
+        hasDebtDraft = false
+        clearDebtPaymentDraft()
+        hasSavingsDraft = false
+        hasBillDraft = false
+        billDraftId = null
+    }
+
     fun processRecognizedText(spoken: String) {
+        if (isSavingDraft || isTransferSaving || isDebtSaving || isDebtPaymentSaving || isSavingsSaving || isBillSaving) return
         val parsed = VoiceTransactionParser.parse(spoken)
+        if (parsed.command in setOf(
+            VoiceCommandType.TRANSACTION, VoiceCommandType.CANCEL_DRAFT,
+            VoiceCommandType.TRANSFER_DRAFT, VoiceCommandType.DEBT_CREATE_DRAFT,
+            VoiceCommandType.DEBT_PAYMENT_DRAFT, VoiceCommandType.BILL_PAYMENT_DRAFT,
+            VoiceCommandType.SAVINGS_CONTRIBUTION_DRAFT, VoiceCommandType.SAVINGS_WITHDRAWAL_DRAFT
+        )) clearDraftSelection()
         transcript = spoken
         if (parsed.command == VoiceCommandType.CANCEL_DRAFT) {
             transcript = ""
@@ -459,7 +480,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             description = ""
             kind = null
             hasDebtPaymentDraft = true
-            debtPaymentDirection = parsed.debtPaymentDirection ?: "OWED_BY_ME"
+            debtPaymentDirection = parsed.debtPaymentDirection.orEmpty()
             debtPaymentAmountDraft = parsed.amount.orEmpty()
             debtPaymentDebtId = voiceDebts.firstOrNull { debt ->
                 debt.debtType == debtPaymentDirection && spoken.contains(debt.personName, ignoreCase = true) &&
@@ -544,9 +565,9 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
             hasTransferDraft = true
             transferAmountText = parsed.amount.orEmpty()
             transferNote = spoken
-            val mentionedWallets = wallets.filter { spoken.contains(it.name, ignoreCase = true) }
-            transferFromWalletId = mentionedWallets.getOrNull(0)?.id
-            transferToWalletId = mentionedWallets.getOrNull(1)?.id
+            val parties = com.malekfinance.FinanceVoiceDraftPolicy.transferParties(spoken, wallets)
+            transferFromWalletId = parties.first
+            transferToWalletId = parties.second
             status = "راجع محفظة المصدر والوجهة والمبلغ. لن يتم التحويل إلا بعد ضغط زر التأكيد."
         } else if (parsed.command != VoiceCommandType.TRANSACTION) {
             // Read-only voice queries must not silently discard an unconfirmed draft.
@@ -561,9 +582,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                         when (parsed.command) {
                             VoiceCommandType.BALANCE_QUERY -> {
                                 val balance = com.malekfinance.FinanceLedger.calculateBalance(wallet, walletTransactions, transfers)
-                                val major = balance.divide(java.math.BigInteger.valueOf(100))
-                                val minor = balance.remainder(java.math.BigInteger.valueOf(100)).abs()
-                                "رصيد " + wallet.name + ": " + String.format(java.util.Locale.ROOT, "%s.%02d %s", major.toString(), minor.toInt(), wallet.currencyCode)
+                                "رصيد " + wallet.name + ": " + com.malekfinance.FinanceMoney.format(balance, wallet.currencyCode)
                             }
                             VoiceCommandType.SPENDING_QUERY -> {
                                 val result = VoiceQueryEngine.calculate(
@@ -717,6 +736,7 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
 
     fun cancelVoiceDraft() {
         if (isSavingDraft || isTransferSaving || isDebtSaving || isDebtPaymentSaving || isSavingsSaving || isBillSaving) return
+        clearDraftSelection()
         transcript = ""
         amount = ""
         description = ""
@@ -1029,6 +1049,28 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 SectionCard("العبارة المدخلة", transcript, "مسودة للمراجعة فقط")
             }
         }
+        if (hasBillDraft) {
+            item {
+                VoiceBillDraftCard(
+                    bills = voiceBills, wallets = wallets, now = voiceNow,
+                    selectedId = billDraftId, onSelect = { billDraftId = it },
+                    busy = isBillSaving, status = status,
+                    onConfirm = ::confirmVoiceBillPayment, onCancel = ::cancelVoiceDraft
+                )
+            }
+        }
+        if (hasSavingsDraft) {
+            item {
+                VoiceSavingsDraftCard(
+                    goals = voiceSavingsGoals, entries = voiceSavingsEntries, wallets = wallets,
+                    selectedId = savingsGoalDraftId, onSelect = { savingsGoalDraftId = it },
+                    withdrawal = savingsDraftType == "WITHDRAWAL",
+                    amount = savingsAmountDraft, onAmountChange = { savingsAmountDraft = it },
+                    busy = isSavingsSaving, status = status,
+                    onConfirm = ::confirmVoiceSavings, onCancel = ::cancelVoiceDraft
+                )
+            }
+        }
         if (hasDebtPaymentDraft) {
             item {
                 val eligibleDebts = voiceDebts.filter { debt ->
@@ -1038,7 +1080,17 @@ private fun VoiceLandingScreen(db: FinanceDb, wallets: List<FinanceWallet>, acti
                 }
                 Card(colors = CardDefaults.cardColors(containerColor = FinanceColors.Surface), shape = RoundedCornerShape(22.dp)) {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Text(if (debtPaymentDirection == "OWED_BY_ME") "مراجعة سداد الدين صوتياً" else "مراجعة تحصيل الدين صوتياً", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(when (debtPaymentDirection) {
+                            "OWED_BY_ME" -> "مراجعة سداد الدين صوتياً"
+                            "OWED_TO_ME" -> "مراجعة تحصيل الدين صوتياً"
+                            else -> "حدد اتجاه الدفعة قبل التأكيد"
+                        }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("OWED_BY_ME" to "سداد عليّ", "OWED_TO_ME" to "تحصيل لي").forEach { (direction, label) ->
+                                FilterChip(selected = debtPaymentDirection == direction, enabled = !isDebtPaymentSaving,
+                                    onClick = { debtPaymentDirection = direction; debtPaymentDebtId = null }, label = { Text(label) })
+                            }
+                        }
                         OutlinedTextField(value = debtPaymentAmountDraft, onValueChange = { debtPaymentAmountDraft = it }, modifier = Modifier.fillMaxWidth(), label = { Text("مبلغ الدفعة") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true, enabled = !isDebtPaymentSaving)
                         Text("اختر الدين المرتبط بالدفعة", color = FinanceColors.TextSecondary)
                         LazyColumn(modifier = Modifier.heightIn(max = 190.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -1757,11 +1809,8 @@ private fun ReportsLandingScreen(
     }
 }
 
-private fun reportMoney(minor: java.math.BigInteger, currency: String): String {
-    val major = minor.divide(java.math.BigInteger.valueOf(100))
-    val fraction = minor.remainder(java.math.BigInteger.valueOf(100)).abs()
-    return String.format(java.util.Locale.ROOT, "%s.%02d %s", major.toString(), fraction.toInt(), currency)
-}
+private fun reportMoney(minor: java.math.BigInteger, currency: String): String =
+    com.malekfinance.FinanceMoney.format(minor, currency)
 
 @Composable
 private fun MoneyLandingScreen(

@@ -67,7 +67,7 @@ object Assert {
     a, b = exporter.index('    fun writePdf('), exporter.index('    private fun decimalAmount(')
     files.append(write('CsvXlsxExporter.kt', exporter[:a] + exporter[b:]))
     # Android framework/shadow tests run in real Gradle/Robolectric, not this shim.
-    android_tests = {'SpeechIntentAndroidTest.kt', 'SystemSpeechLifecycleAndroidTest.kt'}
+    android_tests = {'SpeechIntentAndroidTest.kt', 'SystemSpeechLifecycleAndroidTest.kt', 'FinanceScheduleAndroidTest.kt'}
     tests = [p for p in sorted(TEST.rglob('*Test.kt')) if p.name not in android_tests]
     classes = []
     for p in tests:

@@ -364,16 +364,16 @@ internal fun BillManagementSection(
                                 TextButton(
                                     onClick = {
                                         scope.launch {
-                                            runCatching {
-                                                val current = db.billDao().findById(bill.id) ?: error("Bill not found")
-                                                val updated = current.copy(isActive = !current.isActive)
-                                                db.billDao().update(updated)
-                                                updated
-                                            }.onSuccess { updated ->
-                                                status = if (updated.isActive) "تمت إعادة تفعيل الفاتورة." else "تم إيقاف الفاتورة."
-                                            }.onFailure { status = "تعذر تغيير حالة الفاتورة." }
+                                            if (busyBills[bill.id] == true) return@launch
+                                            busyBills[bill.id] = true
+                                            try {
+                                                runCatching { FinanceScheduleOperations.toggleBill(db, bill.id) }
+                                                    .onSuccess { active -> status = if (active) "تمت إعادة تفعيل الفاتورة." else "تم إيقاف الفاتورة." }
+                                                    .onFailure { status = "تعذر تغيير حالة الفاتورة؛ ربما دُفعت بالفعل." }
+                                            } finally { busyBills.remove(bill.id) }
                                         }
-                                    }
+                                    },
+                                    enabled = busyBills[bill.id] != true
                                 ) { Text(if (bill.isActive) "إيقاف" else "تفعيل", color = FinanceColors.PrimaryLight) }
                             }
                         }

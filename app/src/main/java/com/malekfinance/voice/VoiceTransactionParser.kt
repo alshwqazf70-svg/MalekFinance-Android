@@ -52,6 +52,9 @@ object VoiceTransactionParser {
         """(?<![\p{L}\p{N}])(?:[وفبكل]?)(?:${numberWords.keys.sortedByDescending { it.length }.joinToString("|") { Regex.escape(it) }})(?![\p{L}\p{N}])"""
     )
 
+    private val repaymentPhrases = listOf("سدد دين", "سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "ادفع دين", "ادفع الدين", "أدفع الدين")
+    private val collectionPhrases = listOf("حصلت دين", "حصلت دين من", "حصّلت الدين", "تحصيل دين", "تحصيل دين من", "استلمت سداد الدين", "استلمت سداد من")
+
     fun parse(raw: String): ParsedTransaction {
         val normalized = normalizeDigits(raw)
             .replace('٫', '.')
@@ -114,7 +117,7 @@ object VoiceTransactionParser {
             amount = amount,
             kind = kind,
             category = category,
-            description = if (creditPurchase) "شراء آجل: قات" else description,
+            description = if (creditPurchase) "شراء آجل: " + (if (category == "قات") "قات" else description) else description,
             command = command,
             queryPeriod = detectPeriod(lower),
             relativeDayOffset = detectRelativeDay(lower),
@@ -130,10 +133,7 @@ object VoiceTransactionParser {
         containsAny(text, listOf("ألغ المسودة", "الغ المسودة", "إلغاء المسودة", "الغِ العملية", "ألغ العملية", "لا تسجلها")) -> VoiceCommandType.CANCEL_DRAFT
         containsAny(text, listOf("صحح المبلغ", "صحح لي المبلغ", "عدل المبلغ", "عدّل المبلغ", "غير المبلغ", "غيّر المبلغ", "لا المبلغ", "المبلغ الصحيح")) -> VoiceCommandType.CORRECT_AMOUNT
         containsAny(text, listOf("كم باقي في الميزانية", "كم تبقى من الميزانية", "هل تجاوزت الميزانية", "حالة الميزانية", "وضع الميزانية", "قديش باقي في الميزانية")) -> VoiceCommandType.BUDGET_STATUS_QUERY
-        containsAny(text, listOf(
-            "سدد دين", "سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "ادفع دين", "ادفع الدين", "أدفع الدين",
-            "حصلت دين", "حصلت دين من", "حصّلت الدين", "تحصيل دين", "تحصيل دين من", "استلمت سداد الدين", "استلمت سداد من"
-        )) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
+        containsAny(text, repaymentPhrases + collectionPhrases) -> VoiceCommandType.DEBT_PAYMENT_DRAFT
         containsAny(text, listOf("حوّل", "حول", "تحويل", "انقل")) && containsAny(text, listOf("من")) && containsAny(text, listOf("إلى", "الى")) -> VoiceCommandType.TRANSFER_DRAFT
         isExplicitCreditPurchase(text) || isShortCreditPurchase(text) -> VoiceCommandType.DEBT_CREATE_DRAFT
         containsAny(text, listOf("أعطيت", "اعطيت", "أقرضت", "اقرضت", "سلفت", "استلفت", "اقترضت", "أخذت قرض", "اخذت قرض")) -> VoiceCommandType.DEBT_CREATE_DRAFT
@@ -145,7 +145,6 @@ object VoiceTransactionParser {
         containsAny(text, listOf("كم علي من ديون", "كم علي", "كم أنا مدين", "كم انا مدين", "كم باقي علي")) -> VoiceCommandType.DEBT_OWED_BY_ME_QUERY
         containsAny(text, listOf("كم لي عند", "كم مستحق لي", "كم الناس لي", "كم عند الناس لي")) -> VoiceCommandType.DEBT_OWED_TO_ME_QUERY
         containsAny(text, listOf("آخر العمليات", "اخر العمليات", "اعرض العمليات", "أعرض العمليات", "آخر المصروفات", "اخر المصروفات")) -> VoiceCommandType.RECENT_TRANSACTIONS_QUERY
-        containsAny(text, listOf("ألغ المسودة", "الغ المسودة", "إلغاء المسودة", "الغِ العملية", "ألغ العملية", "لا تسجلها")) -> VoiceCommandType.CANCEL_DRAFT
         containsAny(text, listOf("كم رصيدي", "كم معي", "قديش معي", "كم باقي معي", "رصيد محفظتي", "كم باقي", "كم تبقى")) -> VoiceCommandType.BALANCE_QUERY
         containsAny(text, listOf("كم صرفت", "قديش صرفت", "بكم صرفت", "كم صرفنا", "كم دفعت", "كم انفقت", "كم أنفقت", "إجمالي المصروف", "مجموع المصروف")) -> VoiceCommandType.SPENDING_QUERY
         containsAny(text, listOf("كم دخل", "قديش دخل", "كم دخل علي", "كم استلمت", "إجمالي الدخل", "مجموع الدخل")) -> VoiceCommandType.INCOME_QUERY
@@ -156,7 +155,8 @@ object VoiceTransactionParser {
 
     private fun creditNegated(text: String) = Regex("""(?:^|\s)(?:ما|لم|لا)\s""").containsMatchIn(text)
     private fun isExplicitCreditPurchase(text: String): Boolean =
-        !creditNegated(text) && Regex("""(?<![\p{L}])قات(?![\p{L}])""").containsMatchIn(text) &&
+        !creditNegated(text) && (Regex("""(?<![\p{L}])قات(?![\p{L}])""").containsMatchIn(text) ||
+            containsAny(text, listOf("اشتريت", "شريت", "شراء"))) &&
             containsAny(text, listOf("بالدين", "على الحساب", "عالحساب", "آجل", "اجل", "تدينت", "تديّنت", "سجل علي", "سجّل علي")) &&
             !containsAny(text, listOf("استلفت", "اقترضت", "قرض", "سلفت"))
 
@@ -177,10 +177,14 @@ object VoiceTransactionParser {
             .replace(Regex("""\s+"""), " ").ifBlank { null }
     }
 
-    private fun detectDebtPaymentDirection(text: String): String? = when {
-        containsAny(text, listOf("سدد دين", "سددت دين", "سداد دين", "سدد الدين", "دفعت دين", "ادفع دين", "ادفع الدين", "أدفع الدين")) -> "OWED_BY_ME"
-        containsAny(text, listOf("حصلت دين", "حصّلت الدين", "تحصيل دين", "استلمت سداد الدين")) -> "OWED_TO_ME"
-        else -> null
+    private fun detectDebtPaymentDirection(text: String): String? {
+        val outgoing = containsAny(text, repaymentPhrases)
+        val incoming = containsAny(text, collectionPhrases)
+        return when {
+            outgoing && !incoming -> "OWED_BY_ME"
+            incoming && !outgoing -> "OWED_TO_ME"
+            else -> null // Never guess a payment direction for a conflicting phrase.
+        }
     }
 
     private fun detectDebtType(text: String): String? = when {
@@ -231,6 +235,9 @@ object VoiceTransactionParser {
     }
 
     private fun extractAmount(text: String): String? {
+        // Fractions/approximations are deliberately unsupported. Do not silently
+        // drop them and accept the remaining integer; ask for an exact typed amount.
+        if (Regex("""(?<![\p{L}])(?:و)?(?:نصف|نص|ربع|ثلث|ثلثين|نصفين|تقريبا|تقريباً|حوالي)(?![\p{L}])""").containsMatchIn(text)) return null
         // A single complete numeric token only: never turn -100 into 100, truncate
         // 123.456, select one of several amounts, or misread 2 ألف as 2.
         if (Regex("""[+\-−]\s*\d""").containsMatchIn(text)) return null

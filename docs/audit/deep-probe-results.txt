@@ -1,0 +1,13 @@
+FOUND | A01 negative sub-unit report net | expected=-0.50 YER | actual=0.50 YER
+FOUND | A02 reversed voice transfer | expected=(2, 1) | actual=(1, 2)
+FOUND | A03 collection direction | expected=OWED_TO_ME | actual=OWED_BY_ME
+INFO | A03 parser command=DEBT_PAYMENT_DRAFT, explicit direction=null
+FOUND | A04 half-thousand amount | expected=500 | actual=1000
+FOUND | A04 million-and-half amount | expected=1500000 | actual=1000000
+FOUND | A05 non-qat credit purchase | expected=DEBT_CREATE_DRAFT | actual=TRANSACTION
+OBSERVATION | Future-dated snapshot accepted; spendable ledger=10000; decide product policy before changing it
+FOUND | A06 spoken cancellation: clears stale bill flag=False
+FOUND | A06 new ordinary draft: clears stale bill flag=False
+FOUND | A08 confirmVoiceBillPayment: source references=1 (1 means definition only)
+FOUND | A08 confirmVoiceSavings: source references=1 (1 means definition only)
+RACE-POSSIBILITY | A07 full-row toggle overwrites advanced due date: expected=2000 actual=1000

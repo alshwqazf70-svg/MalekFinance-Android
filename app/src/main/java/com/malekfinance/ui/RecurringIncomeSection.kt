@@ -297,13 +297,15 @@ internal fun RecurringIncomeSection(
                             TextButton(
                                 onClick = {
                                     scope.launch {
-                                        runCatching {
-                                            val latest = db.recurringIncomeRuleDao().findById(rule.id) ?: error("Rule not found")
-                                            db.recurringIncomeRuleDao().update(latest.copy(isActive = !latest.isActive))
-                                        }.onSuccess { status = if (rule.isActive) "تم إيقاف الاستحقاق الدوري." else "تم تفعيل الاستحقاق الدوري." }
-                                            .onFailure { status = "تعذر تغيير حالة الاستحقاق." }
+                                        if (busyRules[rule.id] == true) return@launch
+                                        busyRules[rule.id] = true
+                                        try {
+                                            runCatching { FinanceScheduleOperations.toggleIncome(db, rule.id) }
+                                                .onSuccess { active -> status = if (active) "تم تفعيل الاستحقاق الدوري." else "تم إيقاف الاستحقاق الدوري." }
+                                                .onFailure { status = "تعذر تغيير حالة الاستحقاق." }
+                                        } finally { busyRules.remove(rule.id) }
                                     }
-                                }
+                                }, enabled = busyRules[rule.id] != true
                             ) { Text(if (rule.isActive) "إيقاف" else "تفعيل", color = FinanceColors.PrimaryLight) }
                         }
                     }

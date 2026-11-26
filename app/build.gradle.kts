@@ -18,8 +18,8 @@ android {
         applicationId = "com.malekfinance"
         minSdk = 23
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.0.1"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
     compileOptions {
@@ -74,4 +74,9 @@ dependencies {
     androidTestImplementation("androidx.test:rules:1.6.1")
     androidTestImplementation("androidx.test:core:1.6.1")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
+}
+
+// Export the real Room compiler schema without changing the on-device version.
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
 }

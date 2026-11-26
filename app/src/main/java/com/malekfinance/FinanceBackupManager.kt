@@ -119,12 +119,9 @@ object FinanceBackupManager {
                 val cipher = Cipher.getInstance("AES/GCM/NoPadding")
                 cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(128, nonce))
                 cipher.updateAAD(magicBytes)
-                val encryptedPayload = bytes.copyOfRange(40, bytes.size)
-                val plaintext = try {
-                    cipher.doFinal(encryptedPayload)
-                } finally {
-                    encryptedPayload.fill(0)
-                }
+                // Decrypt the authenticated payload directly from the bounded input.
+                // Avoid another entire ciphertext copy (up to 64 MiB) on small phones.
+                val plaintext = cipher.doFinal(bytes, 40, encryptedLength)
                 val json = try {
                     JSONObject(String(plaintext, StandardCharsets.UTF_8))
                 } finally {

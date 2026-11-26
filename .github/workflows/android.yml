@@ -27,6 +27,8 @@ jobs:
         uses: actions/checkout@v4
       - name: Enforce no-emulator policy
         run: python3 scripts/check-no-emulators.py
+      - name: Verify draft wiring, status-only SQL and migration contracts
+        run: python3 scripts/deep-audit.py --skip-core
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
@@ -109,6 +111,7 @@ jobs:
             app/build/reports/
             app/build/test-results/
             app/build/outputs/androidTest-results/
+            app/schemas/
           if-no-files-found: ignore
           retention-days: 14
       - name: Expose failure diagnostics in check annotations

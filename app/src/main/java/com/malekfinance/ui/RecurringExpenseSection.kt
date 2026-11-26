@@ -264,14 +264,15 @@ internal fun RecurringExpenseSection(
                             }
                             TextButton(onClick = {
                                 scope.launch {
-                                    runCatching {
-                                        val latest = db.recurringExpenseRuleDao().findById(rule.id) ?: error("Rule not found")
-                                        db.recurringExpenseRuleDao().update(latest.copy(isActive = !latest.isActive))
-                                    }.onSuccess {
-                                        status = if (rule.isActive) "تم إيقاف المصروف الدوري." else "تم تفعيل المصروف الدوري."
-                                    }.onFailure { status = "تعذر تغيير حالة المصروف الدوري." }
+                                    if (busyRules[rule.id] == true) return@launch
+                                    busyRules[rule.id] = true
+                                    try {
+                                        runCatching { FinanceScheduleOperations.toggleExpense(db, rule.id) }
+                                            .onSuccess { active -> status = if (active) "تم تفعيل المصروف الدوري." else "تم إيقاف المصروف الدوري." }
+                                            .onFailure { status = "تعذر تغيير حالة المصروف الدوري." }
+                                    } finally { busyRules.remove(rule.id) }
                                 }
-                            }) { Text(if (rule.isActive) "إيقاف" else "تفعيل", color = FinanceColors.PrimaryLight) }
+                            }, enabled = busyRules[rule.id] != true) { Text(if (rule.isActive) "إيقاف" else "تفعيل", color = FinanceColors.PrimaryLight) }
                         }
                     }
                 }

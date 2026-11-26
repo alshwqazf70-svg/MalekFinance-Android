@@ -54,6 +54,9 @@ interface FinanceRecurringIncomeRuleDao {
     @Insert(onConflict = OnConflictStrategy.ABORT)
     suspend fun insert(rule: FinanceRecurringIncomeRule): Long
 
+    @Query("UPDATE recurring_income_rules SET isActive = :active WHERE id = :id")
+    suspend fun setActive(id: Long, active: Boolean): Int
+
     @Update
     suspend fun update(rule: FinanceRecurringIncomeRule)
 }

@@ -28,7 +28,6 @@ import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
-import kotlinx.coroutines.delay
 
 @Composable
 internal fun PremiumDashboard(
@@ -38,8 +37,7 @@ internal fun PremiumDashboard(
 ) {
     var currency by rememberSaveable { mutableStateOf("YER") }
     var reduction by rememberSaveable { mutableStateOf(20f) }
-    var now by remember { mutableStateOf(System.currentTimeMillis()) }
-    LaunchedEffect(Unit) { while (true) { now = System.currentTimeMillis(); delay(60_000) } }
+    val now = rememberFinanceClock()
     val snapshot = remember(transactions, currency, now) { FinanceInsights.snapshot(transactions, currency, now) }
     val selectedWallets = wallets.filter { it.currencyCode == currency }
     val balance = remember(wallets, transactions, transfers, currency) {
