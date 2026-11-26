@@ -23,10 +23,13 @@ class SpeechIntentAndroidTest {
         assertEquals("ar-YE", intent.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
         assertEquals("مثال: صرفت ١٥٠٠ ريال بنزين", intent.getStringExtra(RecognizerIntent.EXTRA_PROMPT))
         assertEquals(RecognizerIntent.LANGUAGE_MODEL_FREE_FORM, intent.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL))
-        assertTrue(intent.getBooleanExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false))
+        assertFalse(intent.hasExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE))
         assertFalse(intent.hasExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE))
         assertEquals(setOf(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.EXTRA_LANGUAGE,
-            RecognizerIntent.EXTRA_PROMPT, RecognizerIntent.EXTRA_PREFER_OFFLINE, RecognizerIntent.EXTRA_MAX_RESULTS), intent.extras!!.keySet())
+            RecognizerIntent.EXTRA_PROMPT), intent.extras!!.keySet())
+        val preferredOffline = VoiceRecognitionIntentFactory.create(preferOffline = true)
+        assertTrue(preferredOffline.getBooleanExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, false))
+        assertEquals("ar-YE", preferredOffline.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
     }
 
     @Test fun activityUsesExtraResultsAndDoesNotRequireBindableRecognitionService() {

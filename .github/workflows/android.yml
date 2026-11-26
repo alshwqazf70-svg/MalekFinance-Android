@@ -42,6 +42,8 @@ jobs:
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
       - name: Run unit tests
         run: gradle --no-daemon :app:testDebugUnitTest 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
+      - name: Summarize JVM test results
+        run: python3 scripts/summarize-jvm-tests.py
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug 2>&1 | tee -a "$RUNNER_TEMP/finance-gradle.log"
       - name: Record actual APK size and verify under 30 MB

@@ -70,6 +70,7 @@ class SpeechPanelActivityResultTest {
         composeRule.waitForIdle()
         assertEquals(RecognizerIntent.ACTION_RECOGNIZE_SPEECH, provider.input!!.action)
         assertEquals("ar-YE", provider.input!!.getStringExtra(RecognizerIntent.EXTRA_LANGUAGE))
+        assertFalse(provider.input!!.hasExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE))
         composeRule.runOnIdle { owner.registry.currentState = Lifecycle.State.CREATED }
         restoration.emulateSavedInstanceStateRestore()
         composeRule.runOnIdle {

@@ -12,13 +12,13 @@ object VoiceRecognitionIntentFactory {
     const val LANGUAGE = "ar-YE"
     const val PROMPT = "مثال: صرفت ١٥٠٠ ريال بنزين"
 
-    fun create(): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+    fun create(preferOffline: Boolean = false): Intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
         putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
         putExtra(RecognizerIntent.EXTRA_LANGUAGE, LANGUAGE)
         putExtra(RecognizerIntent.EXTRA_PROMPT, PROMPT)
-        // A preference only; never a promise about an external provider's network behaviour.
-        putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-        putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3)
+        // Default extras deliberately match successful build dc9416a exactly.
+        // Opt-in only: some providers choose a different language path for this hint.
+        if (preferOffline) putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
     }
 
     fun capabilities(context: Context): SpeechCapabilities = SpeechCapabilities(

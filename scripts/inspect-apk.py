@@ -10,6 +10,7 @@ def inspect(path: Path) -> str:
     report = f'{path.name}: {size} bytes = {size / 1_000_000:.6f} MB = {size / 1_048_576:.6f} MiB\n'
     path.with_name('APK-SIZE.txt').write_text(report)
     print(report, end='')
+    print('::notice title=Actual APK file size::' + report.strip())
     summary = os.environ.get('GITHUB_STEP_SUMMARY')
     if summary:
         with open(summary, 'a') as output:

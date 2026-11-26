@@ -42,6 +42,7 @@ internal fun TextCommandPanel(
     val currentCommand by rememberUpdatedState(onCommand)
     var command by rememberSaveable { mutableStateOf("") }
     var preferOnDevice by rememberSaveable { mutableStateOf(false) }
+    var preferOffline by rememberSaveable { mutableStateOf(false) }
     // These survive rotation/process recreation while the provider's activity is in front.
     var awaitingActivityResult by rememberSaveable { mutableStateOf(false) }
     var pendingPermission by rememberSaveable { mutableStateOf(false) }
@@ -93,7 +94,7 @@ internal fun TextCommandPanel(
                 awaitingActivityResult = true
                 message = "بانتظار نتيجة واجهة الهاتف… ألغِ التسجيل بزر الرجوع في واجهتها إذا أردت."
                 try {
-                    activityLauncher.launch(VoiceRecognitionIntentFactory.create())
+                    activityLauncher.launch(VoiceRecognitionIntentFactory.create(preferOffline))
                 } catch (_: ActivityNotFoundException) {
                     awaitingActivityResult = false
                     message = "لا يوجد تطبيق يفتح واجهة التعرف. تحقق من تفعيل Google/خدمة الهاتف أو استخدم الكتابة."
@@ -163,7 +164,13 @@ internal fun TextCommandPanel(
         Column(Modifier.fillMaxWidth().padding(22.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Text("مساعدك المالي الصوتي", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
             Text("الصوت عبر خدمة هاتفك", color = FinanceColors.Accent)
-            Text("واجهة الهاتف هي المسار الافتراضي، ومنها Google عند توفرها. لا نموذج صوتي داخل التطبيق. نطلب العمل دون اتصال، لكن هذا ليس ضماناً من مزود الخدمة؛ تحقق بوضع الطيران وإيقاف Wi-Fi.", color = FinanceColors.TextSecondary)
+            Text("واجهة الهاتف بالإعداد القديم الناجح هي المسار الافتراضي، ومنها Google عند توفرها. لا نموذج صوتي داخل التطبيق. المزود قد يستخدم الإنترنت وفق إعداداته؛ تحقق من العمل المحلي بوضع الطيران وإيقاف Wi-Fi.", color = FinanceColors.TextSecondary)
+            FilterChip(
+                selected = preferOffline,
+                enabled = enabled && !busy,
+                onClick = { preferOffline = !preferOffline },
+                label = { Text("تفضيل عدم الاتصال لواجهة الهاتف (اختياري)") }
+            )
             if (capabilities.sdk >= 31 && capabilities.onDeviceAvailable) {
                 FilterChip(
                     selected = preferOnDevice,
