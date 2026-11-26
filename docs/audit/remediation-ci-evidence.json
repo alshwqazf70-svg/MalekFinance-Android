@@ -1,0 +1,124 @@
+{
+  "headSha": "7f86902c082c13a9fc78851b3f6799e2efb33ec3",
+  "status": "completed",
+  "conclusion": "success",
+  "url": "https://github.com/alshwqazf70-svg/MalekFinance-Android/actions/runs/45827600936",
+  "jobId": 139935663474,
+  "steps": [
+    {
+      "name": "Set up job",
+      "conclusion": "success"
+    },
+    {
+      "name": "Checkout",
+      "conclusion": "success"
+    },
+    {
+      "name": "Enforce no-emulator policy",
+      "conclusion": "success"
+    },
+    {
+      "name": "Verify draft wiring, status-only SQL and migration contracts",
+      "conclusion": "success"
+    },
+    {
+      "name": "Set up JDK 17",
+      "conclusion": "success"
+    },
+    {
+      "name": "Set up Gradle",
+      "conclusion": "success"
+    },
+    {
+      "name": "Set up Android SDK",
+      "conclusion": "success"
+    },
+    {
+      "name": "Install Android platform",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run unit tests",
+      "conclusion": "success"
+    },
+    {
+      "name": "Summarize JVM test results",
+      "conclusion": "success"
+    },
+    {
+      "name": "Build debug APK",
+      "conclusion": "success"
+    },
+    {
+      "name": "Record actual APK size and verify under 30 MB",
+      "conclusion": "success"
+    },
+    {
+      "name": "Record APK checksum and test build identity",
+      "conclusion": "success"
+    },
+    {
+      "name": "Upload APK artifact",
+      "conclusion": "success"
+    },
+    {
+      "name": "Prepare protected release signing key",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Build signed release APK",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Record signed release APK size",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Upload signed release APK",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Compile instrumentation tests",
+      "conclusion": "success"
+    },
+    {
+      "name": "Run Android lint",
+      "conclusion": "success"
+    },
+    {
+      "name": "Upload verification reports",
+      "conclusion": "success"
+    },
+    {
+      "name": "Expose failure diagnostics in check annotations",
+      "conclusion": "skipped"
+    },
+    {
+      "name": "Post Set up Gradle",
+      "conclusion": "success"
+    },
+    {
+      "name": "Post Set up JDK 17",
+      "conclusion": "success"
+    },
+    {
+      "name": "Post Checkout",
+      "conclusion": "success"
+    },
+    {
+      "name": "Complete job",
+      "conclusion": "success"
+    }
+  ],
+  "notices": [
+    {
+      "title": "Actual APK file size",
+      "message": "app-debug.apk: 18402429 bytes = 18.402429 MB = 17.549924 MiB"
+    },
+    {
+      "title": "Actual JVM test results",
+      "message": "198 JVM test cases: 198 passed, 0 failed, 0 errors, 0 skipped (21 XML reports)"
+    }
+  ],
+  "apkArtifactUrl": "https://github.com/alshwqazf70-svg/MalekFinance-Android/actions/runs/45827600936/artifacts/15121080741"
+}

@@ -1,0 +1,12 @@
+PASS review UI wiring: VoiceBillDraftCard
+PASS review UI wiring: VoiceSavingsDraftCard
+PASS shared draft reset covers all mutation/cancellation commands but not queries or correction
+PASS no guessed repayment default; transfer/money helpers and lifecycle-aware clock are wired
+PASS migration SQL through v12 (reopen checkpoint v1), 15 entity column/affinity comparisons and unique occurrence checks; NOT Room
+PASS migration SQL through v12 (reopen checkpoint v6), 15 entity column/affinity comparisons and unique occurrence checks; NOT Room
+PASS migration SQL through v12 (reopen checkpoint v10), 15 entity column/affinity comparisons and unique occurrence checks; NOT Room
+PASS production status-only SQL preserves advanced due date: bills
+PASS production status-only SQL preserves advanced due date: recurring_income_rules
+PASS production status-only SQL preserves advanced due date: recurring_expense_rules
+PASS deep remediation contracts; device UI and actual concurrent Room validation remain separate
+PASS: workflow source contains no Android virtual-device setup or launch commands
